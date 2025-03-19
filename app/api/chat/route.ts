@@ -239,7 +239,7 @@ async function summarizeDeal(params: any, userId: string) {
   };
 }
 
-export const POST = async (req: Request) => {
+export async function POST(req: Request) {
   const { messages } = await req.json();
 
   let userId: string | undefined;
@@ -378,4 +378,4 @@ export const POST = async (req: Request) => {
       }
     );
   }
-};
+}
