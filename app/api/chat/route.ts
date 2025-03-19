@@ -1,6 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 import { streamText } from "ai";
-import type { Tool } from "ai";
+import type { ToolSet } from "ai";
 import {
   getGoogleCalendarToken,
   getGoogleContactsToken,
@@ -91,18 +91,14 @@ const functions = [
   },
 ];
 
-// Create properly typed tools
-const toolsArray = functions.map((fn) => ({
-  type: "function" as const,
-  function: fn,
-  parameters: fn.parameters,
-  description: fn.description,
-}));
-
-// Convert to a ToolSet object with string keys
-const toolSet = Object.fromEntries(
-  toolsArray.map((tool, index) => [`tool-${index}`, tool])
-);
+// Convert the function definitions to the correct ToolSet format
+const toolSet: ToolSet = {};
+for (const fn of functions) {
+  toolSet[fn.name] = {
+    type: "function",
+    function: fn,
+  };
+}
 
 // Mock function implementations with OAuth token retrieval
 async function getCRMData(params: any, userId: string) {
@@ -240,34 +236,44 @@ async function summarizeDeal(params: any, userId: string) {
 }
 
 export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  let userId: string | undefined;
   try {
-    const { messages } = await req.json();
-
-    // Get the user's session
     const userSession = await session();
-    const userId = userSession?.token?.sub;
-
+    userId = userSession?.token?.sub;
     console.log(
       "Processing chat request, authenticated user:",
       userId ? "Yes" : "No"
     );
+  } catch (error) {
+    console.warn("Session retrieval error:", error);
+    // Continue with userId undefined - functions will use fallback data
+  }
 
-    // Function to handle tool function calls
-    const handleFunctionCall = async (name: string, args: any) => {
-      console.log(`Calling function: ${name} with args:`, args);
+  console.log(
+    "Processing chat request, authenticated user:",
+    userId ? "Yes" : "No"
+  );
 
-      if (
-        [
-          "getCRMData",
-          "scheduleMeeting",
-          "createZoomMeeting",
-          "summarizeDeal",
-        ].includes(name) &&
-        !userId
-      ) {
-        throw new Error("Authentication required for this action");
-      }
+  // Function to handle tool function calls
+  const handleFunctionCall = async (name: string, args: any) => {
+    console.log(`Calling function: ${name} with args:`, args);
 
+    if (
+      [
+        "getCRMData",
+        "scheduleMeeting",
+        "createZoomMeeting",
+        "summarizeDeal",
+      ].includes(name) &&
+      !userId
+    ) {
+      console.error("Authentication required but user not authenticated");
+      return { error: "Authentication required for this action" };
+    }
+
+    try {
       switch (name) {
         case "getCRMData":
           return await getCRMData(args, userId!);
@@ -278,87 +284,89 @@ export async function POST(req: Request) {
         case "summarizeDeal":
           return await summarizeDeal(args, userId!);
         default:
-          throw new Error(`Unknown function: ${name}`);
+          console.error(`Unknown function: ${name}`);
+          return { error: `Unknown function: ${name}` };
       }
-    };
+    } catch (error) {
+      console.error(`Error executing function ${name}:`, error);
+      return {
+        error: `Error executing ${name}`,
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
 
-    // Check the last message to see if it might need tools
-    const lastMessage = messages[messages.length - 1];
-    const mightNeedTools =
-      lastMessage &&
-      lastMessage.role === "user" &&
-      (lastMessage.content.toLowerCase().includes("schedule") ||
-        lastMessage.content.toLowerCase().includes("meeting") ||
-        lastMessage.content.toLowerCase().includes("customer") ||
-        lastMessage.content.toLowerCase().includes("crm") ||
-        lastMessage.content.toLowerCase().includes("zoom") ||
-        lastMessage.content.toLowerCase().includes("deal") ||
-        lastMessage.content.toLowerCase().includes("summary") ||
-        lastMessage.content.toLowerCase().includes("look up") ||
-        lastMessage.content.toLowerCase().includes("calendar") ||
-        lastMessage.content.toLowerCase().includes("tools") ||
-        lastMessage.content.toLowerCase().includes("google docs"));
+  // Check the last message to see if it might need tools
+  const lastMessage =
+    messages.length > 0 ? messages[messages.length - 1] : null;
+  const mightNeedTools =
+    !!lastMessage &&
+    lastMessage.role === "user" &&
+    [
+      "schedule",
+      "meeting",
+      "customer",
+      "crm",
+      "zoom",
+      "deal",
+      "summary",
+      "look up",
+      "calendar",
+      "tools",
+      "google docs",
+    ].some((keyword) => lastMessage.content.toLowerCase().includes(keyword));
 
-    // Create the stream with or without tools based on message content
-    console.log(
-      "Message might need tools:",
-      mightNeedTools,
-      lastMessage?.content
-    );
+  // Create the stream with or without tools based on message content
+  console.log(
+    "Message might need tools:",
+    mightNeedTools,
+    lastMessage?.content
+  );
 
-    const result = streamText({
+  let streamOptions;
+  if (mightNeedTools) {
+    streamOptions = {
       model: openai("gpt-3.5-turbo"),
       messages,
       tools: toolSet,
       toolChoice: "auto",
-      async onToolCall({ toolCalls }) {
-        const calls = await toolCalls;
-        if (!calls || calls.length === 0) {
-          return [];
+      async onToolCall(toolCall) {
+        const { name, arguments: args } = toolCall;
+        console.log(`Tool called: ${name} with args:`, args);
+
+        try {
+          const result = await handleFunctionCall(name, args);
+          return { output: JSON.stringify(result) };
+        } catch (error) {
+          console.error(`Error in tool call ${name}:`, error);
+          return {
+            output: JSON.stringify({
+              error: `Error executing ${name}`,
+              details: error instanceof Error ? error.message : String(error),
+            }),
+          };
         }
-
-        const results: {
-          role: "tool";
-          name: string;
-          tool_call_id: string;
-          content: string;
-        }[] = [];
-
-        for (const toolCall of calls) {
-          if (toolCall.type === "function") {
-            try {
-              const { name, arguments: args } = toolCall.function;
-              const fnResult = await handleFunctionCall(name, args);
-              results.push({
-                role: "tool",
-                name,
-                tool_call_id: toolCall.id,
-                content: JSON.stringify(fnResult),
-              });
-            } catch (error) {
-              const errMsg =
-                error instanceof Error ? error.message : "An error occurred";
-              results.push({
-                role: "tool",
-                name: toolCall.function.name,
-                tool_call_id: toolCall.id,
-                content: JSON.stringify({ error: errMsg }),
-              });
-            }
-          }
-        }
-
-        return results;
       },
-    });
+    };
+  } else {
+    streamOptions = {
+      model: openai("gpt-3.5-turbo"),
+      messages,
+    };
+  }
 
+  try {
+    const result = streamText(streamOptions);
     return result.toDataStreamResponse();
-  } catch (error) {
-    console.error("Error in chat API:", error);
+  } catch (streamError) {
+    console.error("Error in stream creation:", streamError);
     return new Response(
       JSON.stringify({
-        error: "Internal server error",
-        details: error instanceof Error ? error.message : String(error),
+        error: "Stream creation failed",
+        details:
+          streamError instanceof Error
+            ? streamError.message
+            : String(streamError),
       }),
       {
         status: 500,
