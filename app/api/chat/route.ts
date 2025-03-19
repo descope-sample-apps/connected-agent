@@ -91,14 +91,18 @@ const functions = [
   },
 ];
 
-// Convert the function definitions to the correct ToolSet format
-const toolSet: ToolSet = {};
-for (const fn of functions) {
-  toolSet[fn.name] = {
-    type: "function",
-    function: fn,
-  };
-}
+// Convert to a ToolSet object with string keys
+const toolSet: ToolSet = Object.fromEntries(
+  functions.map((fn) => [
+    fn.name,
+    {
+      type: "function" as const,
+      function: fn,
+      parameters: fn.parameters,
+      description: fn.description,
+    },
+  ])
+);
 
 // Mock function implementations with OAuth token retrieval
 async function getCRMData(params: any, userId: string) {
