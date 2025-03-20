@@ -44,6 +44,12 @@ import SaveChatDialog from "@/components/save-chat-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { useToast } from "@/components/ui/use-toast";
 
+type PromptType =
+  | "crm-lookup"
+  | "schedule-meeting"
+  | "create-zoom"
+  | "summarize-deal";
+
 const promptExplanations = {
   "crm-lookup": {
     title: "CRM Customer Lookup",
@@ -185,7 +191,7 @@ export default function Home() {
   } | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [currentPromptType, setCurrentPromptType] =
-    useState<string>("crm-lookup");
+    useState<PromptType>("crm-lookup");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
@@ -393,7 +399,7 @@ export default function Home() {
 
       setHasActivePrompt(true);
       setShowPromptExplanation(true);
-      setCurrentPromptType(promptType);
+      setCurrentPromptType(promptType as PromptType);
 
       const enhancedPrompt = `${promptText} (Please use tools to respond to this query)`;
       console.log("Submitting predefined prompt:", enhancedPrompt);
