@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useChat } from "ai/react";
+import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -46,7 +46,6 @@ import { useToast } from "@/components/ui/use-toast";
 
 export default function Home() {
   const { isAuthenticated, isLoading, setShowAuthModal } = useAuth();
-  const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showZoomPrompt, setShowZoomPrompt] = useState(false);
   const [showProfileScreen, setShowProfileScreen] = useState(false);
@@ -66,7 +65,8 @@ export default function Home() {
 
   const {
     messages,
-    setInput: setChatInput,
+    input,
+    handleInputChange,
     handleSubmit: chatHandleSubmit,
     isLoading: isChatLoading,
     error,
@@ -102,6 +102,8 @@ export default function Home() {
           : "Failed to get a response. Please try again.",
         variant: "destructive",
       });
+
+      setHasActivePrompt(false);
     },
     onFinish: (message) => {
       console.log("Chat finished with message:", message);
@@ -109,9 +111,18 @@ export default function Home() {
         messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
       }
 
+      // Reset active prompt state when a message completes
+      setHasActivePrompt(false);
+      setShowPromptExplanation(false);
+
       if (
-        message.content.includes("meeting") &&
-        message.content.includes("scheduled")
+        message.parts &&
+        message.parts.some(
+          (part) =>
+            part.type === "text" &&
+            part.text.includes("meeting") &&
+            part.text.includes("scheduled")
+        )
       ) {
         const meetingDetails = {
           title: "Follow-up Meeting",
@@ -145,21 +156,16 @@ export default function Home() {
     }
   }, [error, toast]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-    setChatInput(e.target.value);
-  };
-
   const handleCreateZoomMeeting = () => {
-    setChatInput("Create a Zoom meeting for my recently scheduled meeting");
-    setTimeout(() => {
-      const form = document.getElementById("chat-form") as HTMLFormElement;
-      form.requestSubmit();
-    }, 100);
+    chatHandleSubmit(new Event("submit") as any, {
+      data: { fromQuickAction: true },
+    });
   };
 
   const generateDefaultTitle = useCallback(() => {
-    const firstUserMessage = messages.find((m) => m.role === "user")?.content;
+    const firstUserMessage = messages
+      .find((m) => m.role === "user")
+      ?.parts.find((p) => p.type === "text")?.text;
     let title = "";
 
     if (firstUserMessage) {
@@ -248,21 +254,7 @@ export default function Home() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (input.trim()) {
-      // Only show prompt explanation for specific action triggers, not regular input
-      const shouldShowPromptExplanation = actionTriggers.some((trigger) =>
-        input.toLowerCase().includes(trigger)
-      );
-
-      // If this is a regular message (not a trigger), make sure we're not showing the prompt details
-      if (!shouldShowPromptExplanation) {
-        setShowPromptExplanation(false);
-      }
-
-      // Submit the chat form
-      chatHandleSubmit(e);
-      setInput("");
-    }
+    chatHandleSubmit(e);
   };
 
   const usePredefinedPrompt = useCallback(
@@ -278,23 +270,11 @@ export default function Home() {
       const enhancedPrompt = `${promptText} (Please use tools to respond to this query)`;
       console.log("Submitting predefined prompt:", enhancedPrompt);
 
-      setChatInput(enhancedPrompt);
-
-      setTimeout(() => {
-        const form = document.getElementById("chat-form") as HTMLFormElement;
-        if (form) {
-          console.log("Submitting form with predefined prompt");
-          form.requestSubmit();
-        } else {
-          console.error("Chat form not found");
-          const fakeEvent = {
-            preventDefault: () => {},
-          } as React.FormEvent<HTMLFormElement>;
-          chatHandleSubmit(fakeEvent);
-        }
-      }, 100);
+      chatHandleSubmit(new Event("submit") as any, {
+        data: { fromQuickAction: true },
+      });
     },
-    [isAuthenticated, setChatInput, setShowAuthModal, chatHandleSubmit]
+    [isAuthenticated, setShowAuthModal, chatHandleSubmit]
   );
 
   const checkOAuthAndPrompt = useCallback(
@@ -379,24 +359,10 @@ export default function Home() {
   const handleQuickActionSchedule = () => {
     const prompt =
       "Schedule a follow-up meeting with the Acme Corp team for next Tuesday at 2pm for 60 minutes.";
-    setInput(prompt);
-    setChatInput(prompt);
-
     chatHandleSubmit(new Event("submit") as any, {
       data: { fromQuickAction: true },
     });
-
-    setInput("");
   };
-
-  // This function should be defined near the other state hooks
-  // Make sure this list matches your action triggers
-  const actionTriggers = [
-    "schedule meeting",
-    "crm data",
-    "zoom meeting",
-    "summarize deal",
-  ];
 
   if (isLoading) {
     return (
@@ -508,15 +474,9 @@ export default function Home() {
                       <div className="flex gap-4">
                         <Button
                           onClick={() => {
-                            setChatInput(
-                              "Hello, I'm new here. What can you help me with?"
-                            );
-                            setTimeout(() => {
-                              const form = document.getElementById(
-                                "chat-form"
-                              ) as HTMLFormElement;
-                              form.requestSubmit();
-                            }, 100);
+                            chatHandleSubmit(new Event("submit") as any, {
+                              data: { fromQuickAction: true },
+                            });
                           }}
                           className="px-6"
                         >
@@ -525,15 +485,9 @@ export default function Home() {
                         <Button
                           variant="outline"
                           onClick={() => {
-                            setChatInput(
-                              "Show me some examples of what you can do"
-                            );
-                            setTimeout(() => {
-                              const form = document.getElementById(
-                                "chat-form"
-                              ) as HTMLFormElement;
-                              form.requestSubmit();
-                            }, 100);
+                            chatHandleSubmit(new Event("submit") as any, {
+                              data: { fromQuickAction: true },
+                            });
                           }}
                           className="px-6"
                         >

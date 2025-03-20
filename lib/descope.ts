@@ -14,7 +14,6 @@ export async function getOAuthToken(
   userId: string,
   appId: string,
   scopes: string[]
-  //   options: TokenOptions = { withRefreshToken: true, forceRefresh: false }
 ) {
   console.log(`getOAuthToken called for userId: ${userId}, appId: ${appId}`);
 
@@ -23,36 +22,34 @@ export async function getOAuthToken(
 
   if (!managementKey || !projectId) {
     console.error("Missing Descope credentials");
-    throw new Error("Missing Descope credentials");
+    return null; // Return null instead of throwing an error
   }
 
-  const response = await fetch(
-    "https://api.descope.com/v1/mgmt/outbound/app/user/token",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${projectId}:${managementKey}`,
-      },
-      body: JSON.stringify({
-        appId,
-        userId,
-        scopes,
-        // options,
-      }),
-    }
-  );
-
-  console.log("Response:", response);
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(
-      `Failed to get OAuth token: ${errorData.message || response.statusText}`
+  try {
+    const response = await fetch(
+      "https://api.descope.com/v1/mgmt/outbound/app/user/token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${projectId}:${managementKey}`,
+        },
+        body: JSON.stringify({ appId, userId, scopes }),
+      }
     );
-  }
 
-  return response.json();
+    if (!response.ok) {
+      console.error(
+        `Failed to get OAuth token for ${appId}: ${response.statusText}`
+      );
+      return null; // Return null to indicate failure
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching OAuth token:", error);
+    return null; // Return null to indicate failure
+  }
 }
 
 /**
@@ -65,8 +62,15 @@ export async function getGoogleCalendarToken(userId: string) {
   ]);
 }
 
-export async function getGoogleContactsToken(userId: string) {
-  return getOAuthToken(userId, "google-contacts", [
+export async function getGoogleDocsToken(userId: string) {
+  return getOAuthToken(userId, "google-docs", [
+    "https://www.googleapis.com/auth/documents",
+  ]);
+}
+
+export async function getCRMToken(userId: string) {
+  // Inbound app demo project
+  return getOAuthToken(userId, "custom-crm", [
     "https://www.googleapis.com/auth/contacts.readonly",
   ]);
 }

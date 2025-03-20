@@ -79,8 +79,8 @@ export default function ProfileScreen({
       connected: false,
     },
     {
-      id: "google-contacts",
-      name: "Google Contacts",
+      id: "google-docs",
+      name: "Google docs",
       icon: "/google.svg",
       connected: false,
     },
@@ -156,49 +156,33 @@ export default function ProfileScreen({
     },
   ]);
 
-  // In a real app, fetch the user's OAuth connections from Descope
+  // Update the useEffect hook to fetch connection status
   useEffect(() => {
-    const fetchOAuthConnections = async () => {
+    const fetchConnectionStatus = async () => {
       if (!user) return;
 
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        // This would be a real API call to get the user's OAuth connections
-        // For demo purposes, we'll simulate a response after a delay
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const response = await fetch("/api/connections");
+        if (!response.ok) throw new Error("Failed to fetch connections");
 
-        // Simulate some connected providers
-        setOauthProviders((prev) =>
-          prev.map((provider) => {
-            if (provider.id === "google-calendar") {
-              return {
-                ...provider,
-                connected: true,
-                email: user.email,
-                lastSync: "2 hours ago",
-                scopes: ["calendar.events", "calendar.readonly"],
-              };
-            }
-            if (provider.id === "zoom") {
-              return {
-                ...provider,
-                connected: true,
-                email: user.email,
-                lastSync: "1 day ago",
-                scopes: ["meeting:write", "meeting:read"],
-              };
-            }
-            return provider;
-          })
+        const data = await response.json();
+
+        // Update the providers list with real connection status
+        setOauthProviders((prevProviders) =>
+          prevProviders.map((provider) => ({
+            ...provider,
+            connected: data.connections[provider.id] || false,
+          }))
         );
       } catch (error) {
-        console.error("Error fetching OAuth connections:", error);
+        console.error("Error fetching connection status:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchOAuthConnections();
+    fetchConnectionStatus();
   }, [user]);
 
   if (!user) return null;
@@ -395,90 +379,64 @@ export default function ProfileScreen({
               {oauthProviders.map((provider) => (
                 <div
                   key={provider.id}
-                  className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0"
+                  className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-gray-800 last:border-0"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                      {/* In a real app, you'd use actual icons */}
-                      <span className="font-bold text-sm">
-                        {provider.name.charAt(0)}
-                      </span>
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 mr-3 flex-shrink-0">
+                      <img
+                        src={provider.icon}
+                        alt={provider.name}
+                        className="w-full h-full"
+                      />
                     </div>
-
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium">{provider.name}</h3>
-                        {provider.connected && (
+                      <h3 className="font-medium">{provider.name}</h3>
+                      <div className="flex items-center mt-1">
+                        {provider.connected ? (
+                          <>
+                            <Badge
+                              variant="default"
+                              className="mr-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                            >
+                              Connected
+                            </Badge>
+                            {provider.email && (
+                              <span className="text-xs text-muted-foreground">
+                                {provider.email}
+                              </span>
+                            )}
+                          </>
+                        ) : (
                           <Badge
                             variant="outline"
-                            className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 border-green-200 dark:border-green-800"
+                            className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
                           >
-                            <Check className="mr-1 h-3 w-3" /> Connected
+                            Not connected
                           </Badge>
                         )}
                       </div>
-
-                      {provider.connected ? (
-                        <>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {provider.email}
-                          </p>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {provider.scopes?.map((scope) => (
-                              <Badge
-                                key={scope}
-                                variant="secondary"
-                                className="text-xs"
-                              >
-                                {scope}
-                              </Badge>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-4 mt-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => refreshConnection(provider.id)}
-                              disabled={isLoading}
-                            >
-                              <RefreshCw className="mr-1 h-3 w-3" />
-                              Refresh
-                            </Button>
-                            <p className="text-xs text-muted-foreground">
-                              Last synced: {provider.lastSync}
-                            </p>
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Connect to access {provider.name} features
-                        </p>
-                      )}
                     </div>
                   </div>
-
-                  <Button
-                    variant={provider.connected ? "outline" : "default"}
-                    size="sm"
-                    onClick={() => toggleConnection(provider.id)}
-                    disabled={isLoading}
-                    className={
-                      provider.connected
-                        ? "text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 border-red-200 dark:border-red-800"
-                        : ""
-                    }
-                  >
+                  <div>
                     {provider.connected ? (
-                      <>
-                        <X className="mr-1 h-4 w-4" /> Disconnect
-                      </>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleConnection(provider.id)}
+                        className="mr-2"
+                      >
+                        Disconnect
+                      </Button>
                     ) : (
-                      <>
-                        <ExternalLink className="mr-1 h-4 w-4" /> Connect
-                      </>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => toggleConnection(provider.id)}
+                      >
+                        Connect
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </div>
               ))}
             </CardContent>
