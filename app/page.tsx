@@ -44,6 +44,131 @@ import SaveChatDialog from "@/components/save-chat-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { useToast } from "@/components/ui/use-toast";
 
+const promptExplanations = {
+  "crm-lookup": {
+    title: "CRM Customer Lookup",
+    description:
+      "Access customer information and deal history from your CRM system using secure OAuth connections",
+    steps: [
+      {
+        title: "User Requests Customer Information",
+        description:
+          "The user asks for information about a specific customer or deal from the CRM system.",
+      },
+      {
+        title: "Authentication Check",
+        description:
+          "The assistant verifies the user is authenticated and has connected their CRM via OAuth.",
+      },
+      {
+        title: "Custom CRM API Access",
+        description:
+          "Using the stored OAuth token from Descope, the assistant makes a secure API call to the CRM system to retrieve the requested information.",
+      },
+      {
+        title: "Data Presentation",
+        description:
+          "The retrieved customer details, deal history, and relevant metrics are formatted and presented to the user in a clear, structured way.",
+      },
+    ],
+    apis: ["Custom CRM API", "Descope OAuth"],
+  },
+  "schedule-meeting": {
+    title: "Schedule Calendar Meeting",
+    description:
+      "Create calendar events with contacts from your CRM using your Google Calendar",
+    steps: [
+      {
+        title: "User Requests Meeting Scheduling",
+        description:
+          "The user asks to schedule a meeting with specific contacts, often following a CRM lookup.",
+      },
+      {
+        title: "Contact Information Retrieval",
+        description:
+          "The assistant uses previously retrieved CRM data to identify the relevant contact information for meeting attendees.",
+      },
+      {
+        title: "Calendar Authorization",
+        description:
+          "The assistant accesses your Google Calendar through a secure OAuth connection established in your profile settings.",
+      },
+      {
+        title: "Event Creation",
+        description:
+          "A calendar event is created with the specified attendees, date, time, and duration, with invites automatically sent to all participants.",
+      },
+    ],
+    apis: ["Google Calendar API", "Google OAuth", "Custom CRM API"],
+  },
+  "create-zoom": {
+    title: "Create Zoom Meeting",
+    description:
+      "Generate Zoom video conference links for scheduled calendar events",
+    steps: [
+      {
+        title: "Meeting Enhancement Request",
+        description:
+          "After scheduling a calendar event, the user requests to add a Zoom meeting link to the event.",
+      },
+      {
+        title: "Calendar Event Identification",
+        description:
+          "The assistant identifies the relevant calendar event that needs a Zoom meeting link.",
+      },
+      {
+        title: "Zoom API Authorization",
+        description:
+          "Using the Zoom OAuth token stored securely in your profile, the assistant connects to your Zoom account.",
+      },
+      {
+        title: "Zoom Meeting Creation",
+        description:
+          "A new Zoom meeting is created with appropriate settings, generating a meeting URL, ID, and password.",
+      },
+      {
+        title: "Calendar Event Update",
+        description:
+          "The calendar event is updated to include the Zoom meeting details, making them available to all attendees.",
+      },
+    ],
+    apis: ["Zoom API", "Zoom OAuth", "Google Calendar API"],
+  },
+  "summarize-deal": {
+    title: "Summarize Deal to Google Docs",
+    description:
+      "Create comprehensive deal summaries and save them directly to Google Docs for sharing and collaboration",
+    steps: [
+      {
+        title: "Deal Summary Request",
+        description:
+          "The user requests a summary of a specific deal, including status, action items, and key information.",
+      },
+      {
+        title: "CRM Data Collection",
+        description:
+          "The assistant gathers all relevant information about the deal from your CRM system using your stored OAuth credentials.",
+      },
+      {
+        title: "Summary Generation",
+        description:
+          "An AI-generated summary is created, highlighting key deal metrics, status updates, next steps, and action items.",
+      },
+      {
+        title: "Google Docs Authentication",
+        description:
+          "The assistant connects to your Google Docs account using the OAuth token stored in your profile settings.",
+      },
+      {
+        title: "Document Creation and Sharing",
+        description:
+          "A new Google Doc is created with the summarized information, formatted professionally, and ready to be shared with team members.",
+      },
+    ],
+    apis: ["Google Docs API", "Google OAuth", "Custom CRM API"],
+  },
+};
+
 export default function Home() {
   const { isAuthenticated, isLoading, setShowAuthModal } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -59,6 +184,8 @@ export default function Home() {
     time: string;
   } | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [currentPromptType, setCurrentPromptType] =
+    useState<string>("crm-lookup");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
@@ -258,7 +385,7 @@ export default function Home() {
   };
 
   const usePredefinedPrompt = useCallback(
-    (promptText: string) => {
+    (promptText: string, promptType: string) => {
       if (!isAuthenticated) {
         setShowAuthModal(true);
         return;
@@ -266,6 +393,7 @@ export default function Home() {
 
       setHasActivePrompt(true);
       setShowPromptExplanation(true);
+      setCurrentPromptType(promptType);
 
       const enhancedPrompt = `${promptText} (Please use tools to respond to this query)`;
       console.log("Submitting predefined prompt:", enhancedPrompt);
@@ -320,7 +448,8 @@ export default function Home() {
       action: () =>
         checkOAuthAndPrompt(() =>
           usePredefinedPrompt(
-            "I need to look up customer information in the CRM"
+            "I need to look up customer information in the CRM",
+            "crm-lookup"
           )
         ),
     },
@@ -331,7 +460,8 @@ export default function Home() {
       icon: <Calendar className="h-5 w-5" />,
       action: () =>
         usePredefinedPrompt(
-          "I need to schedule a meeting with the contacts from my last CRM lookup"
+          "I need to schedule a meeting with the contacts from my last CRM lookup",
+          "schedule-meeting"
         ),
     },
     {
@@ -341,7 +471,8 @@ export default function Home() {
       icon: <Video className="h-5 w-5" />,
       action: () =>
         usePredefinedPrompt(
-          "Create a Zoom meeting for my next scheduled meeting"
+          "Create a Zoom meeting for my next scheduled meeting",
+          "create-zoom"
         ),
     },
     {
@@ -351,7 +482,8 @@ export default function Home() {
       icon: <FileText className="h-5 w-5" />,
       action: () =>
         usePredefinedPrompt(
-          "Summarize the current deal status and save it to Google Docs"
+          "Summarize the current deal status and save it to Google Docs",
+          "summarize-deal"
         ),
     },
   ];
@@ -593,31 +725,12 @@ export default function Home() {
                   {showPromptExplanation && hasActivePrompt ? (
                     <div className="animate-in slide-in-from-right duration-300">
                       <PromptExplanation
-                        title="Show me upcoming events"
-                        description="Call APIs on users' behalf to retrieve calendar events and check availability"
-                        steps={[
-                          {
-                            title: "Users Requests Upcoming Events",
-                            description:
-                              "The user requests upcoming events for a specific company or time period.",
-                          },
-                          {
-                            title: "Displaying Events and Availability Check",
-                            description:
-                              "CRM Assistant handles the request and displays the list of upcoming events, offering to check calendar availability.",
-                          },
-                          {
-                            title: "Third-Party Service Authorization",
-                            description:
-                              "When the user requests calendar access, OAuth handles authorization to call the Google Calendar API.",
-                          },
-                          {
-                            title: "API Call on Behalf of User",
-                            description:
-                              "Once authorized, the app checks the user's Google Calendar availability, allowing users to add event reminders.",
-                          },
-                        ]}
-                        apis={["Google Calendar", "Google OAuth"]}
+                        title={promptExplanations[currentPromptType].title}
+                        description={
+                          promptExplanations[currentPromptType].description
+                        }
+                        steps={promptExplanations[currentPromptType].steps}
+                        apis={promptExplanations[currentPromptType].apis}
                         isVisible={true}
                         onToggle={togglePromptExplanation}
                       />
