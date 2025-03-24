@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/auth-context";
 import { AuthProvider as DescopeAuthProvider } from "@descope/nextjs-sdk";
+import { OAuthProvider } from "@/context/oauth-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -31,7 +32,9 @@ export default function RootLayout({
           <DescopeAuthProvider
             projectId={process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID!}
           >
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+              <OAuthProvider>{children}</OAuthProvider>
+            </AuthProvider>
           </DescopeAuthProvider>
         </ThemeProvider>
       </body>

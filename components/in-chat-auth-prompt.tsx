@@ -10,12 +10,15 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lock, ExternalLink } from "lucide-react";
+import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 
 interface InChatAuthPromptProps {
   service: string;
   description: string;
   onConnect: () => void;
   onCancel: () => void;
+  providerId: string;
+  scopes: string[];
 }
 
 export default function InChatAuthPrompt({
@@ -23,15 +26,48 @@ export default function InChatAuthPrompt({
   description,
   onConnect,
   onCancel,
+  providerId,
+  scopes,
 }: InChatAuthPromptProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConnect = async () => {
     setIsLoading(true);
     try {
-      await onConnect();
-    } finally {
+      // Get the current URL and preserve any existing query parameters
+      const currentUrl = new URL(window.location.href);
+      const searchParams = new URLSearchParams(currentUrl.search);
+
+      // Add OAuth success flag
+      searchParams.set("oauth", "success");
+
+      // Construct the redirect URL with preserved context
+      const redirectUrl = `${currentUrl.origin}${
+        currentUrl.pathname
+      }?${searchParams.toString()}`;
+
+      const url = await connectToOAuthProvider({
+        appId: providerId,
+        redirectUrl,
+        scopes,
+      });
+
+      // Use the OAuth popup handler
+      handleOAuthPopup(url, {
+        onSuccess: () => {
+          setIsLoading(false);
+          onConnect();
+        },
+        onError: (error) => {
+          console.error("Failed to connect to provider:", error);
+          setIsLoading(false);
+          alert(error.message || "Connection failed");
+        },
+      });
+    } catch (error) {
+      console.error("Failed to connect to provider:", error);
       setIsLoading(false);
+      alert(error instanceof Error ? error.message : "Connection failed");
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,67 +9,58 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/context/auth-context";
 import { Descope } from "@descope/nextjs-sdk";
-import { useRouter } from "next/navigation";
+import { VisuallyHidden } from "@/components/ui/visually-hidden";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function AuthModal() {
-  const { showAuthModal, setShowAuthModal, onSuccessfulAuth, isAuthenticated } =
-    useAuth();
+  const { showAuthModal, setShowAuthModal } = useAuth();
+  const [isReady, setIsReady] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // This effect will run when isAuthenticated changes
-  // It ensures the modal closes when auth succeeds after OAuth callback
+  // Check for any redirect parameters in URL
   useEffect(() => {
-    // If authentication state becomes true and the modal is shown, close it
-    if (isAuthenticated && showAuthModal) {
-      onSuccessfulAuth();
+    const hasRedirectParams =
+      searchParams.has("code") || searchParams.has("state");
+    if (hasRedirectParams) {
+      // If we have any redirect parameters, keep the modal open to handle the flow
+      setShowAuthModal(true);
     }
-  }, [isAuthenticated, showAuthModal, onSuccessfulAuth]);
+  }, [searchParams, setShowAuthModal]);
 
-  // This effect handles URL parameters that might indicate an OAuth callback
-  useEffect(() => {
-    // Check if we're returning from an OAuth redirect
-    if (typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search);
-      const hasAuthParams =
-        searchParams.has("code") ||
-        searchParams.has("state") ||
-        searchParams.has("session");
-
-      if (hasAuthParams) {
-        console.log("Detected OAuth callback parameters");
-        // Show the modal briefly to let Descope handle the callback
-        setShowAuthModal(true);
-
-        // After a short delay, check if authentication succeeded
-        const checkAuthTimer = setTimeout(() => {
-          if (isAuthenticated) {
-            onSuccessfulAuth();
-            // Clean up the URL
-            router.replace(window.location.pathname);
-          }
-        }, 1000);
-
-        return () => clearTimeout(checkAuthTimer);
-      }
-    }
-  }, [setShowAuthModal, isAuthenticated, onSuccessfulAuth, router]);
+  // Handle successful authentication
+  const handleSuccess = () => {
+    setShowAuthModal(false);
+    // Clean up the URL by removing any redirect parameters
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.delete("code");
+    currentUrl.searchParams.delete("state");
+    router.replace(currentUrl.pathname);
+  };
 
   return (
-    <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog
+      open={showAuthModal}
+      onOpenChange={(open) => {
+        // Only allow closing if we're not in the middle of any auth flow
+        const hasRedirectParams =
+          searchParams.has("code") || searchParams.has("state");
+        if (!open && !hasRedirectParams) {
+          setShowAuthModal(false);
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-center mb-2">
-            Welcome to CRM Assistant
-          </DialogTitle>
+          <VisuallyHidden>
+            <DialogTitle>Sign In</DialogTitle>
+          </VisuallyHidden>
         </DialogHeader>
-
-        <div className="py-4">
+        <div className="flex flex-col items-center justify-center p-6">
           <Descope
             flowId="sign-up-or-in"
-            onSuccess={onSuccessfulAuth}
-            onError={(e: any) => console.error("Auth error:", e)}
-            theme="light"
-            className="w-full"
+            onSuccess={handleSuccess}
+            onReady={() => setIsReady(true)}
           />
         </div>
       </DialogContent>

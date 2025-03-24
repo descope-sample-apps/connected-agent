@@ -188,6 +188,7 @@ export default function Home() {
     title: string;
     date: string;
     time: string;
+    calendarEventId: string;
   } | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [currentPromptType, setCurrentPromptType] =
@@ -203,6 +204,7 @@ export default function Home() {
     handleSubmit: chatHandleSubmit,
     isLoading: isChatLoading,
     error,
+    append,
   } = useChat({
     api: "/api/chat",
     onError: (error) => {
@@ -248,21 +250,30 @@ export default function Home() {
       setHasActivePrompt(false);
       setShowPromptExplanation(false);
 
-      if (
-        message.parts &&
-        message.parts.some(
-          (part) =>
-            part.type === "text" &&
-            part.text.includes("meeting") &&
-            part.text.includes("scheduled")
-        )
-      ) {
+      // Extract calendar event details from the assistant's response
+      const messageContent =
+        typeof message.content === "string" ? message.content : "";
+
+      // More robust pattern matching for meeting detection
+      const scheduledMatch = messageContent.match(
+        /scheduled|created|added|set up a meeting|calendar event/i
+      );
+      const titleMatch = messageContent.match(/"([^"]+)"/); // Extracts text in quotes as the title
+      const dateTimeMatch = messageContent.match(
+        /on\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})\s+at\s+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))/i
+      );
+
+      // Check if we have evidence of a meeting being scheduled
+      if (scheduledMatch && titleMatch && dateTimeMatch) {
         const meetingDetails = {
-          title: "Follow-up Meeting",
-          date: "April 10, 2025",
-          time: "2:00 PM",
+          title: titleMatch[1],
+          date: dateTimeMatch[1],
+          time: dateTimeMatch[2],
+          // We'll get this from the AI response in a real implementation
+          calendarEventId: "cal-event-456",
         };
 
+        console.log("Detected meeting:", meetingDetails);
         setLastScheduledMeeting(meetingDetails);
         setShowZoomPrompt(true);
       }
@@ -502,6 +513,50 @@ export default function Home() {
     });
   };
 
+  const [meetingDetails, setMeetingDetails] = useState({
+    title: "Follow-up Meeting",
+    date: "April 10, 2025",
+    time: "2:00 PM",
+    participants: [],
+  });
+
+  useEffect(() => {
+    // Monitor messages for meeting creation responses
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === "assistant") {
+      // Parse the message for meeting details using regex or other methods
+      const meetingTitleMatch =
+        lastMessage.content.match(/scheduled "([^"]+)"/);
+      const dateMatch = lastMessage.content.match(
+        /on ([\w\s,]+) at ([\d:]+\s?[AP]M)/i
+      );
+
+      if (meetingTitleMatch && dateMatch) {
+        setMeetingDetails({
+          title: meetingTitleMatch[1],
+          date: dateMatch[1],
+          time: dateMatch[2],
+          participants: [], // Extract participants if needed
+        });
+      }
+    }
+  }, [messages]);
+
+  const handleReconnectComplete = useCallback(() => {
+    // Resubmit the last user message to retry the operation with new token
+    if (messages.length > 1) {
+      const lastUserMessage = [...messages]
+        .reverse()
+        .find((m) => m.role === "user");
+      if (lastUserMessage) {
+        append({
+          role: "user",
+          content: lastUserMessage.content,
+        });
+      }
+    }
+  }, [messages, append]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -522,12 +577,17 @@ export default function Home() {
   return (
     <>
       <AuthModal />
-      <ZoomMeetingPrompt
-        isOpen={showZoomPrompt}
-        onClose={() => setShowZoomPrompt(false)}
-        onConfirm={handleCreateZoomMeeting}
-        meetingDetails={lastScheduledMeeting}
-      />
+      {showZoomPrompt && lastScheduledMeeting && (
+        <ZoomMeetingPrompt
+          isOpen={showZoomPrompt}
+          onClose={() => setShowZoomPrompt(false)}
+          onConfirm={handleCreateZoomMeeting}
+          meetingDetails={{
+            ...lastScheduledMeeting,
+            calendarEventId: "cal-event-456", // In a real app, this would come from the scheduling result
+          }}
+        />
+      )}
       <ShareChatDialog
         isOpen={showShareDialog}
         onClose={() => setShowShareDialog(false)}
@@ -568,9 +628,40 @@ export default function Home() {
               </div>
             )}
 
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <HelpCircle className="h-5 w-5" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-gray-700 dark:text-gray-300"
+                  >
+                    <HelpCircle className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[280px] p-4">
+                  <div className="space-y-2">
+                    <p className="font-medium">About this demo</p>
+                    <p className="text-sm text-muted-foreground">
+                      This sample app showcases OpenAI function calling with
+                      Descope outbound OAuth apps. AI functions can securely
+                      access your connected services using OAuth.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      For more information, visit{" "}
+                      <a
+                        href="https://docs.descope.com/outbound/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary underline hover:no-underline"
+                      >
+                        Descope docs
+                      </a>
+                    </p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Settings className="h-5 w-5" />
             </Button>
@@ -635,8 +726,12 @@ export default function Home() {
                     </div>
                   ) : (
                     <div className="space-y-6 pb-4">
-                      {messages.map((message) => (
-                        <ChatMessage key={message.id} message={message} />
+                      {messages.map((message, index) => (
+                        <ChatMessage
+                          key={index}
+                          message={message}
+                          onReconnectComplete={handleReconnectComplete}
+                        />
                       ))}
                       <div ref={messagesEndRef} />
                     </div>

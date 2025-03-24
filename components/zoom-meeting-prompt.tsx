@@ -21,6 +21,7 @@ interface ZoomMeetingPromptProps {
     title: string;
     date: string;
     time: string;
+    participants?: string[];
   } | null;
 }
 

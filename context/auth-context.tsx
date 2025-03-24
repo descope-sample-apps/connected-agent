@@ -3,6 +3,12 @@
 import { createContext, useContext, type ReactNode, useState } from "react";
 import { useSession, useUser, useDescope } from "@descope/nextjs-sdk/client";
 
+interface OAuthRedirectInfo {
+  provider: string;
+  scopes: string[];
+  redirectTo: "chat" | "profile";
+}
+
 type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -13,9 +19,10 @@ type AuthContextType = {
     picture?: string;
   } | null;
   showAuthModal: boolean;
-  setShowAuthModal: (show: boolean) => void;
+  setShowAuthModal: (show: boolean, redirectInfo?: OAuthRedirectInfo) => void;
   signOut: () => void;
   onSuccessfulAuth: () => void;
+  redirectInfo: OAuthRedirectInfo | null;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,6 +33,7 @@ const AuthContext = createContext<AuthContextType>({
   setShowAuthModal: () => {},
   signOut: () => {},
   onSuccessfulAuth: () => {},
+  redirectInfo: null,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -34,7 +42,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { isSessionLoading, isAuthenticated } = useSession();
   const { logout } = useDescope();
   const { user: descopeUser } = useUser();
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAuthModal, setShowAuthModalState] = useState(false);
+  const [redirectInfo, setRedirectInfo] = useState<OAuthRedirectInfo | null>(
+    null
+  );
 
   // Transform Descope user to our app's user format
   const transformedUser = descopeUser
@@ -52,8 +63,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     : null;
 
+  const setShowAuthModal = (show: boolean, info?: OAuthRedirectInfo) => {
+    setShowAuthModalState(show);
+    if (info) {
+      setRedirectInfo(info);
+    }
+  };
+
   const onSuccessfulAuth = () => {
-    setShowAuthModal(false);
+    setShowAuthModalState(false);
+    setRedirectInfo(null);
   };
 
   const signOut = () => {
@@ -70,6 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setShowAuthModal,
         signOut,
         onSuccessfulAuth,
+        redirectInfo,
       }}
     >
       {children}

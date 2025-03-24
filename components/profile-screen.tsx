@@ -39,6 +39,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { connectToOAuthProvider } from "@/lib/oauth-utils";
+import { handleOAuthPopup } from "@/lib/oauth-utils";
 
 interface OAuthProvider {
   id: string;
@@ -163,7 +165,7 @@ export default function ProfileScreen({
 
       setIsLoading(true);
       try {
-        const response = await fetch("/api/connections");
+        const response = await fetch("/api/oauth/connections");
         if (!response.ok) throw new Error("Failed to fetch connections");
 
         const data = await response.json();
@@ -193,11 +195,13 @@ export default function ProfileScreen({
     .join("")
     .toUpperCase();
 
-  const toggleConnection = (providerId: string) => {
+  const toggleConnection = async (providerId: string) => {
     setIsLoading(true);
+    console.log("Starting OAuth connection for provider:", providerId);
 
-    // In a real app, this would call Descope's OAuth flow
+    // If already connected, handle disconnection
     if (oauthProviders.find((p) => p.id === providerId)?.connected) {
+      console.log("Provider already connected, handling disconnection");
       // Disconnect flow
       setTimeout(() => {
         setOauthProviders((providers) =>
@@ -216,32 +220,90 @@ export default function ProfileScreen({
         setIsLoading(false);
       }, 1000);
     } else {
-      // Connect flow - in a real app, this would redirect to Descope's OAuth flow
-      // For demo purposes, we'll simulate a successful connection
-      window.open(
-        `/api/oauth/connect?provider=${providerId}`,
-        "_blank",
-        "width=600,height=700"
-      );
+      try {
+        // Get the current URL and preserve any existing query parameters
+        const currentUrl = new URL(window.location.href);
+        const searchParams = new URLSearchParams(currentUrl.search);
 
-      // Simulate successful connection after a delay
-      setTimeout(() => {
-        setOauthProviders((providers) =>
-          providers.map((provider) =>
-            provider.id === providerId
-              ? {
-                  ...provider,
-                  connected: true,
-                  email: user.email,
-                  lastSync: "Just now",
-                  scopes: ["basic"],
-                }
-              : provider
-          )
-        );
+        // Add OAuth success flag and redirectTo parameter
+        searchParams.set("oauth", "success");
+        searchParams.set("redirectTo", "profile");
+
+        // Construct the redirect URL with preserved context
+        const redirectUrl = `${currentUrl.origin}${
+          currentUrl.pathname
+        }?${searchParams.toString()}`;
+
+        console.log("Constructed redirect URL:", redirectUrl);
+        console.log("Provider scopes:", getDefaultScopes(providerId));
+
+        const url = await connectToOAuthProvider({
+          appId: providerId,
+          redirectUrl,
+          scopes: getDefaultScopes(providerId),
+        });
+
+        console.log("Received authorization URL:", url);
+
+        // Use the OAuth popup handler
+        handleOAuthPopup(url, {
+          onSuccess: () => {
+            // Notify our backend about the new connection
+            fetch("/api/oauth/store-connection", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                provider: providerId,
+                scopes: getDefaultScopes(providerId),
+                connectedAt: new Date().toISOString(),
+              }),
+            }).then(() => {
+              console.log("Successfully stored connection in backend");
+              // Update the UI to show connected state
+              setOauthProviders((providers) =>
+                providers.map((provider) =>
+                  provider.id === providerId
+                    ? {
+                        ...provider,
+                        connected: true,
+                        email: user.email,
+                        lastSync: "Just now",
+                        scopes: getDefaultScopes(providerId),
+                      }
+                    : provider
+                )
+              );
+              setIsLoading(false);
+            });
+          },
+          onError: (error) => {
+            console.error("Error connecting provider:", error);
+            setIsLoading(false);
+            alert(error.message || "Connection failed");
+          },
+        });
+      } catch (error) {
+        console.error("Error connecting provider:", error);
         setIsLoading(false);
-      }, 3000);
+        alert(error instanceof Error ? error.message : "Connection failed");
+      }
     }
+  };
+
+  // Helper function to get default scopes for different providers
+  const getDefaultScopes = (providerId: string) => {
+    const scopeMap: Record<string, string[]> = {
+      "google-calendar": ["https://www.googleapis.com/auth/calendar"],
+      "google-docs": ["https://www.googleapis.com/auth/documents"],
+      zoom: ["meeting:write", "meeting:read"],
+      salesforce: ["api", "refresh_token"],
+      hubspot: ["crm.objects.contacts.read", "crm.objects.deals.read"],
+      microsoft: ["Calendars.ReadWrite", "offline_access"],
+    };
+
+    return scopeMap[providerId] || ["basic"];
   };
 
   const refreshConnection = (providerId: string) => {

@@ -1,52 +1,83 @@
-import type { Message } from "ai";
-import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
-import { Bot, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import { useOAuth } from "@/context/oauth-context";
+import { validateAndRequestToken } from "@/lib/oauth-utils";
 
 interface ChatMessageProps {
-  message: Message;
+  message: {
+    role: string;
+    content: string;
+    parts?: Array<{
+      type: string;
+      text: string;
+    }>;
+  };
+  onReconnectComplete: () => void;
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
-  const isUser = message.role === "user";
+export default function ChatMessage({
+  message,
+  onReconnectComplete,
+}: ChatMessageProps) {
+  const [reconnectProvider, setReconnectProvider] = useState<string | null>(
+    null
+  );
+  const [requiredScopes, setRequiredScopes] = useState<string[]>([]);
+  const { setShowReconnectDialog, setReconnectInfo } = useOAuth();
+
+  // Check if the message contains a scope-related error
+  const checkForScopeError = async (content: string) => {
+    try {
+      // Look for error patterns in the message
+      const scopeErrorMatch = content.match(
+        /(?:insufficient_scopes|connection_required).*?provider: "([^"]+)".*?requiredScopes: \[(.*?)\]/m
+      );
+
+      if (scopeErrorMatch) {
+        const [, provider, scopesStr] = scopeErrorMatch;
+        const scopes = scopesStr
+          .split(",")
+          .map((s) => s.trim().replace(/"/g, ""))
+          .filter(Boolean);
+
+        setReconnectProvider(provider);
+        setRequiredScopes(scopes);
+
+        // Show the reconnection dialog
+        setReconnectInfo({ appId: provider, scopes });
+        setShowReconnectDialog(true);
+      }
+    } catch (error) {
+      console.error("Error checking for scope error:", error);
+    }
+  };
+
+  // Check message content when it changes
+  useEffect(() => {
+    if (message.role === "assistant") {
+      checkForScopeError(message.content);
+    }
+  }, [message]);
 
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+    <div
+      className={`flex ${
+        message.role === "user" ? "justify-end" : "justify-start"
+      } mb-4`}
+    >
       <div
-        className={cn(
-          "flex gap-3 max-w-[80%]",
-          isUser ? "flex-row-reverse" : "flex-row"
-        )}
+        className={`max-w-[80%] rounded-lg p-4 ${
+          message.role === "user"
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted"
+        }`}
       >
-        <div
-          className={cn(
-            "flex h-9 w-9 shrink-0 select-none items-center justify-center rounded-full shadow-sm",
-            isUser
-              ? "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-              : "bg-gray-100 dark:bg-gray-800"
-          )}
-        >
-          {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-        </div>
-        <Card
-          className={cn(
-            "shadow-sm",
-            isUser
-              ? "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-              : "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700"
-          )}
-        >
-          <CardContent
-            className={cn(
-              "p-4 text-sm leading-relaxed",
-              isUser
-                ? "text-gray-800 dark:text-gray-200"
-                : "text-gray-700 dark:text-gray-300"
-            )}
-          >
-            {message.content}
-          </CardContent>
-        </Card>
+        {message.parts ? (
+          message.parts.map((part, index) => <div key={index}>{part.text}</div>)
+        ) : (
+          <div>{message.content}</div>
+        )}
       </div>
     </div>
   );
