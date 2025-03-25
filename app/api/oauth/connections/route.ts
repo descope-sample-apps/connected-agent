@@ -21,25 +21,21 @@ export async function GET() {
     }
 
     // Check all connections in parallel
-    const [calendarToken, contactsToken, zoomToken, crmToken] =
-      await Promise.all([
-        getGoogleCalendarToken(userId).catch(() => null),
-        getGoogleDocsToken(userId).catch(() => null),
-        getZoomToken(userId).catch(() => null),
-        getCRMToken(userId).catch(() => null),
-      ]);
+    const [calendarToken, docsToken, zoomToken, crmToken] = await Promise.all([
+      getGoogleCalendarToken(userId).catch(() => null),
+      getGoogleDocsToken(userId).catch(() => null),
+      getZoomToken(userId).catch(() => null),
+      getCRMToken(userId).catch(() => null),
+    ]);
 
-    // Helper to check if a token response is valid
-    const isValidToken = (token: any) => {
-      return token && !("error" in token) && token.token?.scopes;
-    };
-
+    // Return the full token data for each provider
     return Response.json({
       connections: {
-        "google-calendar": isValidToken(calendarToken),
-        "google-docs": isValidToken(contactsToken),
-        zoom: isValidToken(zoomToken),
-        "custom-crm": isValidToken(crmToken),
+        "google-calendar":
+          calendarToken && !("error" in calendarToken) ? calendarToken : null,
+        "google-docs": docsToken && !("error" in docsToken) ? docsToken : null,
+        zoom: zoomToken && !("error" in zoomToken) ? zoomToken : null,
+        "custom-crm": crmToken && !("error" in crmToken) ? crmToken : null,
       },
     });
   } catch (error) {

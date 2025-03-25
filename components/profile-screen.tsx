@@ -51,6 +51,8 @@ interface OAuthProvider {
   connected: boolean;
   tokenData?: {
     scopes: string[];
+    accessToken: string;
+    expiresAt: string;
   };
 }
 
@@ -191,16 +193,14 @@ export default function ProfileScreen({
         setOauthProviders((prevProviders) =>
           prevProviders.map((provider) => {
             const connectionData = data.connections[provider.id];
-            const hasValidToken =
-              connectionData?.token?.accessToken &&
-              connectionData?.token?.scopes?.length > 0;
-
             return {
               ...provider,
-              connected: hasValidToken,
-              tokenData: hasValidToken
+              connected: !!connectionData,
+              tokenData: connectionData
                 ? {
                     scopes: connectionData.token.scopes,
+                    accessToken: connectionData.token.accessToken,
+                    expiresAt: connectionData.token.accessTokenExpiry,
                   }
                 : undefined,
             };
@@ -213,10 +213,17 @@ export default function ProfileScreen({
       }
     };
 
-    // Fetch connections when the connections tab is active
+    // Fetch connections immediately when switching to the connections tab
     if (activeTab === "connections") {
       fetchConnectionStatus();
     }
+
+    // Reset loading state when switching away from connections tab
+    return () => {
+      if (activeTab !== "connections") {
+        setIsLoading(false);
+      }
+    };
   }, [user, activeTab]);
 
   if (!user) return null;
@@ -391,6 +398,52 @@ export default function ProfileScreen({
     return emailRegex.test(email);
   }
 
+  // Add helper function to format scope strings
+  function formatScope(scope: string): string {
+    // Remove URL parts and common prefixes
+    const cleanScope = scope
+      .replace("https://www.googleapis.com/auth/", "")
+      .replace("https://www.googleapis.com/", "")
+      .replace(".readonly", " (read only)");
+
+    // Split on dots and underscores, capitalize each word
+    return cleanScope
+      .split(/[._]/)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+
+  // Add loading skeleton component at the top of the file
+  function ConnectionsSkeleton() {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="h-7 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+            <div className="h-5 w-72 bg-gray-200 dark:bg-gray-800 rounded animate-pulse mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-gray-800 last:border-0"
+              >
+                <div className="flex items-center">
+                  <div className="w-8 h-8 mr-3 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div>
+                    <div className="h-5 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse mt-2" />
+                  </div>
+                </div>
+                <div className="h-8 w-20 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container max-w-4xl py-6">
       <Button variant="ghost" className="mb-6" onClick={onBack}>
@@ -448,200 +501,129 @@ export default function ProfileScreen({
         </TabsContent>
 
         <TabsContent value="connections" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Connected Services</CardTitle>
-              <CardDescription>
-                Manage your connected OAuth providers and permissions
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {oauthProviders.map((provider) => (
-                <div
-                  key={provider.id}
-                  className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-gray-800 last:border-0"
-                >
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 mr-3 flex-shrink-0">
-                      <img
-                        src={provider.icon}
-                        alt={provider.name}
-                        className="w-full h-full"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">{provider.name}</h3>
-                      <div className="flex items-center mt-1">
+          {isLoading ? (
+            <ConnectionsSkeleton />
+          ) : (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Connected Services</CardTitle>
+                  <CardDescription>
+                    Manage your connected OAuth providers and permissions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {oauthProviders.map((provider) => (
+                    <div
+                      key={provider.id}
+                      className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-gray-800 last:border-0"
+                    >
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 mr-3 flex-shrink-0">
+                          <img
+                            src={provider.icon}
+                            alt={provider.name}
+                            className="w-full h-full"
+                          />
+                        </div>
+                        <div>
+                          <h3 className="font-medium">{provider.name}</h3>
+                          <div className="flex items-center mt-1">
+                            {provider.connected ? (
+                              <>
+                                <Badge
+                                  variant="default"
+                                  className="mr-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                                >
+                                  Connected
+                                </Badge>
+                              </>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                              >
+                                Not connected
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
                         {provider.connected ? (
-                          <>
-                            <Badge
-                              variant="default"
-                              className="mr-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                            >
-                              Connected
-                            </Badge>
-                          </>
-                        ) : (
-                          <Badge
+                          <Button
                             variant="outline"
-                            className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                            size="sm"
+                            onClick={() => toggleConnection(provider.id)}
+                            className="mr-2"
+                            disabled={isLoading}
                           >
-                            Not connected
-                          </Badge>
+                            Disconnect
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => toggleConnection(provider.id)}
+                            disabled={isLoading}
+                          >
+                            Connect
+                          </Button>
                         )}
                       </div>
                     </div>
-                  </div>
-                  <div>
-                    {provider.connected ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleConnection(provider.id)}
-                        className="mr-2"
-                      >
-                        Disconnect
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => toggleConnection(provider.id)}
-                      >
-                        Connect
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                  ))}
+                </CardContent>
+              </Card>
 
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle>Data Access</CardTitle>
-              <CardDescription>
-                Review what the AI assistant can access through your connected
-                services
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {oauthProviders.map((provider) => (
-                  <div key={provider.id} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Image
-                        src={provider.icon}
-                        alt={provider.name}
-                        width={24}
-                        height={24}
-                        className="rounded-sm"
-                      />
-                      <h3 className="font-medium">{provider.name}</h3>
-                      <Badge
-                        variant={provider.connected ? "default" : "secondary"}
-                      >
-                        {provider.connected ? "Connected" : "Not Connected"}
-                      </Badge>
-                    </div>
-                    {provider.connected && provider.tokenData && (
-                      <div className="ml-8 text-sm text-muted-foreground">
-                        <p className="mb-1">Granted Permissions:</p>
-                        <ul className="list-disc pl-4 space-y-1">
-                          {provider.tokenData.scopes.map((scope, index) => (
-                            <li key={index}>
-                              <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                                {scope}
-                              </code>
-                              <p className="mt-1">
-                                {provider.id === "google-calendar" &&
-                                  {
-                                    "https://www.googleapis.com/auth/calendar":
-                                      "Full access to manage your calendar, including reading, creating, and modifying events",
-                                    "https://www.googleapis.com/auth/calendar.readonly":
-                                      "Read-only access to view your calendar events",
-                                    "https://www.googleapis.com/auth/calendar.events":
-                                      "Access to manage calendar events only",
-                                  }[scope]}
-                                {provider.id === "google-docs" &&
-                                  {
-                                    "https://www.googleapis.com/auth/documents":
-                                      "Full access to read and write Google Docs",
-                                    "https://www.googleapis.com/auth/documents.readonly":
-                                      "Read-only access to view Google Docs",
-                                  }[scope]}
-                                {provider.id === "zoom" &&
-                                  {
-                                    "meeting:write":
-                                      "Permission to create and modify Zoom meetings",
-                                    "meeting:read":
-                                      "Permission to view Zoom meeting details",
-                                  }[scope]}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                        <p className="mt-3 mb-1">
-                          Based on these permissions, the AI assistant can:
-                        </p>
-                        <ul className="list-disc pl-4 space-y-1">
-                          {provider.id === "google-calendar" &&
-                            provider.tokenData.scopes.includes(
-                              "https://www.googleapis.com/auth/calendar"
-                            ) && (
-                              <>
-                                <li>
-                                  View, create, and edit all calendar events
-                                </li>
-                                <li>
-                                  Check your availability and schedule meetings
-                                </li>
-                                <li>
-                                  Send and respond to calendar invitations
-                                </li>
-                                <li>Create and manage multiple calendars</li>
-                                <li>Set up recurring meetings and events</li>
-                              </>
-                            )}
-                          {provider.id === "google-calendar" &&
-                            provider.tokenData.scopes.includes(
-                              "https://www.googleapis.com/auth/calendar.readonly"
-                            ) && (
-                              <>
-                                <li>View your calendar events</li>
-                                <li>Check your availability</li>
-                                <li>View meeting details and participants</li>
-                              </>
-                            )}
-                          {provider.id === "google-docs" &&
-                            provider.tokenData.scopes.includes(
-                              "https://www.googleapis.com/auth/documents"
-                            ) && (
-                              <>
-                                <li>Create and edit documents</li>
-                                <li>Read your existing documents</li>
-                                <li>Generate and format content</li>
-                                <li>Create document templates</li>
-                              </>
-                            )}
-                          {provider.id === "zoom" &&
-                            provider.tokenData.scopes.includes(
-                              "meeting:write"
-                            ) && (
-                              <>
-                                <li>Create and schedule new meetings</li>
-                                <li>Generate and share meeting links</li>
-                                <li>Configure meeting settings</li>
-                              </>
-                            )}
-                        </ul>
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle>Data Access</CardTitle>
+                  <CardDescription>
+                    Review what the AI assistant can access through your
+                    connected services
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {oauthProviders.map((provider) => (
+                      <div key={provider.id} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Image
+                            src={provider.icon}
+                            alt={provider.name}
+                            width={24}
+                            height={24}
+                            className="rounded-sm"
+                          />
+                          <h3 className="font-medium">{provider.name}</h3>
+                          <Badge
+                            variant={
+                              provider.connected ? "default" : "secondary"
+                            }
+                          >
+                            {provider.connected ? "Connected" : "Not Connected"}
+                          </Badge>
+                        </div>
+                        {provider.connected && provider.tokenData?.scopes && (
+                          <div className="pl-8 text-sm text-gray-600 dark:text-gray-400">
+                            <p className="font-medium mb-1">
+                              Granted Permissions:
+                            </p>
+                            <ul className="list-disc pl-4 space-y-1">
+                              {provider.tokenData.scopes.map((scope) => (
+                                <li key={scope}>{formatScope(scope)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="chat-history" className="space-y-6">
