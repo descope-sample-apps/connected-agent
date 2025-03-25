@@ -1,3 +1,5 @@
+import { getOAuthToken } from "@/lib/descope";
+
 interface OAuthConnectParams {
   appId: string;
   redirectUrl: string;
@@ -5,11 +7,36 @@ interface OAuthConnectParams {
 }
 
 interface TokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  tokenType: string;
+  token: {
+    id: string;
+    appId: string;
+    userId: string;
+    tokenSub: string;
+    accessToken: string;
+    accessTokenType: string;
+    accessTokenExpiry: string;
+    hasRefreshToken: boolean;
+    refreshToken: string;
+    lastRefreshTime: string;
+    lastRefreshError: string;
+    scopes: string[];
+  };
+}
+
+interface OAuthErrorResponse {
+  error: string;
+  provider?: string;
+  requiredScopes?: string[];
+  currentScopes?: string[];
+}
+
+type OAuthResponse = TokenResponse | OAuthErrorResponse;
+
+interface OAuthOptions {
+  appId: string;
+  userId: string;
   scopes: string[];
+  options?: Record<string, any>;
 }
 
 // Type definitions
@@ -28,37 +55,84 @@ interface OperationMapping {
 const specCache: Record<string, any> = {};
 const operationCache: Record<string, OperationMapping> = {};
 
-// Provider configurations with OpenAPI spec URLs
+// Provider configurations with OpenAPI spec URLs and fallback scopes
 const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   "google-calendar": {
     openApiUrl:
       "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/googleapis.com/calendar/v3/openapi.yaml",
-    scopes: ["https://www.googleapis.com/auth/calendar"],
+    scopes: [
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.readonly",
+    ],
   },
   "google-docs": {
     openApiUrl:
       "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/googleapis.com/docs/v1/openapi.yaml",
-    scopes: ["https://www.googleapis.com/auth/documents"],
+    scopes: [
+      "https://www.googleapis.com/auth/documents",
+      "https://www.googleapis.com/auth/documents.readonly",
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/drive.file",
+    ],
   },
   zoom: {
     openApiUrl:
       "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/zoom.us/meeting/v2/openapi.yaml",
-    scopes: ["meeting:write", "meeting:read"],
+    scopes: [
+      "meeting:write",
+      "meeting:write:admin",
+      "meeting:read",
+      "meeting:read:admin",
+      "user:read:admin",
+      "user:write:admin",
+      "recording:read",
+      "recording:write",
+      "webinar:read:admin",
+      "webinar:write:admin",
+    ],
   },
   salesforce: {
     openApiUrl:
       "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/salesforce.com/v57.0/openapi.yaml",
-    scopes: ["api", "refresh_token"],
+    scopes: [
+      "api",
+      "refresh_token",
+      "full",
+      "web",
+      "openid",
+      "profile",
+      "email",
+      "address",
+      "phone",
+    ],
   },
   hubspot: {
     openApiUrl:
       "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/hubapi.com/crm/v3/openapi.yaml",
-    scopes: ["crm.objects.contacts.read", "crm.objects.deals.read"],
+    scopes: [
+      "crm.objects.contacts.read",
+      "crm.objects.contacts.write",
+      "crm.objects.deals.read",
+      "crm.objects.deals.write",
+      "content",
+      "files",
+      "forms",
+      "tickets",
+    ],
   },
   microsoft: {
     openApiUrl:
       "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/microsoft.com/graph/v1.0/openapi.yaml",
-    scopes: ["Calendars.ReadWrite", "offline_access"],
+    scopes: [
+      "Calendars.ReadWrite",
+      "Calendars.Read",
+      "Mail.ReadWrite",
+      "Mail.Read",
+      "User.Read",
+      "Files.ReadWrite",
+      "offline_access",
+    ],
   },
   "custom-crm": {
     openApiUrl:
@@ -67,29 +141,29 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   },
 };
 
-async function fetchOpenApiSpec(providerId: string): Promise<any> {
+async function fetchOpenApiSpec(provider: string): Promise<any> {
   // Check cache first
-  if (specCache[providerId]) {
-    return specCache[providerId];
+  if (specCache[provider]) {
+    return specCache[provider];
   }
 
-  const config = PROVIDER_CONFIGS[providerId];
+  const config = PROVIDER_CONFIGS[provider];
   if (!config) {
-    throw new Error(`No OpenAPI spec URL defined for provider: ${providerId}`);
+    throw new Error(`No OpenAPI spec URL defined for provider: ${provider}`);
   }
 
   try {
     const response = await fetch(config.openApiUrl);
     if (!response.ok) {
-      throw new Error(`Failed to fetch OpenAPI spec for ${providerId}`);
+      throw new Error(`Failed to fetch OpenAPI spec: ${response.statusText}`);
     }
     const spec = await response.json();
 
     // Cache the spec
-    specCache[providerId] = spec;
+    specCache[provider] = spec;
     return spec;
   } catch (error) {
-    console.error(`Error fetching OpenAPI spec for ${providerId}:`, error);
+    console.error(`Error fetching OpenAPI spec for ${provider}:`, error);
     throw error;
   }
 }
@@ -463,4 +537,103 @@ export function getRecentToolActions(
 ): ToolActionResult[] {
   const actions = getToolActions(userId);
   return actions.slice(-limit);
+}
+
+export async function getOAuthTokenWithScopeValidation(
+  userId: string,
+  provider: string,
+  options: OAuthOptions
+): Promise<OAuthResponse> {
+  try {
+    // Get token from Descope (it handles refresh automatically)
+    const token = await getOAuthToken(userId, provider, options.scopes);
+
+    // Check for errors
+    if (!token || "error" in token) {
+      return {
+        error: "error" in token! ? token.error : "Failed to get OAuth token",
+        provider,
+        requiredScopes: options.scopes,
+      };
+    }
+
+    // Validate scopes
+    if (!hasRequiredScopes(token, options.scopes)) {
+      return {
+        error: "Invalid scopes",
+        provider,
+        requiredScopes: options.scopes,
+        currentScopes: token?.token?.scopes || [],
+      };
+    }
+
+    return token;
+  } catch (error) {
+    console.error(`Error getting OAuth token for ${provider}:`, error);
+    return {
+      error:
+        error instanceof Error ? error.message : "Failed to get OAuth token",
+      provider,
+    };
+  }
+}
+
+function extractScopesFromOpenAPI(spec: any): string[] {
+  const scopes: string[] = [];
+
+  // Check security schemes for OAuth2 scopes
+  if (spec.components?.securitySchemes) {
+    Object.values(spec.components.securitySchemes).forEach((scheme: any) => {
+      if (scheme.type === "oauth2" && scheme.flows) {
+        Object.values(scheme.flows).forEach((flow: any) => {
+          if (flow.scopes) {
+            scopes.push(...Object.keys(flow.scopes));
+          }
+        });
+      }
+    });
+  }
+
+  // Check global security requirements
+  if (spec.security) {
+    spec.security.forEach((security: any) => {
+      Object.entries(security).forEach(([scheme, scopesList]) => {
+        if (Array.isArray(scopesList)) {
+          scopes.push(...scopesList);
+        }
+      });
+    });
+  }
+
+  return [...new Set(scopes)]; // Remove duplicates
+}
+
+async function fetchWellKnownConfig(provider: string): Promise<any> {
+  const wellKnownUrls: Record<string, string> = {
+    google: "https://accounts.google.com/.well-known/openid-configuration",
+    zoom: "https://zoom.us/.well-known/oauth-authorization-server",
+    // Add other providers as needed
+  };
+
+  const url = wellKnownUrls[provider];
+  if (!url) {
+    throw new Error(`No well-known URL configured for provider: ${provider}`);
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch well-known config: ${response.statusText}`
+    );
+  }
+
+  return response.json();
+}
+
+function hasRequiredScopes(
+  token: TokenResponse,
+  requiredScopes: string[]
+): boolean {
+  const tokenScopes = token.token.scopes || [];
+  return requiredScopes.every((scope) => tokenScopes.includes(scope));
 }

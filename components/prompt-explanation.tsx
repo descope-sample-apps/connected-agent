@@ -1,166 +1,171 @@
-"use client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ChevronDown, ChevronUp, ExternalLink, Info, Lock, ArrowRight } from "lucide-react"
-import Image from "next/image"
+"use client";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Info,
+  Lock,
+  ArrowRight,
+  X,
+} from "lucide-react";
+import Image from "next/image";
 
 interface PromptExplanationProps {
-  title: string
-  description: string
-  steps: {
-    title: string
-    description: string
-  }[]
-  apis: string[]
-  isVisible: boolean
-  onToggle: () => void
+  title: string;
+  description: string;
+  logo: string;
+  examples: string[];
+  steps: Array<{
+    title: string;
+    description: string;
+  }>;
+  apis: string[];
+  isVisible: boolean;
+  onToggle: () => void;
+  onExampleClick?: (example: string) => void;
 }
 
 export default function PromptExplanation({
   title,
   description,
+  logo,
+  examples,
   steps,
   apis,
   isVisible,
   onToggle,
+  onExampleClick,
 }: PromptExplanationProps) {
+  if (!isVisible) return null;
+
   return (
-    <div className="mb-4">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onToggle}
-        className="w-full flex justify-between items-center mb-2 bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
-      >
-        <div className="flex items-center">
-          <Info className="h-4 w-4 mr-2 text-primary" />
-          <span>Explained Prompt: {title}</span>
+    <div className="h-full flex flex-col">
+      <div className="p-6 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative w-10 h-10">
+              <Image src={logo} alt={title} fill className="object-contain" />
+            </div>
+            <h3 className="text-lg font-semibold">{title}</h3>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onToggle}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-        {isVisible ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </Button>
+        <p className="text-sm text-muted-foreground mt-4">{description}</p>
+      </div>
 
-      {isVisible && (
-        <Card className="mb-4 border-gray-200 dark:border-gray-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-0">
-            <div className="flex flex-wrap gap-2 mb-2">
-              {apis.map((api, index) => (
-                <Badge
+      <div className="flex-1 p-6 grid grid-cols-2 gap-6 overflow-auto">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Examples:</h4>
+            <ul className="space-y-1">
+              {examples.map((example, index) => (
+                <li
                   key={index}
-                  variant="outline"
-                  className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+                  className="text-sm text-muted-foreground cursor-pointer hover:text-foreground"
+                  onClick={() => onExampleClick?.(example)}
                 >
-                  <Lock className="h-3 w-3 mr-1" /> {api}
-                </Badge>
+                  {example}
+                </li>
               ))}
-            </div>
+            </ul>
+          </div>
 
-            {/* Visual diagram of the process */}
-            <div className="relative w-full h-48 bg-gray-50 dark:bg-gray-800/50 rounded-md overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-full max-w-md">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-2">
-                        <Image
-                          src="/placeholder.svg?height=40&width=40"
-                          alt="User"
-                          width={40}
-                          height={40}
-                          className="rounded-full"
-                        />
-                      </div>
-                      <span className="text-xs font-medium">User</span>
-                    </div>
-
-                    <ArrowRight className="h-5 w-5 text-gray-400" />
-
-                    <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                        <Image
-                          src="/placeholder.svg?height=40&width=40"
-                          alt="Sales Assistant"
-                          width={40}
-                          height={40}
-                          className="rounded-full"
-                        />
-                      </div>
-                      <span className="text-xs font-medium">Assistant</span>
-                    </div>
-
-                    <ArrowRight className="h-5 w-5 text-gray-400" />
-
-                    <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-2">
-                        <Image
-                          src="/placeholder.svg?height=40&width=40"
-                          alt="Google Calendar"
-                          width={40}
-                          height={40}
-                          className="rounded-full"
-                        />
-                      </div>
-                      <span className="text-xs font-medium">Google API</span>
-                    </div>
-                  </div>
-
-                  <div className="w-full h-0.5 bg-gray-200 dark:bg-gray-700 my-4"></div>
-
-                  <div className="flex justify-center">
-                    <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-md text-xs font-medium">
-                      Secure OAuth Connection
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium">How it works</h4>
-              <ol className="space-y-3">
-                {steps.map((step, index) => (
-                  <li key={index} className="flex gap-3">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-sm font-medium text-primary">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{step.title}</p>
-                      <p className="text-sm text-muted-foreground">{step.description}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            <div className="pt-2 flex justify-between items-center">
-              <Button variant="link" size="sm" className="h-auto p-0 text-primary">
-                Learn more about API integrations <ExternalLink className="h-3 w-3 ml-1" />
-              </Button>
-
-              <div className="flex gap-2">
-                {apis.map((api, index) => (
-                  <div
-                    key={index}
-                    className="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center"
-                  >
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">APIs Used:</h4>
+            <div className="flex flex-wrap gap-2">
+              {apis.map((api) => (
+                <div
+                  key={api}
+                  className="flex items-center gap-2 px-2 py-1 bg-secondary rounded text-xs"
+                >
+                  <div className="relative w-4 h-4">
                     <Image
-                      src={`/placeholder.svg?height=20&width=20&text=${api.charAt(0)}`}
+                      src={getApiLogo(api)}
                       alt={api}
-                      width={20}
-                      height={20}
+                      fill
+                      className="object-contain"
                     />
                   </div>
-                ))}
-              </div>
+                  {api}
+                </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="text-sm font-medium">How it works:</h4>
+          <div className="space-y-4">
+            {steps.map((step, index) => (
+              <div key={index} className="flex gap-4">
+                <div className="relative w-8 h-8 flex-shrink-0">
+                  <Image
+                    src={getStepIcon(step.title)}
+                    alt={step.title}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <div>
+                  <h5 className="text-sm font-medium">{step.title}</h5>
+                  <p className="text-sm text-muted-foreground">
+                    {step.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
-  )
+  );
 }
 
+function getStepIcon(title: string): string {
+  if (title.toLowerCase().includes("user")) {
+    return "/logos/user-icon.png";
+  }
+  if (title.toLowerCase().includes("assistant")) {
+    return "/logos/assistant-icon.png";
+  }
+  if (
+    title.toLowerCase().includes("authentication") ||
+    title.toLowerCase().includes("authorization")
+  ) {
+    return "/logos/auth-icon.png";
+  }
+  if (title.toLowerCase().includes("api")) {
+    return "/logos/api-icon.png";
+  }
+  if (title.toLowerCase().includes("data")) {
+    return "/logos/data-icon.png";
+  }
+  if (
+    title.toLowerCase().includes("creation") ||
+    title.toLowerCase().includes("generate")
+  ) {
+    return "/logos/create-icon.png";
+  }
+  return "/logos/step-icon.png";
+}
+
+function getApiLogo(api: string): string {
+  const apiLogos: Record<string, string> = {
+    "Custom CRM API": "/logos/crm-logo.png",
+    "Google Calendar API": "/logos/google-calendar.png",
+    "Zoom API": "/logos/zoom-logo.png",
+    "Google Docs API": "/logos/google-docs.png",
+  };
+  return apiLogos[api] || "/logos/api-icon.png";
+}

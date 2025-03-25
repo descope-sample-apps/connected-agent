@@ -29,12 +29,17 @@ export async function GET() {
         getCRMToken(userId).catch(() => null),
       ]);
 
+    // Helper to check if a token response is valid
+    const isValidToken = (token: any) => {
+      return token && !("error" in token) && token.token?.scopes;
+    };
+
     return Response.json({
       connections: {
-        "google-calendar": !!calendarToken,
-        "google-contacts": !!contactsToken,
-        zoom: !!zoomToken,
-        "custom-crm": !!crmToken,
+        "google-calendar": isValidToken(calendarToken),
+        "google-docs": isValidToken(contactsToken),
+        zoom: isValidToken(zoomToken),
+        "custom-crm": isValidToken(crmToken),
       },
     });
   } catch (error) {

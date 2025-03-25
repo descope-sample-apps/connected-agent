@@ -11,6 +11,8 @@ import { session } from "@descope/nextjs-sdk/server";
 import { z } from "zod";
 import { storeToolAction } from "@/lib/server-storage";
 import { addDays, format, parse, parseISO } from "date-fns";
+import { mcpClient } from "@/lib/mcp-client";
+import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
 
 interface CalendarEvent {
   id: string;
@@ -72,7 +74,7 @@ const functions = [
   {
     name: "scheduleMeeting",
     description:
-      "Schedule a meeting with contacts. You can use this directly with email addresses - no need to look up the CRM if you already have the contact's email. For example, if someone says 'Schedule a meeting with john@example.com', you can use that email directly. Only use the CRM tool if you need to look up contact information for someone mentioned by name or company. When handling dates, always use the current year unless explicitly specified otherwise. For example, 'tomorrow at 3pm' should use the current year, not 2023.",
+      "Schedule a meeting with contacts. IMPORTANT: If the contact is mentioned by name (e.g., 'Shriki') or company (e.g., 'John from Acme Corp'), you MUST first use the getCRMData tool to look up their contact information. Only use email addresses directly if they are explicitly provided in email format (e.g., 'john@example.com'). For example, if someone says 'Schedule a meeting with Shriki', you should first look up Shriki's information in the CRM. But if they say 'Schedule a meeting with john@example.com', you can use that email directly.",
     parameters: {
       type: "object",
       properties: {
@@ -82,17 +84,17 @@ const functions = [
             type: "string",
           },
           description:
-            "The email addresses of the contacts to invite. You can use these directly if provided, no need to look up the CRM.",
+            "The email addresses of the contacts to invite. IMPORTANT: Only use email addresses that were explicitly provided in email format. For contacts mentioned by name, first use getCRMData to look up their information.",
         },
         startDateTime: {
           type: "string",
           description:
-            "The start date and time in ISO 8601 format (e.g., '2024-03-19T14:00:00Z'). When converting natural language dates, always use the current year unless explicitly specified otherwise.",
+            "The start date and time in ISO 8601 format (e.g., '2024-03-19T14:00:00Z'). Use the parseDate tool to convert natural language dates into this format.",
         },
         endDateTime: {
           type: "string",
           description:
-            "The end date and time in ISO 8601 format (e.g., '2024-03-19T15:00:00Z'). When converting natural language dates, always use the current year unless explicitly specified otherwise.",
+            "The end date and time in ISO 8601 format (e.g., '2024-03-19T15:00:00Z'). Use the parseDate tool to convert natural language dates into this format.",
         },
         title: {
           type: "string",
@@ -102,6 +104,17 @@ const functions = [
       required: ["contacts", "startDateTime", "endDateTime", "title"],
     },
     examples: [
+      {
+        user: "Schedule a meeting with Shriki",
+        assistant:
+          "I'll help you schedule a meeting with Shriki. First, I need to look up their contact information in the CRM.",
+        function_call: {
+          name: "getCRMData",
+          arguments: {
+            customerName: "Shriki",
+          },
+        },
+      },
       {
         user: "Schedule a meeting with john@example.com",
         assistant:
@@ -117,6 +130,17 @@ const functions = [
         user: "1 hour",
         assistant:
           "Perfect! I'll schedule a 1-hour meeting with John for tomorrow at 2 PM.",
+        function_call: {
+          name: "parseDate",
+          arguments: {
+            dateString: "tomorrow",
+            timeString: "2:00 PM",
+          },
+        },
+      },
+      {
+        user: "That looks good",
+        assistant: "I'll schedule the meeting now.",
         function_call: {
           name: "scheduleMeeting",
           arguments: {
@@ -187,6 +211,99 @@ const functions = [
           arguments: {
             dealId: "deal-123",
             includeHistory: true,
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: "connectToMCPServer",
+    description:
+      "Connect to an MCP server to use its tools. Use this when the user wants to connect to an external MCP server to use its tools. The server URL should be a valid URL.",
+    parameters: {
+      type: "object",
+      properties: {
+        serverUrl: {
+          type: "string",
+          description: "The URL of the MCP server to connect to",
+        },
+      },
+      required: ["serverUrl"],
+    },
+    examples: [
+      {
+        user: "Connect to the MCP server at https://example.com/mcp",
+        assistant: "I'll help you connect to the MCP server.",
+        function_call: {
+          name: "connectToMCPServer",
+          arguments: {
+            serverUrl: "https://example.com/mcp",
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: "executeMCPTool",
+    description:
+      "Execute a tool from a connected MCP server. Use this after connecting to an MCP server to use its tools. The tool name should match one of the tools available from the server.",
+    parameters: {
+      type: "object",
+      properties: {
+        toolName: {
+          type: "string",
+          description: "The name of the tool to execute",
+        },
+        parameters: {
+          type: "object",
+          description: "The parameters to pass to the tool",
+        },
+      },
+      required: ["toolName", "parameters"],
+    },
+    examples: [
+      {
+        user: "Use the search tool from the MCP server",
+        assistant: "I'll help you execute the search tool.",
+        function_call: {
+          name: "executeMCPTool",
+          arguments: {
+            toolName: "search",
+            parameters: {
+              query: "example search",
+            },
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: "parseDate",
+    description:
+      "Parse a relative date and time into an ISO datetime string. Use this to convert natural language dates like 'tomorrow' or 'next week' into proper datetime values.",
+    parameters: {
+      type: "object",
+      properties: {
+        dateString: {
+          type: "string",
+          description: "The relative date string to parse",
+        },
+        timeString: {
+          type: "string",
+          description: "The relative time string to parse",
+        },
+      },
+      required: ["dateString", "timeString"],
+    },
+    examples: [
+      {
+        user: "Parse 'tomorrow at 3pm'",
+        assistant: "I'll parse the date and time.",
+        function_call: {
+          name: "parseDate",
+          arguments: {
+            dateString: "tomorrow",
+            timeString: "3pm",
           },
         },
       },
@@ -264,6 +381,27 @@ async function scheduleMeeting(params: any, userId: string) {
   }
 
   try {
+    // Parse the dates and ensure they use the current year
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
+    // Parse start date
+    const startDate = new Date(params.startDateTime);
+    if (startDate.getFullYear() < currentYear) {
+      startDate.setFullYear(currentYear);
+    }
+
+    // Parse end date
+    const endDate = new Date(params.endDateTime);
+    if (endDate.getFullYear() < currentYear) {
+      endDate.setFullYear(currentYear);
+    }
+
+    console.log(`[scheduleMeeting] Using dates:`, {
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+    });
+
     // Make the actual API call to Google Calendar
     const response = await fetch(
       "https://www.googleapis.com/calendar/v3/calendars/primary/events",
@@ -276,11 +414,11 @@ async function scheduleMeeting(params: any, userId: string) {
         body: JSON.stringify({
           summary: params.title,
           start: {
-            dateTime: params.startDateTime,
+            dateTime: startDate.toISOString(),
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
           end: {
-            dateTime: params.endDateTime,
+            dateTime: endDate.toISOString(),
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
           attendees: params.contacts.map((email: string) => ({ email })),
@@ -323,7 +461,6 @@ async function scheduleMeeting(params: any, userId: string) {
     });
 
     // Format the response in a more user-friendly way
-    const startDate = new Date(event.start.dateTime);
     const formattedDate = format(startDate, "MMMM d, yyyy");
     const formattedTime = format(startDate, "h:mm a");
     const attendeeList = event.attendees?.map((a) => a.email).join(", ") || "";
@@ -622,6 +759,69 @@ export async function POST(req: Request) {
         includeHistory: z.boolean(),
       }),
       execute: async (params: any) => await summarizeDeal(params, userId!),
+    },
+    connectToMCPServer: {
+      description: "Connect to an MCP server to use its tools",
+      parameters: z.object({
+        serverUrl: z.string().url(),
+      }),
+      execute: async ({ serverUrl }: any) => {
+        try {
+          const connection = await mcpClient.connectToServer(
+            serverUrl,
+            userId!
+          );
+          return {
+            success: true,
+            message: `Successfully connected to MCP server at ${serverUrl}`,
+            tools: connection.tools,
+          };
+        } catch (error) {
+          console.error("Failed to connect to MCP server:", error);
+          throw error;
+        }
+      },
+    },
+    executeMCPTool: {
+      description: "Execute a tool from a connected MCP server",
+      parameters: z.object({
+        toolName: z.string(),
+        parameters: z.record(z.any()),
+      }),
+      execute: async ({ toolName, parameters }: any) => {
+        try {
+          const result = await mcpClient.executeTool(
+            userId!,
+            toolName,
+            parameters
+          );
+          return {
+            success: true,
+            result,
+          };
+        } catch (error) {
+          console.error("Failed to execute MCP tool:", error);
+          throw error;
+        }
+      },
+    },
+    parseDate: {
+      description:
+        "Parse a relative date and time into an ISO datetime string. Use this to convert natural language dates like 'tomorrow' or 'next week' into proper datetime values.",
+      parameters: z.object({
+        dateString: z.string(),
+        timeString: z.string(),
+      }),
+      execute: async ({ dateString, timeString }: any) => {
+        const dateContext = getCurrentDateContext();
+        const parsedDate = parseRelativeDate(dateString, timeString);
+
+        return {
+          success: true,
+          dateContext,
+          parsedDate,
+        };
+      },
     },
   };
 

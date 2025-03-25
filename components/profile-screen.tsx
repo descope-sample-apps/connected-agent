@@ -41,15 +41,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { connectToOAuthProvider } from "@/lib/oauth-utils";
 import { handleOAuthPopup } from "@/lib/oauth-utils";
+import Image from "next/image";
+import { UserProfile } from "@descope/nextjs-sdk";
 
 interface OAuthProvider {
   id: string;
   name: string;
   icon: string;
   connected: boolean;
-  email?: string;
-  lastSync?: string;
-  scopes?: string[];
+  tokenData?: {
+    scopes: string[];
+  };
 }
 
 interface ChatHistory {
@@ -59,6 +61,32 @@ interface ChatHistory {
   date: string;
   starred: boolean;
   shared: boolean;
+}
+
+interface CalendarEvent {
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  attendees: string[];
+  location?: string;
+  timeZone?: string;
+  recurrence?: string[];
+  reminders?: {
+    method: string;
+    minutes: number;
+  }[];
+}
+
+interface ScheduleMeetingResponse {
+  calendarEventId: string;
+  zoomMeetingId?: string;
+  message?: string;
+  needsInput?: {
+    field: string;
+    message: string;
+    currentValue?: string;
+  };
 }
 
 export default function ProfileScreen({
@@ -77,37 +105,25 @@ export default function ProfileScreen({
     {
       id: "google-calendar",
       name: "Google Calendar",
-      icon: "/google.svg",
+      icon: "/logos/google-calendar.png",
       connected: false,
     },
     {
       id: "google-docs",
-      name: "Google docs",
-      icon: "/google.svg",
-      connected: false,
-    },
-    {
-      id: "microsoft",
-      name: "Microsoft",
-      icon: "/microsoft.svg",
+      name: "Google Docs",
+      icon: "/logos/google-docs.png",
       connected: false,
     },
     {
       id: "zoom",
       name: "Zoom",
-      icon: "/zoom.svg",
+      icon: "/logos/zoom-logo.png",
       connected: false,
     },
     {
-      id: "salesforce",
-      name: "Salesforce",
-      icon: "/salesforce.svg",
-      connected: false,
-    },
-    {
-      id: "hubspot",
-      name: "HubSpot",
-      icon: "/hubspot.svg",
+      id: "custom-crm",
+      name: "CRM",
+      icon: "/logos/crm-logo.png",
       connected: false,
     },
   ]);
@@ -169,13 +185,26 @@ export default function ProfileScreen({
         if (!response.ok) throw new Error("Failed to fetch connections");
 
         const data = await response.json();
+        console.log("Fetched connection data:", data);
 
-        // Update the providers list with real connection status
+        // Update the providers list with connection status and token data
         setOauthProviders((prevProviders) =>
-          prevProviders.map((provider) => ({
-            ...provider,
-            connected: data.connections[provider.id] || false,
-          }))
+          prevProviders.map((provider) => {
+            const connectionData = data.connections[provider.id];
+            const hasValidToken =
+              connectionData?.token?.accessToken &&
+              connectionData?.token?.scopes?.length > 0;
+
+            return {
+              ...provider,
+              connected: hasValidToken,
+              tokenData: hasValidToken
+                ? {
+                    scopes: connectionData.token.scopes,
+                  }
+                : undefined,
+            };
+          })
         );
       } catch (error) {
         console.error("Error fetching connection status:", error);
@@ -184,8 +213,11 @@ export default function ProfileScreen({
       }
     };
 
-    fetchConnectionStatus();
-  }, [user]);
+    // Fetch connections when the connections tab is active
+    if (activeTab === "connections") {
+      fetchConnectionStatus();
+    }
+  }, [user, activeTab]);
 
   if (!user) return null;
 
@@ -281,7 +313,13 @@ export default function ProfileScreen({
           onError: (error) => {
             console.error("Error connecting provider:", error);
             setIsLoading(false);
-            alert(error.message || "Connection failed");
+            if (error.message?.includes("Invalid attendee email")) {
+              alert(
+                "Some of the provided email addresses were rejected by Google Calendar. Please verify the email addresses and try again."
+              );
+            } else {
+              alert(error.message || "Connection failed");
+            }
           },
         });
       } catch (error) {
@@ -348,6 +386,11 @@ export default function ProfileScreen({
     );
   };
 
+  function isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
   return (
     <div className="container max-w-4xl py-6">
       <Button variant="ghost" className="mb-6" onClick={onBack}>
@@ -387,45 +430,20 @@ export default function ProfileScreen({
         <TabsContent value="profile" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>Update your personal details</CardDescription>
+              <CardTitle>Account Settings</CardTitle>
+              <CardDescription>
+                Manage your account and preferences
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="first-name">First name</Label>
-                  <Input
-                    id="first-name"
-                    defaultValue={user.name.split(" ")[0]}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="last-name">Last name</Label>
-                  <Input
-                    id="last-name"
-                    defaultValue={user.name.split(" ")[1] || ""}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue={user.email} />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
-                <Input id="company" defaultValue="Acme Inc." />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Input id="role" defaultValue="Sales Manager" />
-              </div>
+            <CardContent>
+              <UserProfile
+                widgetId="user-profile-widget"
+                onLogout={() => {
+                  signOut();
+                  window.location.href = "/login";
+                }}
+              />
             </CardContent>
-            <CardFooter>
-              <Button>Save Changes</Button>
-            </CardFooter>
           </Card>
         </TabsContent>
 
@@ -462,11 +480,6 @@ export default function ProfileScreen({
                             >
                               Connected
                             </Badge>
-                            {provider.email && (
-                              <span className="text-xs text-muted-foreground">
-                                {provider.email}
-                              </span>
-                            )}
                           </>
                         ) : (
                           <Badge
@@ -504,46 +517,128 @@ export default function ProfileScreen({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="w-full">
             <CardHeader>
               <CardTitle>Data Access</CardTitle>
               <CardDescription>
-                Control what data is shared with connected services
+                Review what the AI assistant can access through your connected
+                services
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">Calendar Access</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Allow services to view and create calendar events
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">Contact Information</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Share contact details with connected services
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">Deal Data</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Allow access to deal and pipeline information
-                  </p>
-                </div>
-                <Switch defaultChecked />
+            <CardContent>
+              <div className="space-y-4">
+                {oauthProviders.map((provider) => (
+                  <div key={provider.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Image
+                        src={provider.icon}
+                        alt={provider.name}
+                        width={24}
+                        height={24}
+                        className="rounded-sm"
+                      />
+                      <h3 className="font-medium">{provider.name}</h3>
+                      <Badge
+                        variant={provider.connected ? "default" : "secondary"}
+                      >
+                        {provider.connected ? "Connected" : "Not Connected"}
+                      </Badge>
+                    </div>
+                    {provider.connected && provider.tokenData && (
+                      <div className="ml-8 text-sm text-muted-foreground">
+                        <p className="mb-1">Granted Permissions:</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          {provider.tokenData.scopes.map((scope, index) => (
+                            <li key={index}>
+                              <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                                {scope}
+                              </code>
+                              <p className="mt-1">
+                                {provider.id === "google-calendar" &&
+                                  {
+                                    "https://www.googleapis.com/auth/calendar":
+                                      "Full access to manage your calendar, including reading, creating, and modifying events",
+                                    "https://www.googleapis.com/auth/calendar.readonly":
+                                      "Read-only access to view your calendar events",
+                                    "https://www.googleapis.com/auth/calendar.events":
+                                      "Access to manage calendar events only",
+                                  }[scope]}
+                                {provider.id === "google-docs" &&
+                                  {
+                                    "https://www.googleapis.com/auth/documents":
+                                      "Full access to read and write Google Docs",
+                                    "https://www.googleapis.com/auth/documents.readonly":
+                                      "Read-only access to view Google Docs",
+                                  }[scope]}
+                                {provider.id === "zoom" &&
+                                  {
+                                    "meeting:write":
+                                      "Permission to create and modify Zoom meetings",
+                                    "meeting:read":
+                                      "Permission to view Zoom meeting details",
+                                  }[scope]}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="mt-3 mb-1">
+                          Based on these permissions, the AI assistant can:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          {provider.id === "google-calendar" &&
+                            provider.tokenData.scopes.includes(
+                              "https://www.googleapis.com/auth/calendar"
+                            ) && (
+                              <>
+                                <li>
+                                  View, create, and edit all calendar events
+                                </li>
+                                <li>
+                                  Check your availability and schedule meetings
+                                </li>
+                                <li>
+                                  Send and respond to calendar invitations
+                                </li>
+                                <li>Create and manage multiple calendars</li>
+                                <li>Set up recurring meetings and events</li>
+                              </>
+                            )}
+                          {provider.id === "google-calendar" &&
+                            provider.tokenData.scopes.includes(
+                              "https://www.googleapis.com/auth/calendar.readonly"
+                            ) && (
+                              <>
+                                <li>View your calendar events</li>
+                                <li>Check your availability</li>
+                                <li>View meeting details and participants</li>
+                              </>
+                            )}
+                          {provider.id === "google-docs" &&
+                            provider.tokenData.scopes.includes(
+                              "https://www.googleapis.com/auth/documents"
+                            ) && (
+                              <>
+                                <li>Create and edit documents</li>
+                                <li>Read your existing documents</li>
+                                <li>Generate and format content</li>
+                                <li>Create document templates</li>
+                              </>
+                            )}
+                          {provider.id === "zoom" &&
+                            provider.tokenData.scopes.includes(
+                              "meeting:write"
+                            ) && (
+                              <>
+                                <li>Create and schedule new meetings</li>
+                                <li>Generate and share meeting links</li>
+                                <li>Configure meeting settings</li>
+                              </>
+                            )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

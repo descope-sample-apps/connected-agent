@@ -122,7 +122,6 @@ export async function getOAuthToken(
     }
 
     const tokenData = await response.json();
-    console.log("tokenData:", tokenData);
 
     trackToolAction(
       userId,

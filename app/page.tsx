@@ -50,11 +50,45 @@ type PromptType =
   | "create-zoom"
   | "summarize-deal";
 
-const promptExplanations = {
+interface PromptExplanation {
+  title: string;
+  description: string;
+  logo: string;
+  examples: string[];
+  steps: Array<{
+    title: string;
+    description: string;
+  }>;
+  apis: string[];
+}
+
+interface LastScheduledMeeting {
+  title: string;
+  date: string;
+  time: string;
+  calendarEventId?: string;
+  participants?: string[];
+}
+
+interface MeetingDetails {
+  title: string;
+  date: string;
+  time: string;
+  calendarEventId?: string;
+  participants?: string[];
+}
+
+const promptExplanations: Record<PromptType, PromptExplanation> = {
   "crm-lookup": {
     title: "CRM Customer Lookup",
     description:
       "Access customer information and deal history from your CRM system using secure OAuth connections",
+    logo: "/logos/crm-logo.png",
+    examples: [
+      "Find customer information for John Smith",
+      "Show me recent deals with Acme Corp",
+      "Get contact details for Sarah from Marketing",
+    ],
     steps: [
       {
         title: "User Requests Customer Information",
@@ -77,12 +111,18 @@ const promptExplanations = {
           "The retrieved customer details, deal history, and relevant metrics are formatted and presented to the user in a clear, structured way.",
       },
     ],
-    apis: ["Custom CRM API", "Descope OAuth"],
+    apis: ["Custom CRM API"],
   },
   "schedule-meeting": {
     title: "Schedule Calendar Meeting",
     description:
       "Create calendar events with contacts from your CRM using your Google Calendar",
+    logo: "/logos/google-calendar.png",
+    examples: [
+      "Schedule a meeting with John tomorrow at 2 PM",
+      "Set up a team sync for next week",
+      "Book a client review for Friday afternoon",
+    ],
     steps: [
       {
         title: "User Requests Meeting Scheduling",
@@ -97,7 +137,7 @@ const promptExplanations = {
       {
         title: "Calendar Authorization",
         description:
-          "The assistant accesses your Google Calendar through a secure OAuth connection established in your profile settings.",
+          "The assistant accesses your Google Calendar through an Outbound App connection established in your profile settings.",
       },
       {
         title: "Event Creation",
@@ -105,12 +145,18 @@ const promptExplanations = {
           "A calendar event is created with the specified attendees, date, time, and duration, with invites automatically sent to all participants.",
       },
     ],
-    apis: ["Google Calendar API", "Google OAuth", "Custom CRM API"],
+    apis: ["Google Calendar API", "Custom CRM API"],
   },
   "create-zoom": {
     title: "Create Zoom Meeting",
     description:
       "Generate Zoom video conference links for scheduled calendar events",
+    logo: "/logos/zoom-logo.png",
+    examples: [
+      "Create a Zoom meeting for tomorrow's call",
+      "Add video conferencing to the team meeting",
+      "Set up a Zoom link for the client presentation",
+    ],
     steps: [
       {
         title: "Meeting Enhancement Request",
@@ -138,12 +184,18 @@ const promptExplanations = {
           "The calendar event is updated to include the Zoom meeting details, making them available to all attendees.",
       },
     ],
-    apis: ["Zoom API", "Zoom OAuth", "Google Calendar API"],
+    apis: ["Zoom API", "Google Calendar API"],
   },
   "summarize-deal": {
     title: "Summarize Deal to Google Docs",
     description:
       "Create comprehensive deal summaries and save them directly to Google Docs for sharing and collaboration",
+    logo: "/logos/google-docs.png",
+    examples: [
+      "Summarize the Acme Corp deal",
+      "Create a deal report for Project Phoenix",
+      "Generate a summary of Q1 deals",
+    ],
     steps: [
       {
         title: "Deal Summary Request",
@@ -171,9 +223,37 @@ const promptExplanations = {
           "A new Google Doc is created with the summarized information, formatted professionally, and ready to be shared with team members.",
       },
     ],
-    apis: ["Google Docs API", "Google OAuth", "Custom CRM API"],
+    apis: ["Google Docs API", "Custom CRM API"],
   },
-};
+} as const;
+
+interface ZoomMeetingPromptProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  meetingDetails: MeetingDetails;
+}
+
+interface ChatMessageProps {
+  message: {
+    role: string;
+    content: string;
+    parts?: Array<{
+      type: string;
+      text?: string;
+      reasoning?: string;
+      toolInvocation?: {
+        name: string;
+        arguments: Record<string, any>;
+      };
+      source?: {
+        type: string;
+        content: string;
+      };
+    }>;
+  };
+  onReconnectComplete: () => void;
+}
 
 export default function Home() {
   const { isAuthenticated, isLoading, setShowAuthModal } = useAuth();
@@ -184,12 +264,8 @@ export default function Home() {
   const [hasActivePrompt, setHasActivePrompt] = useState(false);
   const [showPromptExplanation, setShowPromptExplanation] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [lastScheduledMeeting, setLastScheduledMeeting] = useState<{
-    title: string;
-    date: string;
-    time: string;
-    calendarEventId: string;
-  } | null>(null);
+  const [lastScheduledMeeting, setLastScheduledMeeting] =
+    useState<LastScheduledMeeting | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [currentPromptType, setCurrentPromptType] =
     useState<PromptType>("crm-lookup");
@@ -461,7 +537,7 @@ export default function Home() {
       id: "crm-lookup",
       title: "CRM Lookup",
       description: "Get customer information and deal history",
-      icon: <Briefcase className="h-5 w-5" />,
+      logo: "/logos/crm-logo.png",
       action: () =>
         checkOAuthAndPrompt(() =>
           usePredefinedPrompt(
@@ -474,7 +550,7 @@ export default function Home() {
       id: "schedule-meeting",
       title: "Schedule Meeting",
       description: "Schedule a meeting with contacts from the CRM",
-      icon: <Calendar className="h-5 w-5" />,
+      logo: "/logos/google-calendar.png",
       action: () =>
         usePredefinedPrompt(
           "I need to schedule a meeting with the contacts from my last CRM lookup",
@@ -485,7 +561,7 @@ export default function Home() {
       id: "create-zoom",
       title: "Create Zoom Meeting",
       description: "Create a Zoom meeting for a scheduled event",
-      icon: <Video className="h-5 w-5" />,
+      logo: "/logos/zoom-logo.png",
       action: () =>
         usePredefinedPrompt(
           "Create a Zoom meeting for my next scheduled meeting",
@@ -496,7 +572,7 @@ export default function Home() {
       id: "summarize-deal",
       title: "Summarize Deal",
       description: "Summarize deal status and save to Google Docs",
-      icon: <FileText className="h-5 w-5" />,
+      logo: "/logos/google-docs.png",
       action: () =>
         usePredefinedPrompt(
           "Summarize the current deal status and save it to Google Docs",
@@ -583,8 +659,10 @@ export default function Home() {
           onClose={() => setShowZoomPrompt(false)}
           onConfirm={handleCreateZoomMeeting}
           meetingDetails={{
-            ...lastScheduledMeeting,
-            calendarEventId: "cal-event-456", // In a real app, this would come from the scheduling result
+            title: lastScheduledMeeting.title,
+            date: lastScheduledMeeting.date,
+            time: lastScheduledMeeting.time,
+            participants: lastScheduledMeeting.participants,
           }}
         />
       )}
@@ -729,7 +807,25 @@ export default function Home() {
                       {messages.map((message, index) => (
                         <ChatMessage
                           key={index}
-                          message={message}
+                          message={{
+                            role: message.role,
+                            content:
+                              typeof message.content === "string"
+                                ? message.content
+                                : "",
+                            parts: message.parts?.map((part) => ({
+                              type: part.type,
+                              text: "text" in part ? part.text || "" : "",
+                              reasoning:
+                                "reasoning" in part ? part.reasoning || "" : "",
+                              toolInvocation:
+                                "toolInvocation" in part
+                                  ? part.toolInvocation
+                                  : undefined,
+                              source:
+                                "source" in part ? part.source : undefined,
+                            })),
+                          }}
                           onReconnectComplete={handleReconnectComplete}
                         />
                       ))}
@@ -744,16 +840,6 @@ export default function Home() {
                     onSubmit={handleSubmit}
                     className="flex gap-2 items-center relative"
                   >
-                    {hasActivePrompt && (
-                      <div className="absolute bottom-20 right-4 z-10">
-                        <PromptTrigger
-                          onToggle={togglePromptExplanation}
-                          isVisible={showPromptExplanation}
-                          isActive={hasActivePrompt}
-                        />
-                      </div>
-                    )}
-
                     <div className="flex-1 relative">
                       <Input
                         value={input}
@@ -819,37 +905,38 @@ export default function Home() {
                 <div
                   className={`${
                     showPromptExplanation && hasActivePrompt
-                      ? "w-96 md:w-[28rem]"
+                      ? "w-[32rem]"
                       : "w-80"
-                  } border-l bg-white dark:bg-gray-900 shadow-sm overflow-auto transition-all duration-300 ease-in-out`}
+                  } border-l bg-white dark:bg-gray-900 shadow-sm overflow-hidden transition-all duration-300 ease-in-out`}
                 >
                   {showPromptExplanation && hasActivePrompt ? (
-                    <div className="animate-in slide-in-from-right duration-300">
+                    <div className="animate-in slide-in-from-right duration-300 h-full">
                       <PromptExplanation
                         title={promptExplanations[currentPromptType].title}
                         description={
                           promptExplanations[currentPromptType].description
                         }
+                        logo={promptExplanations[currentPromptType].logo}
+                        examples={
+                          promptExplanations[currentPromptType].examples
+                        }
                         steps={promptExplanations[currentPromptType].steps}
                         apis={promptExplanations[currentPromptType].apis}
                         isVisible={true}
                         onToggle={togglePromptExplanation}
+                        onExampleClick={(example) => {
+                          append({
+                            role: "user",
+                            content: example,
+                          });
+                          setShowPromptExplanation(false);
+                        }}
                       />
                     </div>
                   ) : (
                     <div className="p-4 animate-in fade-in duration-300">
                       <div className="flex justify-between items-center mb-4">
                         <h2 className="text-lg font-semibold">Quick Actions</h2>
-                        {hasActivePrompt && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={togglePromptExplanation}
-                            className="text-xs"
-                          >
-                            View Prompt Details
-                          </Button>
-                        )}
                       </div>
                       <div className="space-y-3">
                         {actionOptions.map((option) => (
@@ -857,7 +944,7 @@ export default function Home() {
                             key={option.id}
                             title={option.title}
                             description={option.description}
-                            icon={option.icon}
+                            logo={option.logo}
                             onClick={option.action}
                           />
                         ))}
