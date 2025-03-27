@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     }
 
     const { url } = await response.json();
-    console.log("Received authorization URL from Descope");
+    console.log("Received authorization URL from Descope: ", url);
     return NextResponse.json({ url });
   } catch (error) {
     console.error("Error connecting to OAuth provider:", error);

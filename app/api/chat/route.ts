@@ -10,7 +10,7 @@ import {
 import { session } from "@descope/nextjs-sdk/server";
 import { z } from "zod";
 import { storeToolAction } from "@/lib/server-storage";
-import { addDays, format, parse, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { mcpClient } from "@/lib/mcp-client";
 import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
 
@@ -695,30 +695,6 @@ async function summarizeDeal(params: any, userId: string) {
 }
 
 export async function POST(req: Request) {
-  // In case auto-tooling doesn't work, we can use this to check if the message might need tools
-  // const mightNeedTools =
-  //   !!lastMessage &&
-  //   [
-  //     "schedule",
-  //     "meeting",
-  //     "customer",
-  //     "crm",
-  //     "zoom",
-  //     "deal",
-  //     "summary",
-  //     "look up",
-  //     "calendar",
-  //     "tools",
-  //     "google docs",
-  //   ].some((keyword) => lastMessage.content.toLowerCase().includes(keyword));
-
-  // Create the stream with or without tools based on message content
-  // console.log(
-  //   "Message might need tools:",
-  //   mightNeedTools,
-  //   lastMessage?.content
-  // );
-
   const { messages } = await req.json();
 
   let userId: string | undefined;

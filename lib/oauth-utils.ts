@@ -1,4 +1,5 @@
 import { getOAuthToken } from "@/lib/descope";
+import { trackOAuthEvent, trackError } from "./analytics";
 
 interface OAuthConnectParams {
   appId: string;
@@ -544,12 +545,30 @@ export async function getOAuthTokenWithScopeValidation(
   provider: string,
   options: OAuthOptions
 ): Promise<OAuthResponse> {
+  const startTime = Date.now();
+
   try {
     // Get token from Descope (it handles refresh automatically)
     const token = await getOAuthToken(userId, provider, options.scopes);
 
+    // Track token request
+    trackOAuthEvent("token_request", {
+      userId,
+      provider,
+      success: !!token && !("error" in token),
+      duration: Date.now() - startTime,
+      scopes: options.scopes,
+    });
+
     // Check for errors
     if (!token || "error" in token) {
+      trackOAuthEvent("token_error", {
+        userId,
+        provider,
+        error: "error" in token ? token.error : "No token returned",
+        scopes: options.scopes,
+      });
+
       return {
         error: "error" in token! ? token.error : "Failed to get OAuth token",
         provider,
@@ -559,6 +578,13 @@ export async function getOAuthTokenWithScopeValidation(
 
     // Validate scopes
     if (!hasRequiredScopes(token, options.scopes)) {
+      trackOAuthEvent("scope_validation_failed", {
+        userId,
+        provider,
+        requiredScopes: options.scopes,
+        currentScopes: token?.token?.scopes || [],
+      });
+
       return {
         error: "Invalid scopes",
         provider,
@@ -569,6 +595,13 @@ export async function getOAuthTokenWithScopeValidation(
 
     return token;
   } catch (error) {
+    trackError(error as Error, {
+      userId,
+      provider,
+      scopes: options.scopes,
+      function: "getOAuthTokenWithScopeValidation",
+    });
+
     console.error(`Error getting OAuth token for ${provider}:`, error);
     return {
       error:

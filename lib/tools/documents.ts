@@ -2,11 +2,32 @@ import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
 
 interface DocumentContent {
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
   template?: {
-    type: "deal-summary" | "meeting-notes" | "custom";
-    data?: Record<string, any>;
+    type: "free-form" | "deal-summary" | "meeting-notes";
+    data?: any;
+  };
+  format?: {
+    style?: string;
+    structure?: string;
+  };
+  // Add new fields for interactive flows
+  stage?: "initial" | "gathering_info" | "confirming" | "creating";
+  context?: {
+    topic?: string;
+    preferences?: {
+      style?: string;
+      format?: string;
+      sections?: string[];
+    };
+    userInputs?: Record<string, any>;
+  };
+  needsInput?: {
+    field: string;
+    message: string;
+    options?: string[];
+    currentValue?: any;
   };
 }
 
@@ -21,13 +42,46 @@ const documentsConfig: ToolConfig = {
   id: "documents",
   name: "Google Docs",
   description:
-    "Create and update Google Docs documents, with support for templates and CRM data summaries",
+    "Create Google Docs with various types of content, including free-form writing, summaries, and structured documents",
   scopes: [
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/drive",
   ],
   requiredFields: ["title", "content"],
   optionalFields: ["template"],
+  capabilities: [
+    "Create new documents with custom content",
+    "Generate narrative content and personal experiences",
+    "Create structured reports and summaries",
+    "Format documents with appropriate styling",
+  ],
+  parameters: {
+    type: "object",
+    properties: {
+      title: {
+        type: "string",
+        description: "Title of the document",
+      },
+      content: {
+        type: "string",
+        description:
+          "Main content for the document. For personal narratives or experiences, provide detailed descriptions.",
+      },
+      template: {
+        type: "object",
+        description:
+          "Template configuration. Use 'free-form' for narrative content like personal experiences.",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["free-form", "deal-summary", "meeting-notes"],
+            default: "free-form",
+          },
+        },
+      },
+    },
+    required: ["title"],
+  },
 };
 
 async function createDocument(
@@ -178,40 +232,76 @@ function formatMeetingNotes(data: Record<string, any>): string {
   return content;
 }
 
+function checkRequiredInformation(context?: DocumentContent["context"]) {
+  if (!context) {
+    return {
+      field: "topic",
+      message: "What would you like to write about?",
+      options: ["Technology", "Business", "Culture", "Other"],
+    };
+  }
+
+  if (!context.preferences?.style) {
+    return {
+      field: "style",
+      message: "What style would you prefer for this document?",
+      options: ["Formal", "Casual", "Technical", "Narrative"],
+    };
+  }
+
+  if (
+    !context.preferences?.sections ||
+    context.preferences.sections.length === 0
+  ) {
+    return {
+      field: "sections",
+      message: `For a document about ${context.topic}, I'd recommend including these sections. Would you like to customize them?`,
+      options: suggestSectionsForTopic(context.topic),
+    };
+  }
+
+  return null;
+}
+
+function suggestSectionsForTopic(topic?: string): string[] {
+  // Example section suggestions for Silicon Valley
+  if (topic?.toLowerCase().includes("silicon valley")) {
+    return [
+      "Historical Background",
+      "Key Companies and Innovations",
+      "Cultural Impact",
+      "Technology Ecosystem",
+      "Future Trends",
+    ];
+  }
+
+  // Default sections
+  return ["Introduction", "Main Discussion", "Analysis", "Conclusion"];
+}
+
 const documentsTool: Tool = {
   config: documentsConfig,
 
-  validate: (data: DocumentContent): ToolResponse | null => {
+  validate: (data: DocumentContent) => {
     if (!data.title) {
       return {
         success: false,
-        error: "Missing title",
+        error: "Document title is required",
         needsInput: {
           field: "title",
-          message: "Please provide a document title",
+          message: "What would you like to title this document?",
         },
       };
     }
 
-    if (!data.content && !data.template) {
-      return {
-        success: false,
-        error: "Missing content",
-        needsInput: {
-          field: "content",
-          message: "Please provide document content or select a template",
-        },
-      };
-    }
-
-    if (data.template && !data.template.type) {
-      return {
-        success: false,
-        error: "Invalid template",
-        needsInput: {
-          field: "template",
-          message: "Please specify a valid template type",
-        },
+    // For personal narratives or experiences, ensure we're using free-form template
+    if (
+      data.title.toLowerCase().includes("living in") ||
+      data.title.toLowerCase().includes("experience") ||
+      data.title.toLowerCase().includes("life")
+    ) {
+      data.template = {
+        type: "free-form",
       };
     }
 
@@ -223,6 +313,37 @@ const documentsTool: Tool = {
     data: DocumentContent
   ): Promise<ToolResponse> => {
     try {
+      // Initial request handling
+      if (!data.content && !data.template && data.stage !== "gathering_info") {
+        return {
+          success: false,
+          needsInput: {
+            field: "context",
+            message:
+              "To create your document about " +
+              (data.context?.topic || "this topic") +
+              ", I need some additional information:",
+            options: [
+              "What specific aspects would you like to focus on?",
+              "Would you prefer a formal or casual writing style?",
+              "Are there any specific sections you'd like to include?",
+              "What's the intended audience for this document?",
+            ],
+          },
+        };
+      }
+
+      // Handle information gathering stage
+      if (data.stage === "gathering_info") {
+        const missingInfo = checkRequiredInformation(data.context);
+        if (missingInfo) {
+          return {
+            success: false,
+            needsInput: missingInfo,
+          };
+        }
+      }
+
       // Validate input
       const validationError = this.validate(data);
       if (validationError) {
@@ -307,11 +428,11 @@ const documentsTool: Tool = {
         },
       };
     } catch (error) {
-      console.error("[documentsTool] Error:", error);
+      console.error("Error in documents tool:", error);
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+          error instanceof Error ? error.message : "Failed to create document",
       };
     }
   },

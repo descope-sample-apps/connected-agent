@@ -5,6 +5,7 @@ import {
   getZoomToken,
   getCRMToken,
 } from "@/lib/descope";
+import { trackOAuthEvent, trackError } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,7 @@ export async function GET() {
     const userId = userSession?.token?.sub;
 
     if (!userId) {
+      trackOAuthEvent("auth_error", { error: "missing_user_id" });
       return Response.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -22,11 +24,34 @@ export async function GET() {
 
     // Check all connections in parallel
     const [calendarToken, docsToken, zoomToken, crmToken] = await Promise.all([
-      getGoogleCalendarToken(userId).catch(() => null),
-      getGoogleDocsToken(userId).catch(() => null),
-      getZoomToken(userId).catch(() => null),
-      getCRMToken(userId).catch(() => null),
+      getGoogleCalendarToken(userId).catch((error) => {
+        trackError(error, { provider: "google-calendar", userId });
+        return null;
+      }),
+      getGoogleDocsToken(userId).catch((error) => {
+        trackError(error, { provider: "google-docs", userId });
+        return null;
+      }),
+      getZoomToken(userId).catch((error) => {
+        trackError(error, { provider: "zoom", userId });
+        return null;
+      }),
+      getCRMToken(userId).catch((error) => {
+        trackError(error, { provider: "custom-crm", userId });
+        return null;
+      }),
     ]);
+
+    // Track connection statuses
+    trackOAuthEvent("connection_check", {
+      userId,
+      connections: {
+        "google-calendar": !!calendarToken && !("error" in calendarToken),
+        "google-docs": !!docsToken && !("error" in docsToken),
+        zoom: !!zoomToken && !("error" in zoomToken),
+        "custom-crm": !!crmToken && !("error" in crmToken),
+      },
+    });
 
     // Return the full token data for each provider
     return Response.json({
@@ -39,6 +64,7 @@ export async function GET() {
       },
     });
   } catch (error) {
+    trackError(error as Error, { endpoint: "/api/oauth/connections" });
     console.error("Error checking connections:", error);
     return Response.json(
       { error: "Failed to check connections" },

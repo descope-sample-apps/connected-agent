@@ -298,7 +298,9 @@ function getDefaultScopes(provider: string): string[] {
     salesforce: ["api", "refresh_token"],
     hubspot: ["crm.objects.contacts.read", "crm.objects.deals.read"],
     microsoft: ["Calendars.ReadWrite", "offline_access"],
+    "custom-crm": ["openid", "contacts:read", "deals:read"],
   };
 
+  // TODO: Handle default scopes through Outbound app config
   return scopeMap[provider] || ["basic"];
 }

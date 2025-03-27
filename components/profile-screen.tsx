@@ -249,91 +249,106 @@ export default function ProfileScreen({
               ? {
                   ...provider,
                   connected: false,
-                  email: undefined,
-                  lastSync: undefined,
-                  scopes: undefined,
+                  tokenData: undefined,
                 }
               : provider
           )
         );
         setIsLoading(false);
       }, 1000);
-    } else {
-      try {
-        // Get the current URL and preserve any existing query parameters
-        const currentUrl = new URL(window.location.href);
-        const searchParams = new URLSearchParams(currentUrl.search);
+    }
 
-        // Add OAuth success flag and redirectTo parameter
-        searchParams.set("oauth", "success");
-        searchParams.set("redirectTo", "profile");
+    try {
+      // Get the current URL and preserve any existing query parameters
+      const currentUrl = new URL(window.location.href);
+      const searchParams = new URLSearchParams(currentUrl.search);
 
-        // Construct the redirect URL with preserved context
-        const redirectUrl = `${currentUrl.origin}${
-          currentUrl.pathname
-        }?${searchParams.toString()}`;
+      // Add OAuth success flag and redirectTo parameter
+      searchParams.set("oauth", "success");
+      searchParams.set("redirectTo", "profile");
 
-        console.log("Constructed redirect URL:", redirectUrl);
-        console.log("Provider scopes:", getDefaultScopes(providerId));
+      // Construct the redirect URL with preserved context
+      const redirectUrl = `${currentUrl.origin}${
+        currentUrl.pathname
+      }?${searchParams.toString()}`;
 
-        const url = await connectToOAuthProvider({
-          appId: providerId,
-          redirectUrl,
-          scopes: getDefaultScopes(providerId),
-        });
+      console.log("Constructed redirect URL:", redirectUrl);
+      console.log("Provider scopes:", getDefaultScopes(providerId));
 
-        console.log("Received authorization URL:", url);
+      const url = await connectToOAuthProvider({
+        appId: providerId,
+        redirectUrl,
+        scopes: getDefaultScopes(providerId),
+      });
 
-        // Use the OAuth popup handler
-        handleOAuthPopup(url, {
-          onSuccess: () => {
-            // Notify our backend about the new connection
-            fetch("/api/oauth/store-connection", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                provider: providerId,
-                scopes: getDefaultScopes(providerId),
-                connectedAt: new Date().toISOString(),
-              }),
-            }).then(() => {
-              console.log("Successfully stored connection in backend");
-              // Update the UI to show connected state
-              setOauthProviders((providers) =>
-                providers.map((provider) =>
-                  provider.id === providerId
-                    ? {
-                        ...provider,
-                        connected: true,
-                        email: user.email,
-                        lastSync: "Just now",
-                        scopes: getDefaultScopes(providerId),
-                      }
-                    : provider
-                )
-              );
-              setIsLoading(false);
-            });
-          },
-          onError: (error) => {
-            console.error("Error connecting provider:", error);
-            setIsLoading(false);
-            if (error.message?.includes("Invalid attendee email")) {
-              alert(
-                "Some of the provided email addresses were rejected by Google Calendar. Please verify the email addresses and try again."
-              );
-            } else {
-              alert(error.message || "Connection failed");
+      console.log("Received authorization URL:", url);
+
+      // Use the OAuth popup handler
+      handleOAuthPopup(url, {
+        onSuccess: async () => {
+          try {
+            // Verify the connection was successful by fetching the latest status
+            const response = await fetch("/api/oauth/connections");
+            if (!response.ok) {
+              throw new Error("Failed to verify connection status");
             }
-          },
-        });
-      } catch (error) {
-        console.error("Error connecting provider:", error);
-        setIsLoading(false);
-        alert(error instanceof Error ? error.message : "Connection failed");
-      }
+
+            const data = await response.json();
+            const connectionData = data.connections[providerId];
+
+            if (!connectionData || "error" in connectionData) {
+              throw new Error(
+                "error" in connectionData
+                  ? connectionData.error
+                  : "Failed to establish connection"
+              );
+            }
+
+            // Only update UI if we confirmed the connection is valid
+            setOauthProviders((providers) =>
+              providers.map((provider) =>
+                provider.id === providerId
+                  ? {
+                      ...provider,
+                      connected: true,
+                      tokenData: {
+                        scopes: connectionData.token.scopes,
+                        accessToken: connectionData.token.accessToken,
+                        expiresAt: connectionData.token.accessTokenExpiry,
+                      },
+                    }
+                  : provider
+              )
+            );
+          } catch (error) {
+            console.error("Error verifying connection:", error);
+            alert(
+              error instanceof Error
+                ? error.message
+                : "Failed to verify connection. Please try again."
+            );
+          } finally {
+            setIsLoading(false);
+          }
+        },
+        onError: (error) => {
+          console.error("Error connecting provider:", error);
+          setIsLoading(false);
+          alert(
+            error instanceof Error
+              ? error.message
+              : "Failed to establish connection. Please try again."
+          );
+        },
+      });
+    } catch (error) {
+      console.error("Error connecting provider:", error);
+      setIsLoading(false);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to establish connection. Please try again."
+      );
     }
   };
 
@@ -346,9 +361,11 @@ export default function ProfileScreen({
       salesforce: ["api", "refresh_token"],
       hubspot: ["crm.objects.contacts.read", "crm.objects.deals.read"],
       microsoft: ["Calendars.ReadWrite", "offline_access"],
+      "custom-crm": ["openid", "contacts:read", "deals:read"],
     };
 
-    return scopeMap[providerId] || ["basic"];
+    // TODO: Handle default scopes through Outbound app config
+    return scopeMap[providerId] || [""];
   };
 
   const refreshConnection = (providerId: string) => {

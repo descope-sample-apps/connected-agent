@@ -6,8 +6,12 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/auth-context";
 import { AuthProvider as DescopeAuthProvider } from "@descope/nextjs-sdk";
 import { OAuthProvider } from "@/context/oauth-context";
+import { initPostHog } from "@/lib/analytics";
 
 const inter = Inter({ subsets: ["latin"] });
+
+// Initialize PostHog on app load
+initPostHog();
 
 export const metadata: Metadata = {
   title: "CRM Assistant",
