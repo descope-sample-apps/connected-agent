@@ -1,5 +1,6 @@
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import { getRequiredScopes } from "../openapi-utils";
 
 interface CalendarEvent {
   title: string;
@@ -42,7 +43,7 @@ const calendarConfig: ToolConfig = {
   id: "calendar",
   name: "Calendar",
   description: "Schedule meetings and manage calendar events",
-  scopes: ["https://www.googleapis.com/auth/calendar"],
+  scopes: [], // Will be populated dynamically
   requiredFields: ["title", "startTime", "endTime"],
   optionalFields: [
     "description",
@@ -142,10 +143,10 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-const calendarTool: Tool = {
-  config: calendarConfig,
+class CalendarTool extends Tool<CalendarEvent> {
+  config: ToolConfig = calendarConfig;
 
-  validate: (data: CalendarEvent): ToolResponse | null => {
+  validate(data: CalendarEvent): ToolResponse | null {
     // Check required fields
     if (!data.title) {
       return {
@@ -213,18 +214,20 @@ const calendarTool: Tool = {
     }
 
     return null;
-  },
+  }
 
-  execute: async (
-    userId: string,
-    data: CalendarEvent
-  ): Promise<ToolResponse> => {
+  async execute(userId: string, data: CalendarEvent): Promise<ToolResponse> {
     try {
-      // Validate event data
       const validationError = this.validate(data);
       if (validationError) {
         return validationError;
       }
+
+      // Get required scopes for calendar operations
+      const calendarScopes = await getRequiredScopes(
+        "google-calendar",
+        "events.create"
+      );
 
       // Get OAuth token for Google Calendar
       const calendarTokenResponse = await getOAuthTokenWithScopeValidation(
@@ -233,7 +236,7 @@ const calendarTool: Tool = {
         {
           appId: "google-calendar",
           userId,
-          scopes: calendarConfig.scopes,
+          scopes: calendarScopes,
         }
       );
 
@@ -261,13 +264,16 @@ const calendarTool: Tool = {
         // If Zoom meeting is requested, create it
         let zoomMeetingId;
         if (data.zoomMeeting) {
+          // Get required scopes for Zoom operations
+          const zoomScopes = await getRequiredScopes("zoom", "meetings.create");
+
           const zoomTokenResponse = await getOAuthTokenWithScopeValidation(
             userId,
             "zoom",
             {
               appId: "zoom",
               userId,
-              scopes: ["meeting:write"],
+              scopes: zoomScopes,
             }
           );
 
@@ -317,11 +323,11 @@ const calendarTool: Tool = {
           error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
-  },
-};
+  }
+}
 
 // Register the calendar tool
-toolRegistry.register(calendarTool);
+toolRegistry.register(new CalendarTool());
 
 // Export the calendar tool for direct use if needed
-export { calendarTool };
+export { CalendarTool };

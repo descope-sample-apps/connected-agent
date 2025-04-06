@@ -42,20 +42,20 @@ function isSecuritySchemeObject(
 export async function getOpenAPISpec(
   provider: string
 ): Promise<OpenAPIV3.Document | null> {
+  console.log(`getOpenAPISpec called for provider: ${provider}`);
+
   if (specCache[provider]) {
+    console.log(`Using cached OpenAPI spec for ${provider}`);
     return specCache[provider];
   }
 
   const specUrls: Record<string, string> = {
     "google-calendar":
       "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
-    "google-docs": "https://docs.googleapis.com/$discovery/rest?version=v1",
-    zoom: "https://marketplace.zoom.us/docs/api-reference/zoom-api/openapi.json",
-    salesforce:
-      "https://developer.salesforce.com/docs/openapi/runtime/rest.json",
-    hubspot:
-      "https://api.hubspot.com/api-catalog-public/v1/apis/crm/v3/openapi.json",
-    // Add more provider spec URLs as needed
+    "google-docs": "https://www.googleapis.com/discovery/v1/apis/docs/v1/rest",
+    "google-drive":
+      "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+    zoom: "https://raw.githubusercontent.com/zoom/api-spec/master/openapi.json",
   };
 
   if (!specUrls[provider]) {
@@ -63,17 +63,92 @@ export async function getOpenAPISpec(
     return null;
   }
 
+  const specUrl = specUrls[provider];
+  console.log(`Fetching OpenAPI spec from: ${specUrl}`);
+
   try {
-    const response = await fetch(specUrls[provider]);
+    const response = await fetch(specUrl);
+    console.log(
+      `OpenAPI spec fetch response status: ${response.status} ${response.statusText}`
+    );
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch OpenAPI spec: ${response.statusText}`);
+      console.warn(
+        `Failed to fetch OpenAPI spec for ${provider}: ${response.statusText}`
+      );
+
+      // For Zoom, provide a fallback minimal spec to avoid errors
+      if (provider === "zoom") {
+        console.log("Using fallback minimal spec for Zoom");
+        // Create a minimal valid OpenAPI spec for Zoom
+        const fallbackSpec = {
+          openapi: "3.0.0",
+          info: { title: "Zoom API", version: "1.0.0" },
+          paths: {},
+          components: {
+            securitySchemes: {
+              oauth2: {
+                type: "oauth2",
+                flows: {
+                  authorizationCode: {
+                    authorizationUrl: "https://zoom.us/oauth/authorize",
+                    tokenUrl: "https://zoom.us/oauth/token",
+                    scopes: {
+                      "meeting:read": "View meetings",
+                      "meeting:write": "Create and manage meetings",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        } as unknown as OpenAPIV3.Document;
+
+        specCache[provider] = fallbackSpec;
+        return fallbackSpec;
+      }
+
+      return null;
     }
 
     const spec = (await response.json()) as OpenAPIV3.Document;
+    console.log(`Successfully fetched OpenAPI spec for ${provider}`);
     specCache[provider] = spec;
     return spec;
   } catch (error) {
     console.error(`Error fetching OpenAPI spec for ${provider}:`, error);
+
+    // For Zoom, provide a fallback minimal spec to avoid errors
+    if (provider === "zoom") {
+      console.log("Using fallback minimal spec for Zoom due to error");
+      // Create a minimal valid OpenAPI spec for Zoom
+      const fallbackSpec = {
+        openapi: "3.0.0",
+        info: { title: "Zoom API", version: "1.0.0" },
+        paths: {},
+        components: {
+          securitySchemes: {
+            oauth2: {
+              type: "oauth2",
+              flows: {
+                authorizationCode: {
+                  authorizationUrl: "https://zoom.us/oauth/authorize",
+                  tokenUrl: "https://zoom.us/oauth/token",
+                  scopes: {
+                    "meeting:read": "View meetings",
+                    "meeting:write": "Create and manage meetings",
+                  },
+                },
+              },
+            },
+          },
+        },
+      } as unknown as OpenAPIV3.Document;
+
+      specCache[provider] = fallbackSpec;
+      return fallbackSpec;
+    }
+
     return null;
   }
 }
@@ -259,48 +334,57 @@ export function getRequiredScopesFromOperation(
  * Gets required scopes for a specific API operation
  */
 export async function getRequiredScopes(
-  provider: string,
+  appId: string,
   operation: string
 ): Promise<string[]> {
-  const spec = await getOpenAPISpec(provider);
+  console.log(`Getting required scopes for ${appId}:${operation}`);
+
+  // For connection checking, we don't need scopes
+  if (operation === "check_connection") {
+    console.log(
+      `Operation is "check_connection", returning empty scopes array`
+    );
+    return [];
+  }
+
+  console.log(`Fetching OpenAPI spec for ${appId}...`);
+  const spec = await getOpenAPISpec(appId);
   if (!spec) {
-    // Fallback to default scopes if spec is not available
-    return getDefaultScopes(provider);
+    console.warn(`No OpenAPI spec found for ${appId}`);
+    return [];
   }
+  console.log(`OpenAPI spec found for ${appId}`);
 
-  // Generate operation mappings from the spec
-  const operationMappings = generateOperationMappings(spec, provider);
-
-  // Look up the operation mapping
-  const operationDetails = operationMappings[`${provider}:${operation}`];
-  if (!operationDetails) {
-    console.warn(`No operation mapping found for ${provider}:${operation}`);
-    return getDefaultScopes(provider);
+  console.log(`Getting operation mapping for ${appId}:${operation}...`);
+  const operationMapping = await getOperationMapping(appId, operation);
+  if (!operationMapping) {
+    console.warn(`No operation mapping found for ${appId}:${operation}`);
+    return [];
   }
+  console.log(`Operation mapping found:`, operationMapping);
 
-  const scopes = getRequiredScopesFromOperation(
-    spec,
-    operationDetails.path,
-    operationDetails.method
-  );
+  console.log(`Getting scopes from operation...`);
+  const scopes = getScopesFromOperation(spec, operationMapping);
+  if (!scopes || scopes.length === 0) {
+    console.warn(`No scopes found for operation ${operation} in app ${appId}`);
+    return [];
+  }
+  console.log(`Scopes found:`, scopes);
 
-  return scopes.length > 0 ? scopes : getDefaultScopes(provider);
+  return scopes;
 }
 
-/**
- * Default scopes as fallback
- */
-function getDefaultScopes(provider: string): string[] {
-  const scopeMap: Record<string, string[]> = {
-    "google-calendar": ["https://www.googleapis.com/auth/calendar"],
-    "google-docs": ["https://www.googleapis.com/auth/documents"],
-    zoom: ["meeting:write", "meeting:read"],
-    salesforce: ["api", "refresh_token"],
-    hubspot: ["crm.objects.contacts.read", "crm.objects.deals.read"],
-    microsoft: ["Calendars.ReadWrite", "offline_access"],
-    "custom-crm": ["openid", "contacts:read", "deals:read"],
-  };
+async function getOperationMapping(appId: string, operation: string) {
+  const spec = await getOpenAPISpec(appId);
+  if (!spec) return null;
+  const operationMappings = generateOperationMappings(spec, appId);
+  return operationMappings[`${appId}:${operation}`];
+}
 
-  // TODO: Handle default scopes through Outbound app config
-  return scopeMap[provider] || ["basic"];
+function getScopesFromOperation(spec: any, operationMapping: any) {
+  return getRequiredScopesFromOperation(
+    spec,
+    operationMapping.path,
+    operationMapping.method
+  );
 }

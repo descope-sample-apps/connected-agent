@@ -15,60 +15,67 @@ export async function GET() {
     const userId = userSession?.token?.sub;
 
     if (!userId) {
-      trackOAuthEvent("auth_error", { error: "missing_user_id" });
       return Response.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
+    // Add debug logging
+    console.log("Checking connections for user:", userId);
+
     // Check all connections in parallel
     const [calendarToken, docsToken, zoomToken, crmToken] = await Promise.all([
       getGoogleCalendarToken(userId).catch((error) => {
-        trackError(error, { provider: "google-calendar", userId });
+        console.error("Calendar token error:", error);
         return null;
       }),
       getGoogleDocsToken(userId).catch((error) => {
-        trackError(error, { provider: "google-docs", userId });
+        console.error("Docs token error:", error);
         return null;
       }),
       getZoomToken(userId).catch((error) => {
-        trackError(error, { provider: "zoom", userId });
+        console.error("Zoom token error:", error);
         return null;
       }),
       getCRMToken(userId).catch((error) => {
-        trackError(error, { provider: "custom-crm", userId });
+        console.error("CRM token error:", error);
         return null;
       }),
     ]);
 
-    // Track connection statuses
-    trackOAuthEvent("connection_check", {
-      userId,
-      connections: {
-        "google-calendar": !!calendarToken && !("error" in calendarToken),
-        "google-docs": !!docsToken && !("error" in docsToken),
-        zoom: !!zoomToken && !("error" in zoomToken),
-        "custom-crm": !!crmToken && !("error" in crmToken),
-      },
+    // Debug log the tokens
+    console.log("Connection check results:", {
+      calendar: !!calendarToken,
+      docs: !!docsToken,
+      zoom: !!zoomToken,
+      crm: !!crmToken,
     });
 
     // Return the full token data for each provider
     return Response.json({
       connections: {
         "google-calendar":
-          calendarToken && !("error" in calendarToken) ? calendarToken : null,
-        "google-docs": docsToken && !("error" in docsToken) ? docsToken : null,
-        zoom: zoomToken && !("error" in zoomToken) ? zoomToken : null,
-        "custom-crm": crmToken && !("error" in crmToken) ? crmToken : null,
+          calendarToken && !("error" in calendarToken)
+            ? calendarToken.token
+            : null,
+        "google-docs":
+          docsToken && !("error" in docsToken) ? docsToken.token : null,
+        zoom: zoomToken && !("error" in zoomToken) ? zoomToken.token : null,
+        crm: crmToken && !("error" in crmToken) ? crmToken.token : null,
       },
     });
   } catch (error) {
-    trackError(error as Error, { endpoint: "/api/oauth/connections" });
     console.error("Error checking connections:", error);
-    return Response.json(
-      { error: "Failed to check connections" },
-      { status: 500 }
-    );
+
+    // Return empty connections object instead of error to prevent UI issues
+    return Response.json({
+      connections: {
+        "google-calendar": null,
+        "google-docs": null,
+        zoom: null,
+        crm: null,
+      },
+    });
   }
 }

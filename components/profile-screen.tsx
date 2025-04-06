@@ -32,6 +32,7 @@ import {
   MoreHorizontal,
   Share2,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -101,8 +102,7 @@ export default function ProfileScreen({
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
   const [isLoading, setIsLoading] = useState(false);
-
-  // Mock data for OAuth providers - in a real app, this would come from Descope
+  const [error, setError] = useState<string | null>(null);
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([
     {
       id: "google-calendar",
@@ -123,9 +123,15 @@ export default function ProfileScreen({
       connected: false,
     },
     {
-      id: "custom-crm",
+      id: "crm",
       name: "CRM",
       icon: "/logos/crm-logo.png",
+      connected: false,
+    },
+    {
+      id: "servicenow",
+      name: "ServiceNow",
+      icon: "/logos/servicenow-logo.png",
       connected: false,
     },
   ]);
@@ -176,55 +182,57 @@ export default function ProfileScreen({
     },
   ]);
 
-  // Update the useEffect hook to fetch connection status
+  // Fetch connections on component mount
   useEffect(() => {
-    const fetchConnectionStatus = async () => {
-      if (!user) return;
+    fetchConnections();
+  }, []);
 
-      setIsLoading(true);
-      try {
-        const response = await fetch("/api/oauth/connections");
-        if (!response.ok) throw new Error("Failed to fetch connections");
-
-        const data = await response.json();
-        console.log("Fetched connection data:", data);
-
-        // Update the providers list with connection status and token data
-        setOauthProviders((prevProviders) =>
-          prevProviders.map((provider) => {
-            const connectionData = data.connections[provider.id];
-            return {
-              ...provider,
-              connected: !!connectionData,
-              tokenData: connectionData
-                ? {
-                    scopes: connectionData.token.scopes,
-                    accessToken: connectionData.token.accessToken,
-                    expiresAt: connectionData.token.accessTokenExpiry,
-                  }
-                : undefined,
-            };
-          })
-        );
-      } catch (error) {
-        console.error("Error fetching connection status:", error);
-      } finally {
-        setIsLoading(false);
+  const fetchConnections = async () => {
+    try {
+      const response = await fetch("/api/oauth/connections");
+      if (!response.ok) {
+        throw new Error("Failed to fetch connections");
       }
-    };
 
-    // Fetch connections immediately when switching to the connections tab
-    if (activeTab === "connections") {
-      fetchConnectionStatus();
+      const data = await response.json();
+      if (!data.connections) {
+        throw new Error("No connections data in response");
+      }
+
+      // Update the providers with connection data
+      setOauthProviders((providers) =>
+        providers.map((provider) => {
+          const connectionData = data.connections[provider.id];
+          if (!connectionData) {
+            return { ...provider, connected: false };
+          }
+
+          if (typeof connectionData === "object" && "error" in connectionData) {
+            console.error(
+              `Connection error for ${provider.id}:`,
+              connectionData.error
+            );
+            return { ...provider, connected: false };
+          }
+
+          return {
+            ...provider,
+            connected: true,
+            tokenData: {
+              scopes: connectionData.scopes || [],
+              accessToken: connectionData.accessToken || "",
+              expiresAt: connectionData.accessTokenExpiry || "",
+            },
+          };
+        })
+      );
+    } catch (error) {
+      console.error("Error fetching connections:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to fetch connections"
+      );
     }
-
-    // Reset loading state when switching away from connections tab
-    return () => {
-      if (activeTab !== "connections") {
-        setIsLoading(false);
-      }
-    };
-  }, [user, activeTab]);
+  };
 
   if (!user) return null;
 
@@ -234,138 +242,33 @@ export default function ProfileScreen({
     .join("")
     .toUpperCase();
 
-  const toggleConnection = async (providerId: string) => {
-    setIsLoading(true);
-    console.log("Starting OAuth connection for provider:", providerId);
-
-    // If already connected, handle disconnection
-    if (oauthProviders.find((p) => p.id === providerId)?.connected) {
-      console.log("Provider already connected, handling disconnection");
-      // Disconnect flow
-      setTimeout(() => {
-        setOauthProviders((providers) =>
-          providers.map((provider) =>
-            provider.id === providerId
-              ? {
-                  ...provider,
-                  connected: false,
-                  tokenData: undefined,
-                }
-              : provider
-          )
-        );
-        setIsLoading(false);
-      }, 1000);
-    }
-
+  const toggleConnection = async (provider: string) => {
     try {
-      // Get the current URL and preserve any existing query parameters
-      const currentUrl = new URL(window.location.href);
-      const searchParams = new URLSearchParams(currentUrl.search);
+      setIsLoading(true);
+      setError(null);
 
-      // Add OAuth success flag and redirectTo parameter
-      searchParams.set("oauth", "success");
-      searchParams.set("redirectTo", "profile");
+      // Construct the redirect URL with the redirectTo parameter
+      const redirectUrl = `${window.location.origin}/api/oauth/callback?redirectTo=profile`;
 
-      // Construct the redirect URL with preserved context
-      const redirectUrl = `${currentUrl.origin}${
-        currentUrl.pathname
-      }?${searchParams.toString()}`;
-
-      console.log("Constructed redirect URL:", redirectUrl);
-      console.log("Provider scopes:", getDefaultScopes(providerId));
-
-      const url = await connectToOAuthProvider({
-        appId: providerId,
+      // Get the authorization URL from our backend
+      const authUrl = await connectToOAuthProvider({
+        appId: provider,
         redirectUrl,
-        scopes: getDefaultScopes(providerId),
       });
 
-      console.log("Received authorization URL:", url);
+      // Handle the OAuth popup
+      await handleOAuthPopup(authUrl);
 
-      // Use the OAuth popup handler
-      handleOAuthPopup(url, {
-        onSuccess: async () => {
-          try {
-            // Verify the connection was successful by fetching the latest status
-            const response = await fetch("/api/oauth/connections");
-            if (!response.ok) {
-              throw new Error("Failed to verify connection status");
-            }
-
-            const data = await response.json();
-            const connectionData = data.connections[providerId];
-
-            if (!connectionData || "error" in connectionData) {
-              throw new Error(
-                "error" in connectionData
-                  ? connectionData.error
-                  : "Failed to establish connection"
-              );
-            }
-
-            // Only update UI if we confirmed the connection is valid
-            setOauthProviders((providers) =>
-              providers.map((provider) =>
-                provider.id === providerId
-                  ? {
-                      ...provider,
-                      connected: true,
-                      tokenData: {
-                        scopes: connectionData.token.scopes,
-                        accessToken: connectionData.token.accessToken,
-                        expiresAt: connectionData.token.accessTokenExpiry,
-                      },
-                    }
-                  : provider
-              )
-            );
-          } catch (error) {
-            console.error("Error verifying connection:", error);
-            alert(
-              error instanceof Error
-                ? error.message
-                : "Failed to verify connection. Please try again."
-            );
-          } finally {
-            setIsLoading(false);
-          }
-        },
-        onError: (error) => {
-          console.error("Error connecting provider:", error);
-          setIsLoading(false);
-          alert(
-            error instanceof Error
-              ? error.message
-              : "Failed to establish connection. Please try again."
-          );
-        },
-      });
+      // Refresh the connections list
+      await fetchConnections();
     } catch (error) {
-      console.error("Error connecting provider:", error);
-      setIsLoading(false);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to establish connection. Please try again."
+      console.error("Error toggling connection:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to connect to provider"
       );
+    } finally {
+      setIsLoading(false);
     }
-  };
-
-  // Helper function to get default scopes for different providers
-  const getDefaultScopes = (providerId: string) => {
-    const scopeMap: Record<string, string[]> = {
-      "google-calendar": ["https://www.googleapis.com/auth/calendar"],
-      "google-docs": ["https://www.googleapis.com/auth/documents"],
-      zoom: ["meeting:write", "meeting:read"],
-      salesforce: ["api", "refresh_token"],
-      hubspot: ["crm.objects.contacts.read", "crm.objects.deals.read"],
-      microsoft: ["Calendars.ReadWrite", "offline_access"],
-      "custom-crm": ["openid", "contacts:read", "deals:read"],
-    };
-
-    // TODO: Handle default scopes through Outbound app config
-    return scopeMap[providerId] || [""];
   };
 
   const refreshConnection = (providerId: string) => {
@@ -461,6 +364,27 @@ export default function ProfileScreen({
     );
   }
 
+  // Add a loading spinner component
+  function LoadingSpinner() {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="relative">
+          <Loader2 className="h-12 w-12 text-primary animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-full bg-background"></div>
+          </div>
+        </div>
+        <div className="text-center space-y-2">
+          <h3 className="text-lg font-medium">Retrieving Connections</h3>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Please wait while we fetch your connected services and
+            permissions...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container max-w-4xl py-6">
       <Button variant="ghost" className="mb-6" onClick={onBack}>
@@ -519,7 +443,7 @@ export default function ProfileScreen({
 
         <TabsContent value="connections" className="space-y-6">
           {isLoading ? (
-            <ConnectionsSkeleton />
+            <LoadingSpinner />
           ) : (
             <>
               <Card>

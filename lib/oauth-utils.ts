@@ -4,7 +4,7 @@ import { trackOAuthEvent, trackError } from "./analytics";
 interface OAuthConnectParams {
   appId: string;
   redirectUrl: string;
-  scopes: string[];
+  scopes?: string[]; // Optional - only passed when specific scopes are needed
 }
 
 interface TokenResponse {
@@ -40,231 +40,46 @@ interface OAuthOptions {
   options?: Record<string, any>;
 }
 
-// Type definitions
-interface ProviderConfig {
-  openApiUrl: string;
-  scopes: string[];
-}
-
-interface OperationMapping {
-  path: string;
-  method: string;
-  scopes: string[];
-}
-
-// Cache for OpenAPI specs and operation mappings
-const specCache: Record<string, any> = {};
-const operationCache: Record<string, OperationMapping> = {};
-
-// Provider configurations with OpenAPI spec URLs and fallback scopes
-const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
-  "google-calendar": {
-    openApiUrl:
-      "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/googleapis.com/calendar/v3/openapi.yaml",
-    scopes: [
-      "https://www.googleapis.com/auth/calendar",
-      "https://www.googleapis.com/auth/calendar.events",
-      "https://www.googleapis.com/auth/calendar.readonly",
-    ],
-  },
-  "google-docs": {
-    openApiUrl:
-      "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/googleapis.com/docs/v1/openapi.yaml",
-    scopes: [
-      "https://www.googleapis.com/auth/documents",
-      "https://www.googleapis.com/auth/documents.readonly",
-      "https://www.googleapis.com/auth/drive",
-      "https://www.googleapis.com/auth/drive.file",
-    ],
-  },
-  zoom: {
-    openApiUrl:
-      "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/zoom.us/meeting/v2/openapi.yaml",
-    scopes: [
-      "meeting:write",
-      "meeting:write:admin",
-      "meeting:read",
-      "meeting:read:admin",
-      "user:read:admin",
-      "user:write:admin",
-      "recording:read",
-      "recording:write",
-      "webinar:read:admin",
-      "webinar:write:admin",
-    ],
-  },
-  salesforce: {
-    openApiUrl:
-      "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/salesforce.com/v57.0/openapi.yaml",
-    scopes: [
-      "api",
-      "refresh_token",
-      "full",
-      "web",
-      "openid",
-      "profile",
-      "email",
-      "address",
-      "phone",
-    ],
-  },
-  hubspot: {
-    openApiUrl:
-      "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/hubapi.com/crm/v3/openapi.yaml",
-    scopes: [
-      "crm.objects.contacts.read",
-      "crm.objects.contacts.write",
-      "crm.objects.deals.read",
-      "crm.objects.deals.write",
-      "content",
-      "files",
-      "forms",
-      "tickets",
-    ],
-  },
-  microsoft: {
-    openApiUrl:
-      "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/microsoft.com/graph/v1.0/openapi.yaml",
-    scopes: [
-      "Calendars.ReadWrite",
-      "Calendars.Read",
-      "Mail.ReadWrite",
-      "Mail.Read",
-      "User.Read",
-      "Files.ReadWrite",
-      "offline_access",
-    ],
-  },
-  "custom-crm": {
-    openApiUrl:
-      "https://raw.githubusercontent.com/APIs-guru/openapi-directory/main/APIs/custom-crm.com/v1/openapi.yaml",
-    scopes: ["api", "refresh_token"],
-  },
-};
-
-async function fetchOpenApiSpec(provider: string): Promise<any> {
-  // Check cache first
-  if (specCache[provider]) {
-    return specCache[provider];
-  }
-
-  const config = PROVIDER_CONFIGS[provider];
-  if (!config) {
-    throw new Error(`No OpenAPI spec URL defined for provider: ${provider}`);
-  }
-
+export async function getOAuthTokenWithScopeValidation(
+  userId: string,
+  provider: string,
+  options: OAuthOptions
+): Promise<OAuthResponse> {
   try {
-    const response = await fetch(config.openApiUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch OpenAPI spec: ${response.statusText}`);
-    }
-    const spec = await response.json();
-
-    // Cache the spec
-    specCache[provider] = spec;
-    return spec;
-  } catch (error) {
-    console.error(`Error fetching OpenAPI spec for ${provider}:`, error);
-    throw error;
-  }
-}
-
-async function getOperationMapping(
-  providerId: string,
-  operationId: string
-): Promise<OperationMapping> {
-  const cacheKey = `${providerId}:${operationId}`;
-
-  // Check cache first
-  if (operationCache[cacheKey]) {
-    return operationCache[cacheKey];
-  }
-
-  try {
-    const spec = await fetchOpenApiSpec(providerId);
-
-    // Extract operation details from OpenAPI spec
-    const operation =
-      spec.paths[operationId]?.get ||
-      spec.paths[operationId]?.post ||
-      spec.paths[operationId]?.put ||
-      spec.paths[operationId]?.delete ||
-      spec.paths[operationId]?.patch;
-
-    if (!operation) {
-      throw new Error(
-        `No operation mapping found for ${providerId}:${operationId}`
-      );
-    }
-
-    // Extract required scopes from the operation's security requirements
-    const scopes =
-      operation.security?.[0]?.oauth2 || PROVIDER_CONFIGS[providerId].scopes;
-
-    const mapping: OperationMapping = {
-      path: operationId,
-      method: Object.keys(operation)[0].toUpperCase(),
-      scopes,
-    };
-
-    // Cache the mapping
-    operationCache[cacheKey] = mapping;
-    return mapping;
-  } catch (error) {
-    console.error(
-      `Error getting operation mapping for ${providerId}:${operationId}:`,
-      error
-    );
-    throw error;
-  }
-}
-
-export async function validateAndRequestToken(
-  appId: string,
-  scopes: string[]
-): Promise<TokenResponse | null> {
-  try {
-    // Get the DSR from localStorage
-    const dsr = localStorage.getItem("dsr");
-
-    // Prepare headers with DSR if available
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-
-    if (dsr) {
-      headers[
-        "Authorization"
-      ] = `Bearer ${process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID}:${dsr}`;
-    }
-
-    // Request token with specific scopes
-    const response = await fetch(
-      "https://api.descope.com/v1/outbound/oauth/token",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          appId,
-          scopes,
-        }),
-      }
+    // Get token from Descope (it handles refresh automatically)
+    const token = await getOAuthToken(
+      userId,
+      provider,
+      options.scopes.join(",")
     );
 
-    if (response.status === 404) {
-      // Token doesn't exist or scopes are insufficient
-      return null;
+    // If token is null, return error response
+    if (!token) {
+      return {
+        error: "Failed to get OAuth token",
+        provider,
+        requiredScopes: options.scopes,
+      };
     }
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Failed to validate token");
+    // Check if token has an error property
+    if (typeof token === "object" && "error" in token) {
+      return {
+        error: token.error,
+        provider,
+        requiredScopes: options.scopes,
+      };
     }
 
-    return response.json();
+    // If we have a valid token, return it
+    return token;
   } catch (error) {
-    console.error("Error validating token:", error);
-    throw error;
+    console.error(`Error getting OAuth token for ${provider}:`, error);
+    return {
+      error:
+        error instanceof Error ? error.message : "Failed to get OAuth token",
+      provider,
+    };
   }
 }
 
@@ -286,11 +101,20 @@ export async function connectToOAuthProvider({
       throw new Error("Redirect URL is required");
     }
 
+    // Extract redirectTo from the redirectUrl if present
+    const redirectUrlObj = new URL(redirectUrl);
+    const redirectTo = redirectUrlObj.searchParams.get("redirectTo") || "chat";
+
+    // Create a state parameter that includes the redirectTo
+    const state = JSON.stringify({ redirectTo });
+
+    // Only include scopes in the request if they are explicitly provided
     const requestBody = {
       appId,
       options: {
         redirectUrl,
-        scopes,
+        state,
+        ...(scopes && scopes.length > 0 ? { scopes } : {}),
       },
     };
 
@@ -333,72 +157,38 @@ export async function connectToOAuthProvider({
   }
 }
 
-interface OAuthPopupOptions {
-  onSuccess: () => void;
-  onError: (error: Error) => void;
-  redirectTo?: string;
-}
+export async function handleOAuthPopup(authUrl: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const popup = window.open(authUrl, "oauth-popup", "width=600,height=600");
+    if (!popup) {
+      reject(new Error("Failed to open popup window"));
+      return;
+    }
 
-export function handleOAuthPopup(
-  url: string,
-  { onSuccess, onError, redirectTo }: OAuthPopupOptions
-) {
-  // Create popup window for OAuth flow
-  const popup = window.open(
-    "about:blank",
-    "Connect Provider",
-    "width=600,height=700"
-  );
-  if (!popup) {
-    throw new Error("Popup blocked. Please allow popups for this site.");
-  }
-
-  // Redirect the popup to the authorization URL
-  popup.location.href = url;
-
-  // Check URL periodically to detect redirect
-  const checkPopupUrl = setInterval(() => {
-    try {
-      const popupUrl = new URL(popup.location.href);
-      const searchParams = new URLSearchParams(popupUrl.search);
-
-      // Check if we've been redirected back to our app
-      if (popupUrl.origin === window.location.origin) {
-        clearInterval(checkPopupUrl);
-
-        // Check for OAuth success
-        if (searchParams.get("oauth") === "success") {
-          // Send success message to parent
-          popup.postMessage({ type: "oauth_success" }, window.location.origin);
-
-          // Close popup after a short delay
-          setTimeout(() => {
-            popup.close();
-          }, 500);
-
-          onSuccess();
-        } else {
-          // Handle error case
-          const error = searchParams.get("error");
-          onError(new Error(error || "OAuth connection failed"));
+    const checkInterval = setInterval(() => {
+      try {
+        const url = popup.location.href;
+        if (url.includes("oauth=success")) {
+          clearInterval(checkInterval);
+          popup.close();
+          resolve();
+        } else if (url.includes("oauth=error")) {
+          clearInterval(checkInterval);
+          popup.close();
+          const error = new URL(url).searchParams.get("error");
+          reject(new Error(error || "OAuth error"));
         }
+      } catch (e) {
+        // Cross-origin error, popup is still on the OAuth provider's domain
       }
-    } catch (error) {
-      // Ignore cross-origin errors while popup is on provider's domain
-    }
-  }, 500);
+    }, 100);
 
-  // Cleanup interval if popup is closed
-  const checkPopupClosed = setInterval(() => {
-    if (popup.closed) {
-      clearInterval(checkPopupUrl);
-      clearInterval(checkPopupClosed);
-    }
-  }, 500);
+    // Clean up interval if popup is closed
+    popup.onbeforeunload = () => {
+      clearInterval(checkInterval);
+    };
+  });
 }
-
-// Export the operation mapping function for use in tools
-export { getOperationMapping };
 
 export interface ToolActionResult {
   success: boolean;
@@ -420,6 +210,10 @@ export interface ToolActionResult {
     // Meeting-specific fields
     meetingId?: string;
     meetingUrl?: string;
+    // CRM-specific fields
+    dealId?: string;
+    contactId?: string;
+    accountId?: string;
     // Token-specific fields
     scopes?: string[];
     expiresIn?: number;
@@ -468,15 +262,10 @@ export function trackToolAction(
       case "create_document":
         actionResult.details = {
           ...actionResult.details,
-          link: `https://docs.google.com/document/d/${actionResult.details.documentId}`,
+          link: actionResult.details.documentId
+            ? `https://docs.google.com/document/d/${actionResult.details.documentId}`
+            : undefined,
           title: actionResult.details.documentTitle || "Document",
-        };
-        break;
-      case "create_event":
-        actionResult.details = {
-          ...actionResult.details,
-          link: `https://calendar.google.com/calendar/event?eid=${actionResult.details.eventId}`,
-          title: actionResult.details.title || "Calendar Event",
         };
         break;
     }
@@ -507,166 +296,4 @@ export function trackToolAction(
   }
 
   return actionResult;
-}
-
-export function getToolActions(userId: string): ToolActionResult[] {
-  // Try to get from cache first
-  if (toolActionCache[userId]) {
-    return toolActionCache[userId];
-  }
-
-  // If not in cache and in browser environment, try localStorage
-  if (isBrowser) {
-    try {
-      const userActions = localStorage.getItem(`tool_actions_${userId}`);
-      if (userActions) {
-        const actions = JSON.parse(userActions);
-        toolActionCache[userId] = actions;
-        return actions;
-      }
-    } catch (error) {
-      console.error("Error reading tool actions from localStorage:", error);
-    }
-  }
-
-  return [];
-}
-
-export function getRecentToolActions(
-  userId: string,
-  limit: number = 5
-): ToolActionResult[] {
-  const actions = getToolActions(userId);
-  return actions.slice(-limit);
-}
-
-export async function getOAuthTokenWithScopeValidation(
-  userId: string,
-  provider: string,
-  options: OAuthOptions
-): Promise<OAuthResponse> {
-  const startTime = Date.now();
-
-  try {
-    // Get token from Descope (it handles refresh automatically)
-    const token = await getOAuthToken(userId, provider, options.scopes);
-
-    // Track token request
-    trackOAuthEvent("token_request", {
-      userId,
-      provider,
-      success: !!token && !("error" in token),
-      duration: Date.now() - startTime,
-      scopes: options.scopes,
-    });
-
-    // Check for errors
-    if (!token || "error" in token) {
-      trackOAuthEvent("token_error", {
-        userId,
-        provider,
-        error: "error" in token ? token.error : "No token returned",
-        scopes: options.scopes,
-      });
-
-      return {
-        error: "error" in token! ? token.error : "Failed to get OAuth token",
-        provider,
-        requiredScopes: options.scopes,
-      };
-    }
-
-    // Validate scopes
-    if (!hasRequiredScopes(token, options.scopes)) {
-      trackOAuthEvent("scope_validation_failed", {
-        userId,
-        provider,
-        requiredScopes: options.scopes,
-        currentScopes: token?.token?.scopes || [],
-      });
-
-      return {
-        error: "Invalid scopes",
-        provider,
-        requiredScopes: options.scopes,
-        currentScopes: token?.token?.scopes || [],
-      };
-    }
-
-    return token;
-  } catch (error) {
-    trackError(error as Error, {
-      userId,
-      provider,
-      scopes: options.scopes,
-      function: "getOAuthTokenWithScopeValidation",
-    });
-
-    console.error(`Error getting OAuth token for ${provider}:`, error);
-    return {
-      error:
-        error instanceof Error ? error.message : "Failed to get OAuth token",
-      provider,
-    };
-  }
-}
-
-function extractScopesFromOpenAPI(spec: any): string[] {
-  const scopes: string[] = [];
-
-  // Check security schemes for OAuth2 scopes
-  if (spec.components?.securitySchemes) {
-    Object.values(spec.components.securitySchemes).forEach((scheme: any) => {
-      if (scheme.type === "oauth2" && scheme.flows) {
-        Object.values(scheme.flows).forEach((flow: any) => {
-          if (flow.scopes) {
-            scopes.push(...Object.keys(flow.scopes));
-          }
-        });
-      }
-    });
-  }
-
-  // Check global security requirements
-  if (spec.security) {
-    spec.security.forEach((security: any) => {
-      Object.entries(security).forEach(([scheme, scopesList]) => {
-        if (Array.isArray(scopesList)) {
-          scopes.push(...scopesList);
-        }
-      });
-    });
-  }
-
-  return [...new Set(scopes)]; // Remove duplicates
-}
-
-async function fetchWellKnownConfig(provider: string): Promise<any> {
-  const wellKnownUrls: Record<string, string> = {
-    google: "https://accounts.google.com/.well-known/openid-configuration",
-    zoom: "https://zoom.us/.well-known/oauth-authorization-server",
-    // Add other providers as needed
-  };
-
-  const url = wellKnownUrls[provider];
-  if (!url) {
-    throw new Error(`No well-known URL configured for provider: ${provider}`);
-  }
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch well-known config: ${response.statusText}`
-    );
-  }
-
-  return response.json();
-}
-
-function hasRequiredScopes(
-  token: TokenResponse,
-  requiredScopes: string[]
-): boolean {
-  const tokenScopes = token.token.scopes || [];
-  return requiredScopes.every((scope) => tokenScopes.includes(scope));
 }

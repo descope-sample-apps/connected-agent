@@ -1,5 +1,6 @@
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import { getRequiredScopes } from "../openapi-utils";
 
 interface DocumentContent {
   title?: string;
@@ -43,10 +44,7 @@ const documentsConfig: ToolConfig = {
   name: "Google Docs",
   description:
     "Create Google Docs with various types of content, including free-form writing, summaries, and structured documents",
-  scopes: [
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/drive",
-  ],
+  scopes: [], // Will be populated dynamically
   requiredFields: ["title", "content"],
   optionalFields: ["template"],
   capabilities: [
@@ -350,6 +348,15 @@ const documentsTool: Tool = {
         return validationError;
       }
 
+      // Get required scopes for document operations
+      const [driveScopes, docsScopes] = await Promise.all([
+        getRequiredScopes("google-drive", "files.create"),
+        getRequiredScopes("google-docs", "documents.batchUpdate"),
+      ]);
+
+      // Combine scopes from both APIs
+      const scopes = [...new Set([...driveScopes, ...docsScopes])];
+
       // Get OAuth token
       const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
@@ -357,7 +364,7 @@ const documentsTool: Tool = {
         {
           appId: "google-docs",
           userId,
-          scopes: documentsConfig.scopes,
+          scopes,
         }
       );
 

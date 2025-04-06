@@ -35,15 +35,22 @@ type TokenResponse =
     };
 
 /**
- * Fetches an OAuth token for a specific provider and user from Descope
+ * Gets an OAuth token for a specific provider and user from Descope
+ * @param userId The user ID
+ * @param appId The provider ID (e.g., "google-calendar")
+ * @param operation The operation to perform (e.g., "events.list" or "check_connection")
+ * @param options Token options
+ * @returns Token response or null if error
  */
 export async function getOAuthToken(
   userId: string,
   appId: string,
-  scopes: string[],
+  operation: string = "check_connection",
   options: TokenOptions = { withRefreshToken: false, forceRefresh: true }
 ): Promise<TokenResponse | null> {
-  console.log(`getOAuthToken called for userId: ${userId}, appId: ${appId}`);
+  console.log(
+    `getOAuthToken called for userId: ${userId}, appId: ${appId}, operation: ${operation}`
+  );
 
   const managementKey = process.env.DESCOPE_MANAGEMENT_KEY;
   const projectId = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID;
@@ -53,7 +60,29 @@ export async function getOAuthToken(
     return null;
   }
 
-  console.log("scopes:", scopes);
+  // For connection checking, we don't need to specify scopes at all
+  // For API operations, we need to get required scopes from the OpenAPI spec
+  let scopes: string[] | undefined = undefined;
+
+  if (operation !== "check_connection") {
+    scopes = await getRequiredScopes(appId, operation);
+    console.log("Required scopes:", scopes);
+
+    if (!scopes || scopes.length === 0) {
+      console.warn(
+        `No scopes found for operation ${operation} in app ${appId}`
+      );
+      return null;
+    }
+  }
+
+  // Prepare the request body
+  const requestBody = {
+    appId,
+    userId,
+    ...(scopes && { scopes }),
+    options,
+  };
 
   try {
     const response = await fetch(
@@ -64,13 +93,13 @@ export async function getOAuthToken(
           "Content-Type": "application/json",
           Authorization: `Bearer ${projectId}:${managementKey}`,
         },
-        body: JSON.stringify({
-          appId,
-          userId,
-          scopes,
-          options,
-        }),
+        body: JSON.stringify(requestBody),
       }
+    );
+
+    // Log the response status
+    console.log(
+      `Descope OAuth token response status: ${response.status} ${response.statusText}`
     );
 
     if (response.status === 404) {
@@ -86,7 +115,7 @@ export async function getOAuthToken(
           success: false,
           details: {
             error: "connection_required",
-            requiredScopes: scopes,
+            requiredScopes: scopes || [],
           },
         }
       );
@@ -94,7 +123,7 @@ export async function getOAuthToken(
       return {
         error: "connection_required",
         provider: appId,
-        requiredScopes: scopes,
+        requiredScopes: scopes || [],
       };
     }
 
@@ -180,89 +209,41 @@ export function hasRequiredScopes(
 }
 
 /**
- * Enhanced OAuth token getter with scope validation and dynamic scope requirements
- */
-export async function getOAuthTokenWithScopeValidation(
-  userId: string,
-  appId: string,
-  operation: string,
-  options: TokenOptions = { withRefreshToken: false, forceRefresh: true }
-): Promise<TokenResponse> {
-  // Get required scopes from OpenAPI spec
-  const requiredScopes = await getRequiredScopes(appId, operation);
-
-  // Try to get token with required scopes
-  const tokenData = await getOAuthToken(userId, appId, requiredScopes, options);
-
-  if (!tokenData) {
-    return {
-      error: "connection_required",
-      provider: appId,
-      requiredScopes,
-    };
-  }
-
-  // If we got a token, validate scopes
-  if (
-    !("error" in tokenData) &&
-    !hasRequiredScopes(tokenData, requiredScopes)
-  ) {
-    return {
-      error: "insufficient_scopes",
-      provider: appId,
-      requiredScopes,
-      currentScopes: tokenData.token?.scopes || [],
-    };
-  }
-
-  return tokenData;
-}
-
-/**
  * Provider-specific token fetchers with operation-based scope requirements
  */
 
 export async function getGoogleCalendarToken(
   userId: string,
-  operation: string = "events.list"
+  operation: string = "check_connection"
 ) {
-  return getOAuthTokenWithScopeValidation(
-    userId,
-    "google-calendar",
-    operation,
-    {
-      withRefreshToken: false,
-      forceRefresh: true,
-    }
-  );
+  return getOAuthToken(userId, "google-calendar", operation, {
+    withRefreshToken: false,
+  });
 }
 
 export async function getGoogleDocsToken(
   userId: string,
-  operation: string = "documents.get"
+  operation: string = "check_connection"
 ) {
-  return getOAuthTokenWithScopeValidation(userId, "google-docs", operation, {
+  return getOAuthToken(userId, "google-docs", operation, {
     withRefreshToken: false,
-    forceRefresh: true,
   });
 }
 
 export async function getCRMToken(
   userId: string,
-  operation: string = "contacts.list"
+  operation: string = "check_connection"
 ) {
-  return getOAuthTokenWithScopeValidation(userId, "custom-crm", operation, {
+  return getOAuthToken(userId, "crm", operation, {
     withRefreshToken: false,
-    forceRefresh: true,
   });
 }
 
 export async function getZoomToken(
   userId: string,
-  operation: string = "meetings.create"
+  operation: string = "check_connection"
 ) {
-  return getOAuthTokenWithScopeValidation(userId, "zoom", operation, {
+  return getOAuthToken(userId, "zoom", operation, {
     withRefreshToken: false,
-    forceRefresh: true,
   });
 }

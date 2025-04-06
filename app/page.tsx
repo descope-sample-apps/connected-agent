@@ -23,6 +23,7 @@ import ProfileScreen from "@/components/profile-screen";
 import ShareChatDialog from "@/components/share-chat-dialog";
 import PromptExplanation from "@/components/prompt-explanation";
 import PromptTrigger from "@/components/prompt-trigger";
+import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import {
   Briefcase,
@@ -269,6 +270,8 @@ export default function Home() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [currentPromptType, setCurrentPromptType] =
     useState<PromptType>("crm-lookup");
+  const [showDealSummaryPrompt, setShowDealSummaryPrompt] = useState(false);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
@@ -633,6 +636,26 @@ export default function Home() {
     }
   }, [messages, append]);
 
+  const handleDealSummarySuccess = (documentUrl: string) => {
+    append({
+      role: "user",
+      content: `I've created a summary document for the deal: ${documentUrl}`,
+    });
+  };
+
+  const handleCreateDealSummary = (dealId?: string) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (dealId) {
+      setSelectedDealId(dealId);
+    }
+
+    setShowDealSummaryPrompt(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -675,6 +698,12 @@ export default function Home() {
         open={showSaveDialog}
         onOpenChange={setShowSaveDialog}
         onSave={handleSaveChat}
+      />
+      <DealSummaryPrompt
+        isOpen={showDealSummaryPrompt}
+        onClose={() => setShowDealSummaryPrompt(false)}
+        onSuccess={handleDealSummarySuccess}
+        dealId={selectedDealId || undefined}
       />
 
       <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
@@ -939,15 +968,47 @@ export default function Home() {
                         <h2 className="text-lg font-semibold">Quick Actions</h2>
                       </div>
                       <div className="space-y-3">
-                        {actionOptions.map((option) => (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           <ActionCard
-                            key={option.id}
-                            title={option.title}
-                            description={option.description}
-                            logo={option.logo}
-                            onClick={option.action}
+                            title="CRM Lookup"
+                            description="Find customer info in CRM"
+                            logo="/logos/crm-logo.png"
+                            onClick={() =>
+                              usePredefinedPrompt(
+                                "Can you look up customer information for John Smith in our CRM?",
+                                "crm-lookup"
+                              )
+                            }
                           />
-                        ))}
+                          <ActionCard
+                            title="Schedule Meeting"
+                            description="Create a calendar event"
+                            logo="/logos/google-calendar.png"
+                            onClick={() =>
+                              usePredefinedPrompt(
+                                "Schedule a meeting with Sarah for tomorrow at 2 PM",
+                                "schedule-meeting"
+                              )
+                            }
+                          />
+                          <ActionCard
+                            title="Create Zoom Meeting"
+                            description="Generate video conference links"
+                            logo="/logos/zoom-logo.png"
+                            onClick={() =>
+                              usePredefinedPrompt(
+                                "Create a Zoom meeting for my team sync tomorrow",
+                                "create-zoom"
+                              )
+                            }
+                          />
+                          <ActionCard
+                            title="Deal Summary"
+                            description="Summarize deal to Google Docs"
+                            logo="/logos/google-docs.png"
+                            onClick={() => handleCreateDealSummary()}
+                          />
+                        </div>
                       </div>
 
                       <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">

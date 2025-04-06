@@ -1,37 +1,38 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getRecentToolActions, ToolActionResult } from "@/lib/oauth-utils";
 import { ExternalLink } from "lucide-react";
 import { useChat, Message as AIMessage } from "ai/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MeetingCard } from "@/components/meeting-card";
+import InChatConnectionPrompt from "@/components/in-chat-connection-prompt";
+import { Calendar, Database } from "lucide-react";
+
+// Define tool action result types
+interface ToolActionResult {
+  success: boolean;
+  action: string;
+  provider?: string;
+  details: any;
+  timestamp: string;
+}
 
 interface Message extends AIMessage {
   toolActions?: ToolActionResult[];
+  actionCard?: {
+    type: string;
+    data: any;
+  };
 }
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit } = useChat();
-  const [toolActions, setToolActions] = useState<ToolActionResult[]>([]);
+  // Messages that have action cards to display
+  const [messagesWithActions, setMessagesWithActions] = useState<string[]>([]);
 
-  useEffect(() => {
-    const fetchToolActions = async () => {
-      try {
-        const response = await fetch("/api/tools/actions");
-        if (!response.ok) throw new Error("Failed to fetch tool actions");
-        const data = await response.json();
-        setToolActions(data.actions);
-      } catch (error) {
-        console.error("Error fetching tool actions:", error);
-      }
-    };
-
-    fetchToolActions();
-  }, []);
-
+  // Formats tool action results (for display purposes)
   const formatToolAction = (action: ToolActionResult) => {
     if (!action.success) {
       return `Failed to ${action.action.replace(/_/g, " ")}: ${
@@ -59,34 +60,41 @@ export default function Chat() {
     }
   };
 
-  const renderMessage = (message: Message) => {
-    // Check if this is a meeting scheduled message
-    if (message.role === "assistant" && message.content) {
-      try {
-        const content = JSON.parse(message.content);
-        if (content.type === "meeting_scheduled") {
-          return (
-            <div key={message.id} className="flex justify-start">
-              <MeetingCard
-                message={content.ui.message}
-                link={content.ui.link}
-                details={content.ui.details}
-              />
-            </div>
-          );
-        }
-      } catch (e) {
-        // If parsing fails, it's a regular message
+  // Process message content to look for action triggers
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === 'assistant' && lastMessage.content) {
+      const content = lastMessage.content.toLowerCase();
+      // Check for connection requirements in the text using multiple patterns
+      if (
+        // Look for common connection phrases
+        ((content.includes("connect") && 
+          (content.includes("calendar") || content.includes("crm") || content.includes("service"))) ||
+         // Look for markdown link patterns related to connections
+         (content.includes("connect") && content.includes("](connection:")) ||
+         // Look for phrases about needing access
+         (content.includes("need") && 
+          (content.includes("access") || content.includes("connect")))) && 
+        !messagesWithActions.includes(lastMessage.id)
+      ) {
+        console.log("Detected connection requirement in message:", lastMessage.id);
+        setMessagesWithActions(prev => [...prev, lastMessage.id]);
       }
     }
+  }, [messages]);
 
-    // Regular message rendering
+  // Render a standard message bubble
+  const renderMessage = (message: Message) => {
+    // Convert markdown links to regular text for display
+    const processContent = (content: string) => {
+      // Replace markdown links with just the link text 
+      // E.g., [Connect Calendar](connection://calendar) -> Connect Calendar
+      return content.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    };
+    
     return (
       <div
-        key={message.id}
-        className={`flex ${
-          message.role === "assistant" ? "justify-start" : "justify-end"
-        }`}
+        className={`flex ${message.role === "assistant" ? "justify-start" : "justify-end"} mb-4`}
       >
         <div
           className={`rounded-lg px-4 py-2 max-w-[80%] ${
@@ -95,17 +103,94 @@ export default function Chat() {
               : "bg-primary text-primary-foreground"
           }`}
         >
-          {message.content}
+          {processContent(message.content)}
         </div>
       </div>
     );
   };
 
+  // Render action card after a message if needed
+  const renderActionCard = (messageId: string) => {
+    // Find the message by ID
+    const messageItem = messages.find((m) => m.id === messageId) as Message;
+    if (!messageItem) return null;
+    
+    // Extract info from markdown links if present
+    const extractConnectionInfo = (content: string) => {
+      // Check for markdown links with connection:// urls
+      const linkMatch = content.match(/\[([^\]]+)\]\(connection:\/\/([^)]+)\)/);
+      if (linkMatch) {
+        const [_, buttonText, serviceId] = linkMatch;
+        return {
+          buttonText, 
+          serviceId,
+          // Convert service-name to Service Name
+          service: serviceId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+        };
+      }
+      return null;
+    };
+    
+    // Detect which service needs connection
+    let service = "Service";
+    let connectUrl = "/api/auth/service";
+    let buttonText = "Connect Service";
+    let alternativeMsg;
+    
+    // First try to extract from markdown link
+    const connectionInfo = extractConnectionInfo(messageItem.content);
+    if (connectionInfo) {
+      service = connectionInfo.service;
+      connectUrl = `/api/auth/${connectionInfo.serviceId}`;
+      buttonText = connectionInfo.buttonText;
+    } else {
+      // Fallback to text pattern matching
+      const content = messageItem.content.toLowerCase();
+      if (content.includes("google calendar")) {
+        service = "Google Calendar";
+        connectUrl = "/api/auth/google-calendar";
+        buttonText = "Connect Google Calendar";
+      } else if (content.includes("calendar")) {
+        service = "Calendar";
+        connectUrl = "/api/auth/calendar"; 
+        buttonText = "Connect Calendar";
+      } else if (content.includes("crm")) {
+        service = "CRM";
+        connectUrl = "/api/auth/crm";
+        buttonText = "Connect CRM";
+        alternativeMsg = "Alternatively, you can provide email addresses directly.";
+      }
+    }
+    
+    return (
+      <div className="mx-auto mb-8 max-w-2xl border-t border-primary/10 pt-4 mt-3">
+        <p className="text-xs text-muted-foreground text-center mb-2">Connect to continue</p>
+        <div className="border border-primary/20 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white dark:bg-gray-900">
+          <InChatConnectionPrompt 
+            service={service}
+            message={`Connect your ${service} to access this functionality`}
+            connectButtonText="Connect"
+            connectButtonAction={connectUrl}
+            alternativeMessage={alternativeMsg}
+          />
+        </div>
+      </div>
+    );
+  };
+  
   return (
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
-          {messages.map((message) => renderMessage(message as Message))}
+        <div className="space-y-2">
+          {messages.map((message, index) => {
+            const isActionMessage = messagesWithActions.includes(message.id);
+            return (
+              <div key={message.id}>
+                {renderMessage(message as Message)}
+                {isActionMessage && renderActionCard(message.id)}
+              </div>
+            );
+          })}
         </div>
       </ScrollArea>
       <form onSubmit={handleSubmit} className="p-4 border-t">

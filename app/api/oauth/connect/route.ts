@@ -34,11 +34,21 @@ export async function POST(request: Request) {
       ] = `Bearer ${process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID}:${refreshToken}`;
     }
 
+    // Ensure we have a base URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!baseUrl) {
+      console.error("NEXT_PUBLIC_APP_URL environment variable is not set");
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
+    }
+
     const requestBody = {
       appId,
       options: {
-        redirectUrl: options.redirectUrl,
-        scopes: options.scopes,
+        redirectUrl: `${baseUrl}/api/oauth/callback`,
+        ...(options.scopes && { scopes: options.scopes }),
       },
     };
 
@@ -69,7 +79,7 @@ export async function POST(request: Request) {
     }
 
     const { url } = await response.json();
-    console.log("Received authorization URL from Descope: ", url);
+    console.log("Received authorization URL from Descope: ");
     return NextResponse.json({ url });
   } catch (error) {
     console.error("Error connecting to OAuth provider:", error);

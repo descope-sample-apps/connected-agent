@@ -1,3 +1,5 @@
+import { toolLogger } from "../logger";
+
 export interface ToolResponse {
   success: boolean;
   data?: any;
@@ -5,7 +7,8 @@ export interface ToolResponse {
   needsInput?: {
     field: string;
     message: string;
-    currentValue?: string;
+    options?: string[];
+    currentValue?: any;
   };
 }
 
@@ -15,32 +18,190 @@ export interface ToolConfig {
   description: string;
   scopes: string[];
   requiredFields: string[];
-  optionalFields: string[];
+  optionalFields?: string[];
+  capabilities?: string[];
+  parameters?: Record<string, any>;
 }
 
-export interface Tool {
-  config: ToolConfig;
-  validate: (data: any) => ToolResponse | null;
-  execute: (userId: string, data: any) => Promise<ToolResponse>;
+export abstract class Tool<InputType> {
+  abstract config: ToolConfig;
+
+  abstract validate(data: InputType): ToolResponse | null;
+
+  abstract execute(userId: string, data: InputType): Promise<ToolResponse>;
+
+  async executeWithLogging(
+    userId: string,
+    data: InputType
+  ): Promise<ToolResponse> {
+    const startTime = Date.now();
+    const toolName = this.config.name;
+
+    toolLogger.info(`Tool execution started: ${toolName}`, {
+      userId,
+      toolId: this.config.id,
+      input: this.sanitizeInput(data),
+    });
+
+    try {
+      // Validate input data
+      const validationError = this.validate(data);
+      if (validationError) {
+        toolLogger.warn(`Tool validation failed: ${toolName}`, {
+          userId,
+          toolId: this.config.id,
+          error: validationError.error,
+          executionTimeMs: Date.now() - startTime,
+        });
+        return validationError;
+      }
+
+      // Execute the tool
+      const result = await this.execute(userId, data);
+
+      const executionTime = Date.now() - startTime;
+
+      if (result.success) {
+        toolLogger.info(`Tool execution succeeded: ${toolName}`, {
+          userId,
+          toolId: this.config.id,
+          executionTimeMs: executionTime,
+          output: this.sanitizeOutput(result.data),
+        });
+      } else {
+        toolLogger.warn(`Tool execution failed: ${toolName}`, {
+          userId,
+          toolId: this.config.id,
+          error: result.error,
+          executionTimeMs: executionTime,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      toolLogger.error(`Tool execution error: ${toolName}`, {
+        userId,
+        toolId: this.config.id,
+        error: errorMessage,
+        executionTimeMs: executionTime,
+      });
+
+      return {
+        success: false,
+        error: `Tool execution error: ${errorMessage}`,
+      };
+    }
+  }
+
+  // Helper to sanitize sensitive data from logs
+  private sanitizeInput(data: InputType): any {
+    // Remove sensitive data before logging
+    if (!data) return {};
+
+    const sanitized = { ...(data as any) };
+
+    // Remove specific sensitive fields if present
+    const sensitiveFields = [
+      "accessToken",
+      "refreshToken",
+      "password",
+      "secret",
+    ];
+    sensitiveFields.forEach((field) => {
+      if (field in sanitized) {
+        sanitized[field] = "[REDACTED]";
+      }
+    });
+
+    return sanitized;
+  }
+
+  // Helper to sanitize large outputs for logs
+  private sanitizeOutput(data: any): any {
+    if (!data) return {};
+
+    // For arrays, summarize if too large
+    if (Array.isArray(data)) {
+      if (data.length > 5) {
+        return {
+          type: "array",
+          length: data.length,
+          sample: data.slice(0, 3),
+        };
+      }
+      return data;
+    }
+
+    // For objects, handle specially
+    if (typeof data === "object") {
+      // Remove particularly large fields that don't need full logging
+      const summarizedData = { ...data };
+      const largeFields = ["content", "description", "body", "text"];
+
+      largeFields.forEach((field) => {
+        if (
+          field in summarizedData &&
+          typeof summarizedData[field] === "string" &&
+          summarizedData[field].length > 100
+        ) {
+          summarizedData[field] = `${summarizedData[field].substring(
+            0,
+            100
+          )}... [${summarizedData[field].length} chars]`;
+        }
+      });
+
+      return summarizedData;
+    }
+
+    return data;
+  }
 }
 
 class ToolRegistry {
-  private tools: Map<string, Tool> = new Map();
+  private tools: Map<string, Tool<any>> = new Map();
 
-  register(tool: Tool) {
+  register<T>(tool: Tool<T>) {
+    toolLogger.info(`Registering tool: ${tool.config.name}`, {
+      toolId: tool.config.id,
+      capabilities: tool.config.capabilities || [],
+    });
     this.tools.set(tool.config.id, tool);
   }
 
-  getTool(id: string): Tool | undefined {
-    return this.tools.get(id);
+  getTool<T>(id: string): Tool<T> | undefined {
+    return this.tools.get(id) as Tool<T>;
   }
 
-  getAllTools(): Tool[] {
+  getAllTools(): Tool<any>[] {
     return Array.from(this.tools.values());
   }
 
   getToolConfigs(): ToolConfig[] {
     return this.getAllTools().map((tool) => tool.config);
+  }
+
+  // Execute a tool with proper logging
+  async executeTool<T>(
+    toolId: string,
+    userId: string,
+    data: T
+  ): Promise<ToolResponse> {
+    const tool = this.getTool<T>(toolId);
+
+    if (!tool) {
+      toolLogger.error(`Tool not found: ${toolId}`, { userId });
+      return {
+        success: false,
+        error: `Tool with ID '${toolId}' not found`,
+      };
+    }
+
+    return tool.executeWithLogging(userId, data);
   }
 }
 
