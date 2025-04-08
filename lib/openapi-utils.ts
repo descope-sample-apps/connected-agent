@@ -1,4 +1,5 @@
 import { OpenAPIV3 } from "openapi-types";
+import { DEFAULT_SCOPES } from "./oauth-utils";
 
 // Cache for OpenAPI specs to avoid repeated fetches
 const specCache: Record<string, OpenAPIV3.Document> = {};
@@ -61,12 +62,12 @@ export async function getRequiredScopes(
   // Operation-specific scopes only - no default fallbacks
   const operationScopes: Record<string, Record<string, string[]>> = {
     "google-calendar": {
-      "events.list": ["https://www.googleapis.com/auth/calendar.readonly"],
+      "events.list": ["https://www.googleapis.com/auth/calendar"],
       "events.create": ["https://www.googleapis.com/auth/calendar"],
       connect: ["https://www.googleapis.com/auth/calendar"], // Full access for connection
     },
     "google-docs": {
-      "documents.get": ["https://www.googleapis.com/auth/documents.readonly"],
+      "documents.get": ["https://www.googleapis.com/auth/documents"],
       "documents.create": ["https://www.googleapis.com/auth/documents"],
       connect: ["https://www.googleapis.com/auth/documents"], // Full access for connection
     },
@@ -101,6 +102,18 @@ export async function getRequiredScopes(
     return uniqueScopes;
   }
 
-  // No default scopes - if the operation isn't found, return empty array
+  // Return default scopes for the provider if available, otherwise empty array
+  if (DEFAULT_SCOPES[provider]) {
+    console.log(
+      `Using default scopes for ${provider}:`,
+      DEFAULT_SCOPES[provider]
+    );
+    return DEFAULT_SCOPES[provider];
+  }
+
+  // If no default scopes are found, return empty array
+  console.log(
+    `No scopes found for ${provider}:${operation}, returning empty array`
+  );
   return [];
 }

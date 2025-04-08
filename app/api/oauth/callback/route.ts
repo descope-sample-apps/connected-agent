@@ -13,6 +13,7 @@ export async function GET(request: Request) {
     const error = url.searchParams.get("error");
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
+    const chatId = url.searchParams.get("chatId");
 
     // Parse the state parameter to get the redirectTo value
     let redirectTo = "chat";
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
               setTimeout(function() {
                 window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
           error
-        )}&redirectTo=${redirectTo}";
+        )}&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
                 window.close();
               }, 300);
             }
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
             window.onload = function() {
               // Small delay to ensure the page loads
               setTimeout(function() {
-                window.location.href = "${baseUrl}?oauth=error&error=no_code&redirectTo=${redirectTo}";
+                window.location.href = "${baseUrl}?oauth=error&error=no_code&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
                 window.close();
               }, 300);
             }
@@ -152,7 +153,7 @@ export async function GET(request: Request) {
               setTimeout(function() {
                 window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
           errorMessage
-        )}&redirectTo=${redirectTo}";
+        )}&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
                 window.close();
               }, 300);
             }
@@ -185,7 +186,7 @@ export async function GET(request: Request) {
           window.onload = function() {
             // Small delay to ensure the page loads
             setTimeout(function() {
-              window.location.href = "${baseUrl}?oauth=success&redirectTo=${redirectTo}";
+              window.location.href = "${baseUrl}?oauth=success&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
               window.close();
             }, 300);
           }

@@ -109,6 +109,17 @@ interface ScheduleMeetingResponse {
   };
 }
 
+interface OAuthTokenData {
+  scopes: string[];
+  accessToken: string;
+  expiresAt: string;
+}
+
+interface OAuthPopupCallbacks {
+  onSuccess: (tokenData: OAuthTokenData) => void;
+  onError: (error: Error) => void;
+}
+
 export default function ProfileScreen({
   onBack,
   onLoadChat,
@@ -159,7 +170,12 @@ export default function ProfileScreen({
       setChatError(null);
 
       // Get the user's chats with latest messages
-      const response = await fetch("/api/chats");
+      const response = await fetch("/api/chats", {
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
 
       if (!response.ok) {
         throw new Error("Failed to fetch chat history");
@@ -194,11 +210,38 @@ export default function ProfileScreen({
     }
   };
 
-  // Fetch connections on component mount
+  // Fetch connections and chat history on component mount and after connections change
   useEffect(() => {
     fetchConnections();
     fetchChatHistory();
   }, []);
+
+  // Refresh chat history after a successful connection
+  const handleConnectionSuccess = async (providerId: string) => {
+    try {
+      // First refresh connections to get updated status
+      await fetchConnections();
+
+      // Then refresh chat history
+      await fetchChatHistory();
+
+      // Show success toast
+      toast({
+        title: "Connection Successful",
+        description: `Successfully connected to ${providerId.replace(
+          "-",
+          " "
+        )}`,
+      });
+    } catch (error) {
+      console.error("Error refreshing after connection:", error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh data after connection",
+        variant: "destructive",
+      });
+    }
+  };
 
   const fetchConnections = async () => {
     try {
@@ -272,44 +315,90 @@ export default function ProfileScreen({
       setIsLoading(true);
       setError(null);
 
-      // Construct the redirect URL with the redirectTo parameter
-      const redirectUrl = `${window.location.origin}/api/oauth/callback?redirectTo=profile`;
+      const providerData = oauthProviders.find((p) => p.id === provider);
+      if (!providerData) {
+        throw new Error("Provider not found");
+      }
 
-      // Get the authorization URL from our backend
-      const authUrl = await connectToOAuthProvider({
-        appId: provider,
-        redirectUrl,
-      });
+      if (providerData.connected) {
+        // Handle disconnection
+        const response = await fetch(`/api/oauth/disconnect/${provider}`, {
+          method: "POST",
+        });
 
-      // Handle the OAuth popup with success/error callbacks
-      await handleOAuthPopup(authUrl, {
-        onSuccess: async () => {
-          console.log(`Successfully connected to ${provider}`);
-          toast({
-            title: "Connection Successful",
-            description: `Connected to ${provider.replace("-", " ")}`,
-          });
-          // Refresh connections after successful authentication
-          await fetchConnections();
-        },
-        onError: (error) => {
-          console.error(`Error connecting to ${provider}:`, error);
-          toast({
-            title: "Connection Failed",
-            description: error.message || "Failed to connect provider",
-            variant: "destructive",
-          });
-        },
-      });
+        if (!response.ok) {
+          throw new Error("Failed to disconnect");
+        }
+
+        // Update the provider's connection status
+        setOauthProviders((providers) =>
+          providers.map((p) =>
+            p.id === provider
+              ? { ...p, connected: false, tokenData: undefined }
+              : p
+          )
+        );
+
+        toast({
+          title: "Disconnected",
+          description: `Successfully disconnected from ${providerData.name}`,
+        });
+      } else {
+        // Get the current chat ID from localStorage
+        const currentChatId = localStorage.getItem("currentChatId");
+
+        // Construct the redirect URL with the chat ID if available
+        const redirectUrl = `${
+          window.location.origin
+        }/api/oauth/callback?redirectTo=chat${
+          currentChatId ? `&chatId=${currentChatId}` : ""
+        }`;
+
+        // Handle connection
+        const authUrl = await connectToOAuthProvider({
+          appId: provider,
+          redirectUrl,
+        });
+
+        // Handle the OAuth popup
+        await handleOAuthPopup(authUrl, {
+          onSuccess: () => {
+            // Update the provider's connection status
+            setOauthProviders((providers) =>
+              providers.map((p) =>
+                p.id === provider
+                  ? {
+                      ...p,
+                      connected: true,
+                    }
+                  : p
+              )
+            );
+
+            toast({
+              title: "Connected",
+              description: `Successfully connected to ${providerData.name}`,
+            });
+
+            // Refresh chat history after successful connection
+            handleConnectionSuccess(provider);
+          },
+          onError: (error) => {
+            throw new Error(error.message || "Failed to connect");
+          },
+        });
+      }
     } catch (error) {
       console.error("Error toggling connection:", error);
       setError(
-        error instanceof Error ? error.message : "Failed to connect to provider"
+        error instanceof Error ? error.message : "Failed to toggle connection"
       );
       toast({
-        title: "Connection Error",
+        title: "Error",
         description:
-          error instanceof Error ? error.message : "An error occurred",
+          error instanceof Error
+            ? error.message
+            : "Failed to toggle connection",
         variant: "destructive",
       });
     } finally {

@@ -43,9 +43,9 @@ interface OAuthOptions {
 }
 
 // Add default scopes for providers when none are specified
-const DEFAULT_SCOPES: Record<string, string[]> = {
-  "google-calendar": ["https://www.googleapis.com/auth/calendar.readonly"],
-  "google-docs": ["https://www.googleapis.com/auth/documents.readonly"],
+export const DEFAULT_SCOPES: Record<string, string[]> = {
+  "google-calendar": ["https://www.googleapis.com/auth/calendar"],
+  "google-docs": ["https://www.googleapis.com/auth/documents"],
   zoom: ["meeting:read"],
   "custom-crm": ["contacts:read", "openid", "deals:read"],
 };

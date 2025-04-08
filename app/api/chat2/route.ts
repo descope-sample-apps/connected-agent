@@ -65,7 +65,7 @@ export async function POST(req: Request) {
               {
                 appId: "google-calendar",
                 userId,
-                scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+                scopes: ["https://www.googleapis.com/auth/calendar"],
                 operation: "tool_calling",
               }
             );

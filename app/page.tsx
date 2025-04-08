@@ -266,7 +266,13 @@ export default function Home() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [hasActivePrompt, setHasActivePrompt] = useState(false);
   const [showPromptExplanation, setShowPromptExplanation] = useState(false);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
+    // Initialize from localStorage if available
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("currentChatId");
+    }
+    return null;
+  });
   const [lastScheduledMeeting, setLastScheduledMeeting] =
     useState<LastScheduledMeeting | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -495,7 +501,6 @@ export default function Home() {
   const handleLoadChat = (chatId: string) => {
     setCurrentChatId(chatId);
     setShowProfileScreen(false);
-    alert(`Loading chat ${chatId}`);
   };
 
   const togglePromptExplanation = () => {
@@ -689,6 +694,38 @@ export default function Home() {
     setSidebarOpen(newValue);
     // Don't save the preference here - only save when explicitly changed in settings
   };
+
+  // Check for OAuth redirect parameters
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const oauthStatus = url.searchParams.get("oauth");
+      const redirectTo = url.searchParams.get("redirectTo");
+      const chatId = url.searchParams.get("chatId");
+
+      if (oauthStatus === "success" && redirectTo === "chat" && chatId) {
+        // Set the current chat ID and update localStorage
+        setCurrentChatId(chatId);
+        localStorage.setItem("currentChatId", chatId);
+
+        // Clear the URL parameters
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("oauth");
+        newUrl.searchParams.delete("redirectTo");
+        newUrl.searchParams.delete("chatId");
+        window.history.replaceState({}, "", newUrl.toString());
+      }
+    }
+  }, []);
+
+  // Update localStorage when currentChatId changes
+  useEffect(() => {
+    if (currentChatId) {
+      localStorage.setItem("currentChatId", currentChatId);
+    } else {
+      localStorage.removeItem("currentChatId");
+    }
+  }, [currentChatId]);
 
   if (isLoading) {
     return (
