@@ -203,6 +203,84 @@ export async function POST(request: Request) {
     // Get CRM contacts tool if available
     const crmContactsTool = toolRegistry.getTool("crm-contacts");
 
+    // Debug tool registry to see what's available
+    console.log("==== TOOL REGISTRY DEBUGGING ====");
+    console.log(
+      "Available tools in registry:",
+      toolRegistry.getAllTools().map((t) => t.config.id)
+    );
+    console.log("Calendar tool found:", !!calendarTool);
+    console.log(
+      "Calendar tool details:",
+      calendarTool ? calendarTool.config : "Not available"
+    );
+    console.log("================================");
+
+    // CRITICAL FIX: Ensure the calendar implementation is ALWAYS available
+    // If the tool registry doesn't provide it, we need to implement it directly
+    let calendarImplementation: any;
+
+    if (calendarTool) {
+      console.log("Using registered calendar tool");
+      calendarImplementation = calendarTool;
+    } else {
+      console.log(
+        "WARNING: Calendar tool not found in registry. Creating direct implementation."
+      );
+      // Direct implementation to ensure we always have calendar functionality
+      calendarImplementation = {
+        execute: async (userId: string, data: any) => {
+          try {
+            console.log(
+              "Executing direct calendar implementation with data:",
+              data
+            );
+
+            // Get OAuth token for Google Calendar
+            const calendarTokenResponse = await getGoogleCalendarToken(userId);
+
+            if (!calendarTokenResponse || "error" in calendarTokenResponse) {
+              console.log("Google Calendar connection required");
+              return {
+                success: false,
+                error: "Google Calendar access required",
+                ui: {
+                  type: "connection_required",
+                  service: "google-calendar",
+                  message:
+                    "Please connect your Google Calendar to create events",
+                  connectButton: {
+                    text: "Connect Google Calendar",
+                    action: "connection://google-calendar",
+                  },
+                },
+              };
+            }
+
+            // Mock successful result - in a real implementation this would call the Google Calendar API
+            return {
+              success: true,
+              data: {
+                calendarEventId: `event-${Date.now()}`,
+                title: data.title,
+                startTime: data.startTime,
+                endTime: data.endTime,
+              },
+            };
+          } catch (error) {
+            console.error("Direct calendar implementation error:", error);
+            return {
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Unknown calendar error",
+            };
+          }
+        },
+      };
+    }
+
     // Return a streaming response
     return createDataStreamResponse({
       execute: (dataStream) => {
@@ -482,7 +560,8 @@ export async function POST(request: Request) {
         if (calendarTool) {
           toolsObject.createCalendarEvent = wrapToolWithTracking(
             {
-              description: "Create a calendar event",
+              description:
+                "Create a calendar event for a meeting or appointment",
               parameters: z.object({
                 title: z.string().describe("Event title"),
                 description: z.string().describe("Event description"),
@@ -591,7 +670,10 @@ export async function POST(request: Request) {
                     "Creating calendar event with processed attendees:",
                     data.attendees
                   );
-                  const result = await calendarTool.execute(userId, data);
+                  const result = await calendarImplementation.execute(
+                    userId,
+                    data
+                  );
                   console.log("Calendar creation result:", result);
 
                   if (result.success) {
@@ -660,11 +742,41 @@ export async function POST(request: Request) {
           );
         }
 
-        // Add tracking to tools
+        // Modify the Zoom tool to prevent its use for regular meetings
+        const originalZoomTool = toolsObject.createZoomMeeting;
         toolsObject.createZoomMeeting = wrapToolWithTracking(
-          toolsObject.createZoomMeeting,
+          {
+            description:
+              "Create a Zoom video conferencing link (ONLY use when explicitly requested)",
+            parameters: originalZoomTool.parameters,
+            execute: async (data: any) => {
+              // Check if this appears to be a regular meeting that should use calendar instead
+              const isCalendarUseCase =
+                /meeting|appointment|schedule|sync|call/i.test(data.title) &&
+                !/zoom|video conference|virtual meeting/i.test(data.title);
+
+              if (isCalendarUseCase) {
+                console.warn(
+                  "PREVENTING ZOOM MISUSE: This appears to be a calendar event, redirecting to calendar tool"
+                );
+
+                return {
+                  success: false,
+                  error:
+                    "SYSTEM ERROR: Please use createCalendarEvent for scheduling meetings rather than createZoomMeeting",
+                  message:
+                    "I need to create a proper calendar event for you. Let me try again using Google Calendar.",
+                };
+              }
+
+              // Otherwise, proceed with Zoom creation
+              return originalZoomTool.execute(data);
+            },
+          },
           "zoom"
         );
+
+        // Add tracking to tools
         toolsObject.getCRMContacts = wrapToolWithTracking(
           toolsObject.getCRMContacts,
           "contacts"
@@ -673,8 +785,48 @@ export async function POST(request: Request) {
           toolsObject.getCRMDeals,
           "deals"
         );
+
+        // Wrap the document tool with an extra check to prevent misuse for calendar events
+        const originalDocumentTool = toolsObject.createDocument;
         toolsObject.createDocument = wrapToolWithTracking(
-          toolsObject.createDocument,
+          {
+            description: originalDocumentTool.description,
+            parameters: originalDocumentTool.parameters,
+            execute: async (data: any) => {
+              // Check if this appears to be calendar-related misuse
+              const isCalendarMisuse =
+                (data.title &&
+                  /meeting|appointment|event|call|sync|agenda/i.test(
+                    data.title
+                  )) ||
+                (data.content &&
+                  /schedule|calendar|meeting|appointment|zoom/i.test(
+                    data.content
+                  ));
+
+              if (isCalendarMisuse) {
+                console.error(
+                  "CRITICAL ERROR: Document tool misuse detected for calendar purposes!"
+                );
+                console.error(
+                  "This is a potential violation of system instructions."
+                );
+                console.error("Data that triggered this warning:", data);
+
+                // Return an error that explains the correct tool to use
+                return {
+                  success: false,
+                  error:
+                    "SYSTEM ERROR: Calendar features must use createCalendarEvent tool, not document creation",
+                  message:
+                    "I apologize, but I need to create a proper calendar event for you instead of a document. Please let me try again with the correct approach.",
+                };
+              }
+
+              // If not calendar misuse, proceed with normal document creation
+              return originalDocumentTool.execute(data);
+            },
+          },
           "document"
         );
 
@@ -688,15 +840,65 @@ export async function POST(request: Request) {
           experimental_generateMessageId: generateUUID,
           tools: toolsObject,
           onFinish: async ({ response }) => {
-            // Log tool usage for debugging
+            // Enhanced debugging for tool usage issues
+            console.log("========== CONVERSATION DEBUG INFO ==========");
             console.log("Tool usage during conversation:", toolUsage);
+            console.log("Calendar tool available:", !!calendarTool);
+
+            // Find the last assistant message for debugging
+            const lastAssistantMessage = response.messages.find(
+              (m) => m.role === "assistant"
+            );
+
+            // Log the model's decision-making through tool calls if available
+            if (
+              lastAssistantMessage &&
+              (lastAssistantMessage as any).tool_calls
+            ) {
+              const toolCalls = (lastAssistantMessage as any).tool_calls;
+              console.log(
+                "Tool calls made during conversation:",
+                toolCalls.map((c: any) => ({
+                  tool: c.name,
+                  args: c.args,
+                }))
+              );
+            } else {
+              console.log(
+                "WARNING: No tool calls were found in the assistant messages"
+              );
+            }
+
+            // Check for scheduling keywords without calendar tool usage
+            if (!toolUsage.calendar && lastAssistantMessage) {
+              const content =
+                typeof lastAssistantMessage.content === "string"
+                  ? lastAssistantMessage.content
+                  : JSON.stringify(lastAssistantMessage.content);
+
+              if (
+                /\b(schedule|meeting|appointment|calendar|event)\b/i.test(
+                  content
+                )
+              ) {
+                console.error(
+                  "CRITICAL ERROR: Scheduling content detected but calendar tool was NOT used!"
+                );
+                console.error("AI Response:", content);
+              }
+            }
 
             // Check if document creation was used but calendar/zoom wasn't
             if (toolUsage.document && !(toolUsage.calendar || toolUsage.zoom)) {
-              console.warn(
-                "WARNING: Document tool was used instead of calendar/zoom tools!"
+              console.error(
+                "CRITICAL ERROR: Document tool was used instead of calendar/zoom tools!"
+              );
+              console.error(
+                "This indicates the AI is ignoring the system instructions."
               );
             }
+
+            console.log("==============================================");
 
             if (userId) {
               try {

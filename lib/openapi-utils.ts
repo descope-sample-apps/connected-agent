@@ -75,7 +75,7 @@ export async function getRequiredScopes(
       "meetings.create": ["meeting:write"],
       connect: ["meeting:read", "meeting:write"], // Both read and write for connection
     },
-    crm: {
+    "custom-crm": {
       "contacts.list": ["contacts.read"],
       "deals.list": ["deals.read"],
       connect: ["contacts.read", "deals.read"], // Both for connection

@@ -47,7 +47,7 @@ const DEFAULT_SCOPES: Record<string, string[]> = {
   "google-calendar": ["https://www.googleapis.com/auth/calendar.readonly"],
   "google-docs": ["https://www.googleapis.com/auth/documents.readonly"],
   zoom: ["meeting:read"],
-  "custom-crm": ["contacts.read"],
+  "custom-crm": ["contacts:read", "openid", "deals:read"],
 };
 
 // Add a function to get scopes from OpenAPI spec

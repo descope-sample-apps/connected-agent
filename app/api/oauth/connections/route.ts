@@ -125,7 +125,7 @@ export async function GET() {
       "google-calendar": processConnection(googleCalendar),
       "google-docs": processConnection(googleDocs),
       zoom: processConnection(zoom),
-      crm: processConnection(crm),
+      "custom-crm": processConnection(crm),
     };
 
     trackOAuthEvent("connection_successful", {
@@ -134,7 +134,7 @@ export async function GET() {
       googleCalendarConnected: connections["google-calendar"].connected,
       googleDocsConnected: connections["google-docs"].connected,
       zoomConnected: connections.zoom.connected,
-      crmConnected: connections.crm.connected,
+      crmConnected: connections["custom-crm"].connected,
     });
 
     return Response.json({ connections });

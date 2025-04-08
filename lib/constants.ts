@@ -35,7 +35,7 @@ export const OAUTH_PROVIDERS = {
     icon: "/logos/zoom-logo.png",
     scopes: ["meeting:write", "meeting:read"],
   },
-  crm: {
+  "custom-crm": {
     name: "CRM",
     icon: "/logos/crm-logo.png",
     scopes: ["contacts:read", "deals:read"],

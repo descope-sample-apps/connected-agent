@@ -37,22 +37,6 @@ const providers = {
       "video meeting",
     ],
   },
-  crm: {
-    id: "crm",
-    name: "CRM",
-    icon: "/logos/crm-logo.png",
-    scopes: ["contacts:read", "deals:read"],
-    keywords: [
-      "crm",
-      "customer",
-      "lead",
-      "deal",
-      "opportunity",
-      "contact",
-      "account",
-      "sales",
-    ],
-  },
   "custom-crm": {
     id: "custom-crm",
     name: "Outbound CRM",
