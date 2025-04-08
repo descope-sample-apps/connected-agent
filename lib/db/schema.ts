@@ -27,6 +27,7 @@ export const messages = pgTable("messages", {
   role: text("role").notNull(),
   parts: jsonb("parts").notNull(),
   attachments: jsonb("attachments").default([]),
+  metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

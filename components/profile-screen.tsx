@@ -140,15 +140,9 @@ export default function ProfileScreen({
       connected: false,
     },
     {
-      id: "crm",
+      id: "custom-crm",
       name: "CRM",
       icon: "/logos/crm-logo.png",
-      connected: false,
-    },
-    {
-      id: "servicenow",
-      name: "ServiceNow ITSM",
-      icon: "/logos/servicenow-logo.png",
       connected: false,
     },
   ]);

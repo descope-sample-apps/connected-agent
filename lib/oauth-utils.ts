@@ -1,5 +1,6 @@
 import { getOAuthToken } from "@/lib/descope";
 import { trackOAuthEvent, trackError } from "./analytics";
+import { getRequiredScopes } from "./openapi-utils";
 
 interface OAuthConnectParams {
   appId: string;
@@ -46,9 +47,31 @@ const DEFAULT_SCOPES: Record<string, string[]> = {
   "google-calendar": ["https://www.googleapis.com/auth/calendar.readonly"],
   "google-docs": ["https://www.googleapis.com/auth/documents.readonly"],
   zoom: ["meeting:read"],
-  crm: ["contacts.read"],
-  servicenow: ["read"],
+  "custom-crm": ["contacts.read"],
 };
+
+// Add a function to get scopes from OpenAPI spec
+async function getScopesFromOpenAPISpec(provider: string): Promise<string[]> {
+  console.log(`[OAuth] Getting scopes from OpenAPI spec for ${provider}`);
+  try {
+    // Use the getRequiredScopes function from openapi-utils
+    // We'll use a generic 'connect' operation which should return the basic/default
+    // scopes needed for connection
+    const scopes = await getRequiredScopes(provider, "connect");
+    console.log(
+      `[OAuth] Retrieved scopes from OpenAPI spec for ${provider}:`,
+      scopes
+    );
+    return scopes;
+  } catch (error) {
+    console.error(
+      `[OAuth] Error getting scopes from OpenAPI spec for ${provider}:`,
+      error
+    );
+    // Fall back to default scopes if there's an error
+    return DEFAULT_SCOPES[provider] || [];
+  }
+}
 
 export async function getOAuthTokenWithScopeValidation(
   userId: string,
@@ -135,12 +158,31 @@ export async function connectToOAuthProvider({
     // Create a state parameter that includes the redirectTo
     const state = JSON.stringify({ redirectTo });
 
-    // If no scopes provided, use defaults for this provider
+    // If no scopes provided, get them from the OpenAPI spec
     let scopesToUse = scopes;
     if (!scopesToUse || scopesToUse.length === 0) {
-      scopesToUse = DEFAULT_SCOPES[appId] || [];
-      console.log(`Using default scopes for ${appId}:`, scopesToUse);
+      scopesToUse = await getScopesFromOpenAPISpec(appId);
+      console.log(
+        `[OAuth] Using scopes from OpenAPI spec for ${appId}:`,
+        scopesToUse
+      );
+
+      // If still no scopes, fall back to defaults as last resort
+      if (!scopesToUse || scopesToUse.length === 0) {
+        scopesToUse = DEFAULT_SCOPES[appId] || [];
+        console.log(
+          `[OAuth] Falling back to default scopes for ${appId}:`,
+          scopesToUse
+        );
+      }
     }
+
+    // Track this OAuth connection attempt with the scopes we're using
+    trackOAuthEvent("connect_initiated", {
+      provider: appId,
+      scopesCount: scopesToUse.length,
+      hasScopes: scopesToUse.length > 0,
+    });
 
     // Include scopes in the request
     const requestBody = {
@@ -187,6 +229,7 @@ export async function connectToOAuthProvider({
     return url;
   } catch (error) {
     console.error("Error connecting to OAuth provider:", error);
+    trackError(error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }

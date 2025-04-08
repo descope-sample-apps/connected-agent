@@ -11,6 +11,7 @@ export interface ChatMessage {
   role: string;
   parts: any;
   attachments?: Array<any>;
+  metadata?: any;
   createdAt: Date;
 }
 
@@ -192,6 +193,7 @@ export async function saveMessages({
             role: message.role,
             parts: message.parts,
             attachments: message.attachments || [],
+            metadata: message.metadata || {},
             createdAt: message.createdAt || new Date(),
           };
         })
@@ -244,6 +246,7 @@ export async function getChatMessages({
         role: msg.role,
         parts: msg.parts as any,
         attachments: (msg.attachments as any[]) || [],
+        metadata: msg.metadata || {},
         createdAt: msg.createdAt,
       };
     });

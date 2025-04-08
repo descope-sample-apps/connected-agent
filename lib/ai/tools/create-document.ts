@@ -18,7 +18,7 @@ interface DataStreamWithAppend {
 // Replace with a more compatible type
 interface CreateDocumentProps {
   session: SessionUser | null;
-  dataStream: { append: (data: any) => void };
+  dataStream: DataStreamWithAppend;
 }
 
 export function createDocument({ session, dataStream }: CreateDocumentProps) {

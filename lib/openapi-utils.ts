@@ -58,40 +58,49 @@ export async function getRequiredScopes(
 ): Promise<string[]> {
   console.log(`Getting required scopes for ${provider}:${operation}`);
 
-  // Default scopes for common operations
-  const defaultScopes: Record<string, Record<string, string[]>> = {
+  // Operation-specific scopes only - no default fallbacks
+  const operationScopes: Record<string, Record<string, string[]>> = {
     "google-calendar": {
       "events.list": ["https://www.googleapis.com/auth/calendar.readonly"],
       "events.create": ["https://www.googleapis.com/auth/calendar"],
-      default: ["https://www.googleapis.com/auth/calendar.readonly"],
+      connect: ["https://www.googleapis.com/auth/calendar"], // Full access for connection
     },
     "google-docs": {
       "documents.get": ["https://www.googleapis.com/auth/documents.readonly"],
       "documents.create": ["https://www.googleapis.com/auth/documents"],
-      default: ["https://www.googleapis.com/auth/documents.readonly"],
+      connect: ["https://www.googleapis.com/auth/documents"], // Full access for connection
     },
     zoom: {
       "meetings.list": ["meeting:read"],
       "meetings.create": ["meeting:write"],
-      default: ["meeting:read"],
+      connect: ["meeting:read", "meeting:write"], // Both read and write for connection
     },
     crm: {
       "contacts.list": ["contacts.read"],
       "deals.list": ["deals.read"],
-      default: ["contacts.read", "deals.read"],
+      connect: ["contacts.read", "deals.read"], // Both for connection
     },
   };
 
-  // First check if we have default scopes for this operation
-  if (defaultScopes[provider]?.[operation]) {
-    return defaultScopes[provider][operation];
+  // Check if we have scopes for this specific operation
+  if (operationScopes[provider]?.[operation]) {
+    return operationScopes[provider][operation];
   }
 
-  // Otherwise return the default scopes for the provider
-  if (defaultScopes[provider]?.["default"]) {
-    return defaultScopes[provider]["default"];
+  // If the operation is 'connect' but not explicitly defined, try to provide reasonable connect scopes
+  if (operation === "connect" && operationScopes[provider]) {
+    // Build a combined set of scopes for connection
+    const allScopesForProvider = Object.values(
+      operationScopes[provider]
+    ).flat();
+
+    // Remove duplicates using Set
+    const uniqueScopes = [...new Set(allScopesForProvider)];
+
+    console.log(`Built connect scopes for ${provider}:`, uniqueScopes);
+    return uniqueScopes;
   }
 
-  // If no default scopes defined, return empty array
+  // No default scopes - if the operation isn't found, return empty array
   return [];
 }

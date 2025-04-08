@@ -68,22 +68,6 @@ const providers = {
       "sales",
     ],
   },
-  servicenow: {
-    id: "servicenow",
-    name: "ServiceNow ITSM",
-    icon: "/logos/servicenow-logo.png",
-    scopes: ["read", "write"],
-    keywords: [
-      "servicenow",
-      "itsm",
-      "service",
-      "ticket",
-      "incident",
-      "problem",
-      "change",
-      "request",
-    ],
-  },
 };
 
 type ProviderKey = keyof typeof providers;

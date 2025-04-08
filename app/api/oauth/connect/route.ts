@@ -6,11 +6,10 @@ export const runtime = "nodejs";
 
 // Add default scopes for providers when none are specified
 const DEFAULT_SCOPES: Record<string, string[]> = {
-  "google-calendar": ["https://www.googleapis.com/auth/calendar.readonly"],
-  "google-docs": ["https://www.googleapis.com/auth/documents.readonly"],
+  "google-calendar": ["https://www.googleapis.com/auth/calendar"],
+  "google-docs": ["https://www.googleapis.com/auth/documents"],
   zoom: ["meeting:read"],
-  crm: ["contacts.read"],
-  servicenow: ["read"],
+  "custom-crm": ["contacts.read"],
 };
 
 /**

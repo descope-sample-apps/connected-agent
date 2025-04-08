@@ -22,12 +22,18 @@ import {
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { myProvider } from "@/lib/ai/providers";
-import { getGoogleCalendarToken, getCRMToken } from "@/lib/descope";
+import {
+  getGoogleCalendarToken,
+  getCRMToken,
+  getZoomToken,
+} from "@/lib/descope";
 import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
 import { isProductionEnvironment } from "@/lib/constants";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { CRMDealsTool } from "@/lib/tools/crm";
+import { toolRegistry } from "@/lib/tools/base";
 
 export const maxDuration = 60;
 
@@ -78,7 +84,65 @@ function createStreamAdapter(dataStream: any) {
         console.error("Error appending to stream:", error);
       }
     },
+    close: () => {
+      // Add a close method to match the DataStreamWithAppend interface
+      try {
+        if (typeof dataStream.close === "function") {
+          dataStream.close();
+        }
+      } catch (error) {
+        console.error("Error closing stream:", error);
+      }
+    },
   };
+}
+
+// Add tool usage tracking to detect if tools aren't being used
+const toolUsage = {
+  calendar: false,
+  zoom: false,
+  contacts: false,
+  deals: false,
+  document: false,
+};
+
+// Wrap tool executions to track usage
+const wrapToolWithTracking = (tool: any, toolName: string) => {
+  const originalExecute = tool.execute;
+  tool.execute = async (...args: any[]) => {
+    console.log(`Tool ${toolName} called with args:`, args);
+    toolUsage[toolName as keyof typeof toolUsage] = true;
+    return originalExecute.apply(tool, args);
+  };
+  return tool;
+};
+
+// Add link detection and formatting for better display
+function formatLinksForDisplay(content: string): string {
+  // Check if the content has markdown links
+  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let formattedContent = content;
+
+  // Replace markdown links with a special format the frontend can recognize and render
+  formattedContent = formattedContent.replace(
+    markdownLinkRegex,
+    (match, text, url) => {
+      // Create a special format that's easy for the frontend to parse
+      return `<link:${url}:${text}>`;
+    }
+  );
+
+  // Also detect plain URLs and format them
+  const urlRegex = /(https?:\/\/[^\s]+)(?=[,.!?;:]?(\s|$))/g;
+  formattedContent = formattedContent.replace(urlRegex, (match, url) => {
+    // Don't replace URLs that are already inside our special link format
+    if (formattedContent.includes(`<link:${url}:`)) {
+      return match;
+    }
+    return `<link:${url}:${url}>`;
+  });
+
+  return formattedContent;
 }
 
 export async function POST(request: Request) {
@@ -132,11 +196,487 @@ export async function POST(request: Request) {
       ],
     });
 
+    // Initialize CRM tools
+    const crmDealsTool = new CRMDealsTool();
+    // Get calendar tool if available
+    const calendarTool = toolRegistry.getTool("calendar");
+    // Get CRM contacts tool if available
+    const crmContactsTool = toolRegistry.getTool("crm-contacts");
+
     // Return a streaming response
     return createDataStreamResponse({
       execute: (dataStream) => {
         // Create a wrapper for the dataStream with proper append method
         const streamAdapter = createStreamAdapter(dataStream);
+
+        // Define the tools object to handle both required and optional tools
+        const toolsObject: any = {
+          getWeather,
+          createDocument: createDocument({
+            session: userSession,
+            dataStream: streamAdapter,
+          }),
+          parseDate: {
+            description: "Parse a relative date into a formatted date and time",
+            parameters: z.object({
+              dateString: z
+                .string()
+                .describe(
+                  'The date string to parse (e.g., "tomorrow", "next Friday")'
+                ),
+              timeString: z
+                .string()
+                .optional()
+                .describe('The time string to parse (e.g., "3pm", "15:00")'),
+            }),
+            execute: async ({
+              dateString,
+              timeString = "12:00",
+            }: {
+              dateString: string;
+              timeString?: string;
+            }) => {
+              try {
+                const dateContext = getCurrentDateContext();
+                const parsedDate = parseRelativeDate(dateString, timeString);
+
+                return {
+                  success: true,
+                  dateContext,
+                  parsedDate,
+                };
+              } catch (error) {
+                console.error(
+                  `Error parsing date: "${dateString}" at time "${timeString}"`,
+                  error
+                );
+
+                // Use current date as fallback
+                const now = new Date();
+                return {
+                  success: false,
+                  error: `Could not parse date: ${dateString}`,
+                  fallbackDate: now.toISOString(),
+                  dateContext: getCurrentDateContext(),
+                };
+              }
+            },
+          },
+          // Add CRM deals tool
+          getCRMDeals: {
+            description: "Get all deals or a specific deal by ID from the CRM",
+            parameters: z.object({
+              id: z
+                .string()
+                .optional()
+                .describe("Deal ID (optional, leave empty to get all deals)"),
+            }),
+            execute: async ({ id }: { id?: string }) => {
+              return await crmDealsTool.execute(userId, { id });
+            },
+          },
+          // Add CRM contacts lookup tool
+          getCRMContacts: {
+            description: "Get contact information from the CRM",
+            parameters: z.object({
+              name: z
+                .string()
+                .optional()
+                .describe("Contact name to search for (e.g., 'Chris')"),
+              email: z
+                .string()
+                .optional()
+                .describe("Contact email to search for"),
+              id: z.string().optional().describe("Contact ID if known"),
+            }),
+            execute: async ({
+              name,
+              email,
+              id,
+            }: {
+              name?: string;
+              email?: string;
+              id?: string;
+            }) => {
+              try {
+                console.log("Looking up contact information:", {
+                  name,
+                  email,
+                  id,
+                });
+
+                if (!crmContactsTool) {
+                  return {
+                    success: false,
+                    error: "CRM contacts tool not available",
+                    message:
+                      "Unable to access CRM contacts. Please connect your CRM.",
+                    ui: {
+                      type: "connection_required",
+                      service: "crm",
+                      message: "Please connect your CRM to access contacts",
+                      connectButton: {
+                        text: "Connect CRM",
+                        action: "connection://crm",
+                      },
+                    },
+                  };
+                }
+
+                // Search by whatever parameter was provided
+                const result = await crmContactsTool.execute(userId, {
+                  name,
+                  email,
+                  id,
+                });
+                console.log("CRM contact lookup result:", result);
+
+                return result;
+              } catch (error) {
+                console.error("Error looking up CRM contact:", error);
+                return {
+                  success: false,
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : "Unknown error looking up contact",
+                  message:
+                    "There was an error retrieving contact information from your CRM.",
+                };
+              }
+            },
+          },
+          // Add a dedicated Zoom meeting creation tool
+          createZoomMeeting: {
+            description: "Create a Zoom meeting and get the meeting link",
+            parameters: z.object({
+              title: z.string().describe("Meeting title"),
+              description: z.string().describe("Meeting description/agenda"),
+              startTime: z
+                .string()
+                .describe(
+                  "Start time in ISO format (e.g., 2023-05-01T09:00:00)"
+                ),
+              duration: z.number().describe("Meeting duration in minutes"),
+              attendees: z
+                .array(z.string())
+                .optional()
+                .describe("Optional list of attendee emails"),
+              settings: z
+                .object({
+                  joinBeforeHost: z.boolean().optional(),
+                  muteUponEntry: z.boolean().optional(),
+                  waitingRoom: z.boolean().optional(),
+                })
+                .optional(),
+            }),
+            execute: async (data: any) => {
+              try {
+                console.log("Creating Zoom meeting with data:", data);
+
+                // Get Zoom OAuth token
+                const zoomTokenResponse = await getZoomToken(userId);
+                if (!zoomTokenResponse || "error" in zoomTokenResponse) {
+                  console.log("Zoom access required - returning connection UI");
+                  return {
+                    success: false,
+                    error: "Zoom access required",
+                    message:
+                      "You need to connect your Zoom account to create meetings.",
+                    ui: {
+                      type: "connection_required",
+                      service: "zoom",
+                      message:
+                        "Please connect your Zoom account to create meetings",
+                      connectButton: {
+                        text: "Connect Zoom",
+                        action: "connection://zoom",
+                      },
+                    },
+                  };
+                }
+
+                // Calculate end time from duration
+                const startTime = new Date(data.startTime);
+                const endTime = new Date(
+                  startTime.getTime() + data.duration * 60000
+                );
+
+                // Create Zoom meeting
+                const response = await fetch(
+                  "https://api.zoom.us/v2/users/me/meetings",
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${zoomTokenResponse.token.accessToken}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      topic: data.title,
+                      type: 2, // Scheduled meeting
+                      start_time: startTime.toISOString(),
+                      duration: data.duration,
+                      timezone: "UTC",
+                      agenda: data.description,
+                      settings: {
+                        host_video: true,
+                        participant_video: true,
+                        join_before_host:
+                          data.settings?.joinBeforeHost ?? false,
+                        mute_upon_entry: data.settings?.muteUponEntry ?? true,
+                        waiting_room: data.settings?.waitingRoom ?? true,
+                      },
+                    }),
+                  }
+                );
+
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}));
+                  console.error("Zoom API error:", errorData);
+                  return {
+                    success: false,
+                    error: `Failed to create Zoom meeting: ${
+                      errorData.message || response.statusText
+                    }`,
+                    message:
+                      "There was a problem creating your Zoom meeting. Please try again later.",
+                  };
+                }
+
+                const zoomMeeting = await response.json();
+                console.log("Zoom meeting created:", zoomMeeting);
+
+                return {
+                  success: true,
+                  meetingId: zoomMeeting.id,
+                  joinUrl: zoomMeeting.join_url,
+                  startUrl: zoomMeeting.start_url,
+                  password: zoomMeeting.password,
+                  message: "Zoom meeting created successfully!",
+                  formattedMessage: `Zoom meeting "${zoomMeeting.topic}" created successfully! Join here: [Join Zoom Meeting](${zoomMeeting.join_url})`,
+                  meetingInfo: {
+                    topic: zoomMeeting.topic,
+                    startTime: zoomMeeting.start_time,
+                    duration: zoomMeeting.duration,
+                    timezone: zoomMeeting.timezone,
+                    joinUrl: zoomMeeting.join_url,
+                  },
+                };
+              } catch (error) {
+                console.error("Error creating Zoom meeting:", error);
+                return {
+                  success: false,
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : "Unknown error creating Zoom meeting",
+                  message:
+                    "There was an error creating your Zoom meeting. Please try again later.",
+                };
+              }
+            },
+          },
+        };
+
+        // Conditionally add calendar tool if available
+        if (calendarTool) {
+          toolsObject.createCalendarEvent = wrapToolWithTracking(
+            {
+              description: "Create a calendar event",
+              parameters: z.object({
+                title: z.string().describe("Event title"),
+                description: z.string().describe("Event description"),
+                startTime: z
+                  .string()
+                  .describe(
+                    "Start time in ISO format (e.g., 2023-05-01T09:00:00)"
+                  ),
+                endTime: z
+                  .string()
+                  .describe(
+                    "End time in ISO format (e.g., 2023-05-01T10:00:00)"
+                  ),
+                attendees: z
+                  .array(z.string())
+                  .describe("Array of attendee names or email addresses"),
+                location: z
+                  .string()
+                  .optional()
+                  .describe("Event location (optional)"),
+                timeZone: z
+                  .string()
+                  .optional()
+                  .describe("Time zone (optional, defaults to UTC)"),
+                zoomMeeting: z
+                  .boolean()
+                  .optional()
+                  .describe("Whether to create a Zoom meeting for this event"),
+                lookupContacts: z
+                  .boolean()
+                  .optional()
+                  .describe("Whether to look up attendee emails in CRM"),
+              }),
+              execute: async (data: any) => {
+                try {
+                  console.log("Creating calendar event with data:", data);
+
+                  // Process attendees with CRM lookup if requested
+                  if (data.attendees && data.attendees.length > 0) {
+                    const processedAttendees = [];
+
+                    for (const attendee of data.attendees) {
+                      // If it already has an email format, use it directly
+                      if (attendee.includes("@")) {
+                        processedAttendees.push(attendee);
+                        continue;
+                      }
+
+                      // Otherwise, try to look up the contact in CRM if we have the tool
+                      if (crmContactsTool && data.lookupContacts !== false) {
+                        console.log(`Looking up contact in CRM: ${attendee}`);
+                        try {
+                          const contactResult = await crmContactsTool.execute(
+                            userId,
+                            { name: attendee }
+                          );
+                          console.log(
+                            `CRM lookup result for ${attendee}:`,
+                            contactResult
+                          );
+
+                          if (contactResult.success && contactResult.data) {
+                            // Handle different possible response formats
+                            let contactEmail = null;
+
+                            if (Array.isArray(contactResult.data)) {
+                              // If we got multiple results, use the first one
+                              const firstContact = contactResult.data[0];
+                              contactEmail = firstContact.email || null;
+                            } else if (contactResult.data.email) {
+                              // Single contact with email
+                              contactEmail = contactResult.data.email;
+                            }
+
+                            if (contactEmail) {
+                              console.log(
+                                `Found email for ${attendee}: ${contactEmail}`
+                              );
+                              processedAttendees.push(contactEmail);
+                              continue;
+                            }
+                          }
+                        } catch (error) {
+                          console.error(
+                            `Error looking up contact ${attendee}:`,
+                            error
+                          );
+                        }
+                      }
+
+                      // If we couldn't find in CRM or don't have CRM tool, use placeholder
+                      const placeholderEmail = `${attendee
+                        .toLowerCase()
+                        .replace(/\s+/g, ".")}@example.com`;
+                      console.log(
+                        `Using placeholder email for ${attendee}: ${placeholderEmail}`
+                      );
+                      processedAttendees.push(placeholderEmail);
+                    }
+
+                    // Replace attendees with processed list
+                    data.attendees = processedAttendees;
+                  }
+
+                  console.log(
+                    "Creating calendar event with processed attendees:",
+                    data.attendees
+                  );
+                  const result = await calendarTool.execute(userId, data);
+                  console.log("Calendar creation result:", result);
+
+                  if (result.success) {
+                    // Include the actual calendar link in the response
+                    const eventId = result.data?.calendarEventId;
+                    const calendarLink = `https://calendar.google.com/calendar/event?eid=${eventId}`;
+
+                    return {
+                      success: true,
+                      eventId,
+                      calendarLink,
+                      message: "Calendar event created successfully!",
+                      formattedMessage: `Calendar event "${data.title}" created successfully! You can view it here: [Calendar Event](${calendarLink})`,
+                      ...result.data,
+                    };
+                  } else {
+                    // Check if this is a connection error
+                    if (
+                      result.error?.includes("token") ||
+                      result.error?.includes("connection")
+                    ) {
+                      return {
+                        success: false,
+                        error:
+                          result.error || "Failed to create calendar event",
+                        message:
+                          "There was a problem creating your calendar event. Please try again or check your Google Calendar connection.",
+                        ui: {
+                          type: "connection_required",
+                          service: "google-calendar",
+                          message:
+                            "Please connect your Google Calendar to create events",
+                          connectButton: {
+                            text: "Connect Google Calendar",
+                            action: "connection://google-calendar",
+                          },
+                        },
+                      };
+                    }
+
+                    return {
+                      success: false,
+                      error: result.error || "Failed to create calendar event",
+                      message:
+                        "There was a problem creating your calendar event. Please try again or check your Google Calendar connection.",
+                      needsConnection:
+                        result.error?.includes("token") ||
+                        result.error?.includes("connection"),
+                    };
+                  }
+                } catch (error) {
+                  console.error("Error in calendar tool execution:", error);
+                  return {
+                    success: false,
+                    error:
+                      error instanceof Error
+                        ? error.message
+                        : "Unknown error creating calendar event",
+                    message:
+                      "There was an error creating your calendar event. Please try again later.",
+                  };
+                }
+              },
+            },
+            "calendar"
+          );
+        }
+
+        // Add tracking to tools
+        toolsObject.createZoomMeeting = wrapToolWithTracking(
+          toolsObject.createZoomMeeting,
+          "zoom"
+        );
+        toolsObject.getCRMContacts = wrapToolWithTracking(
+          toolsObject.getCRMContacts,
+          "contacts"
+        );
+        toolsObject.getCRMDeals = wrapToolWithTracking(
+          toolsObject.getCRMDeals,
+          "deals"
+        );
+        toolsObject.createDocument = wrapToolWithTracking(
+          toolsObject.createDocument,
+          "document"
+        );
 
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
@@ -146,55 +686,18 @@ export async function POST(request: Request) {
           // @ts-ignore - Type compatibility issue with smoothStream and the AI SDK
           experimental_transform: smoothStream({ chunking: "word" }),
           experimental_generateMessageId: generateUUID,
-          tools: {
-            getWeather,
-            createDocument: createDocument({
-              session: userSession,
-              dataStream: streamAdapter,
-            }),
-            parseDate: {
-              description:
-                "Parse a relative date into a formatted date and time",
-              parameters: z.object({
-                dateString: z
-                  .string()
-                  .describe(
-                    'The date string to parse (e.g., "tomorrow", "next Friday")'
-                  ),
-                timeString: z
-                  .string()
-                  .optional()
-                  .describe('The time string to parse (e.g., "3pm", "15:00")'),
-              }),
-              execute: async ({ dateString, timeString = "12:00" }) => {
-                try {
-                  const dateContext = getCurrentDateContext();
-                  const parsedDate = parseRelativeDate(dateString, timeString);
-
-                  return {
-                    success: true,
-                    dateContext,
-                    parsedDate,
-                  };
-                } catch (error) {
-                  console.error(
-                    `Error parsing date: "${dateString}" at time "${timeString}"`,
-                    error
-                  );
-
-                  // Use current date as fallback
-                  const now = new Date();
-                  return {
-                    success: false,
-                    error: `Could not parse date: ${dateString}`,
-                    fallbackDate: now.toISOString(),
-                    dateContext: getCurrentDateContext(),
-                  };
-                }
-              },
-            },
-          },
+          tools: toolsObject,
           onFinish: async ({ response }) => {
+            // Log tool usage for debugging
+            console.log("Tool usage during conversation:", toolUsage);
+
+            // Check if document creation was used but calendar/zoom wasn't
+            if (toolUsage.document && !(toolUsage.calendar || toolUsage.zoom)) {
+              console.warn(
+                "WARNING: Document tool was used instead of calendar/zoom tools!"
+              );
+            }
+
             if (userId) {
               try {
                 // Get the assistant messages with type assertion
@@ -223,6 +726,28 @@ export async function POST(request: Request) {
                 try {
                   if (typeof assistantMessage.content === "string") {
                     messageText = assistantMessage.content;
+
+                    // Look for special response handlers in the assistant message content
+                    const toolResponses =
+                      (assistantMessage as any).tool_responses || [];
+
+                    // Check if any tool returned a formatted message
+                    for (const toolResponse of toolResponses) {
+                      if (toolResponse?.output?.formattedMessage) {
+                        console.log(
+                          "Found formatted message in tool response:",
+                          toolResponse.output.formattedMessage
+                        );
+                        // For links generated by our tools, we want to make sure they're preserved and properly formatted
+                        messageText = messageText.replace(
+                          /Calendar event created successfully!|Zoom meeting created successfully!/g,
+                          toolResponse.output.formattedMessage
+                        );
+                      }
+                    }
+
+                    // Format remaining links for better display in the chat UI
+                    messageText = formatLinksForDisplay(messageText);
                   }
                 } catch (e) {
                   console.error("Error extracting message text:", e);
@@ -236,8 +761,57 @@ export async function POST(request: Request) {
                       id: assistantId,
                       chatId: id,
                       role: "assistant",
-                      parts: [{ text: messageText }],
+                      parts: [
+                        {
+                          text:
+                            messageText +
+                            // Check for direct reference to Zoom connection in the message text
+                            (messageText.includes(
+                              "connect your Zoom account"
+                            ) ||
+                            messageText.includes("connect to Zoom") ||
+                            toolUsage.zoom
+                              ? `\n\n<connection:${JSON.stringify({
+                                  type: "connection_required",
+                                  service: "zoom",
+                                  message:
+                                    "Please connect your Zoom account to create meetings",
+                                  connectButton: {
+                                    text: "Connect Zoom",
+                                    action: "connection://zoom",
+                                  },
+                                })}>`
+                              : // Or check for other needed connections
+                              messageText.includes(
+                                  "connect your Google Calendar"
+                                ) ||
+                                messageText.includes(
+                                  "connect to Google Calendar"
+                                )
+                              ? `\n\n<connection:${JSON.stringify({
+                                  type: "connection_required",
+                                  service: "google-calendar",
+                                  message:
+                                    "Please connect your Google Calendar to create events",
+                                  connectButton: {
+                                    text: "Connect Google Calendar",
+                                    action: "connection://google-calendar",
+                                  },
+                                })}>`
+                              : // Or try to extract from tool responses as fallback
+                              extractUIElementsFromToolResponses(
+                                  assistantMessage
+                                )
+                              ? `\n\n<connection:${JSON.stringify(
+                                  extractUIElementsFromToolResponses(
+                                    assistantMessage
+                                  )
+                                )}>`
+                              : ""),
+                        },
+                      ],
                       attachments: [],
+                      metadata: {},
                       createdAt: new Date(),
                     },
                   ],
@@ -303,5 +877,72 @@ export async function DELETE(request: Request) {
     return new Response("An error occurred while processing your request!", {
       status: 500,
     });
+  }
+}
+
+// Add this function to extract UI elements from tool responses
+function extractUIElementsFromToolResponses(message: any): any {
+  try {
+    console.log(
+      "Extracting UI elements from message:",
+      message.tool_responses
+        ? `Found ${message.tool_responses.length} tool responses`
+        : "No tool responses found"
+    );
+
+    // Check if the message contains tool responses
+    const toolResponses = message.tool_responses || [];
+
+    // Look for connection_required UI elements in any tool response
+    for (const response of toolResponses) {
+      console.log(
+        "Tool response:",
+        response.tool_name,
+        response.output ? "has output" : "no output"
+      );
+      if (response?.output?.ui?.type === "connection_required") {
+        console.log(
+          "Found connection UI in tool response:",
+          JSON.stringify(response.output.ui)
+        );
+        return response.output.ui;
+      }
+    }
+
+    // Also check if the message content contains any connection text markers
+    if (message.content && typeof message.content === "string") {
+      const connectionRegex =
+        /connect your (Zoom|Google Calendar|CRM) account/i;
+      const match = message.content.match(connectionRegex);
+
+      if (match) {
+        console.log(
+          "Detected connection request in message content:",
+          match[1]
+        );
+        // Determine the service type from the content
+        let service = "unknown";
+        if (match[1].toLowerCase().includes("zoom")) service = "zoom";
+        else if (match[1].toLowerCase().includes("calendar"))
+          service = "google-calendar";
+        else if (match[1].toLowerCase().includes("crm")) service = "crm";
+
+        // Return a generic connection UI object
+        return {
+          type: "connection_required",
+          service,
+          message: `Please connect your ${service} account to continue`,
+          connectButton: {
+            text: `Connect ${service}`,
+            action: `connection://${service}`,
+          },
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error extracting UI elements:", error);
+    return null;
   }
 }

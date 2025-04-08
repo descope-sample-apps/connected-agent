@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { sql } from "drizzle-orm";
@@ -25,26 +25,35 @@ async function runMigrations() {
     console.log("⏳ Running migrations...");
     const start = Date.now();
 
-    // Read and execute the initial migration
-    const migrationPath = join(
-      __dirname,
-      "..",
-      "..",
-      "migrations",
-      "0000_initial.sql"
+    // Get all migration files from the migrations directory
+    const migrationsDir = join(__dirname, "..", "..", "migrations");
+    const migrationFiles = readdirSync(migrationsDir)
+      .filter((file) => file.endsWith(".sql"))
+      .sort(); // Sort to ensure migrations run in order
+
+    console.log(
+      `Found ${migrationFiles.length} migration files: ${migrationFiles.join(
+        ", "
+      )}`
     );
-    const migration = readFileSync(migrationPath, "utf-8");
 
-    // Split the migration into individual statements
-    const statements = migration
-      .split(";")
-      .map((statement) => statement.trim())
-      .filter((statement) => statement.length > 0);
+    // Execute each migration file
+    for (const migrationFile of migrationFiles) {
+      console.log(`Running migration: ${migrationFile}`);
+      const migrationPath = join(migrationsDir, migrationFile);
+      const migration = readFileSync(migrationPath, "utf-8");
 
-    // Execute each statement
-    for (const statement of statements) {
-      await db.execute(sql.raw(statement));
-      console.log("Executed migration statement successfully");
+      // Split the migration into individual statements
+      const statements = migration
+        .split(";")
+        .map((statement) => statement.trim())
+        .filter((statement) => statement.length > 0);
+
+      // Execute each statement
+      for (const statement of statements) {
+        await db.execute(sql.raw(statement));
+        console.log(`- Executed statement from ${migrationFile}`);
+      }
     }
 
     const end = Date.now();

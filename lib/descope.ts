@@ -62,11 +62,10 @@ export async function getOAuthToken(
 
   // Basic default scopes for different providers when just checking connections
   const defaultScopes: Record<string, string[]> = {
-    "google-calendar": ["https://www.googleapis.com/auth/calendar.readonly"],
-    "google-docs": ["https://www.googleapis.com/auth/documents.readonly"],
+    "google-calendar": ["https://www.googleapis.com/auth/calendar"],
+    "google-docs": ["https://www.googleapis.com/auth/documents"],
     zoom: ["meeting:read"],
-    crm: ["contacts.read"],
-    servicenow: ["read"],
+    "custom-crm": ["read:contacts", "read:deals", "openid"],
   };
 
   // For connection checking, use default scopes
@@ -249,7 +248,7 @@ export async function getCRMToken(
   userId: string,
   operation: string = "check_connection"
 ) {
-  return getOAuthToken(userId, "crm", operation, {
+  return getOAuthToken(userId, "custom-crm", operation, {
     withRefreshToken: false,
   });
 }

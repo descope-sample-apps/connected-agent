@@ -40,9 +40,4 @@ export const OAUTH_PROVIDERS = {
     icon: "/logos/crm-logo.png",
     scopes: ["contacts:read", "deals:read"],
   },
-  servicenow: {
-    name: "ServiceNow ITSM",
-    icon: "/logos/servicenow-logo.png",
-    scopes: ["read", "write"],
-  },
 };

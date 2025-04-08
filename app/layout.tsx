@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/auth-context";
 import { AuthProvider as DescopeAuthProvider } from "@descope/nextjs-sdk";
 import { OAuthProvider } from "@/context/oauth-context";
+import { OAuthReconnectDialog } from "@/components/oauth-reconnect-dialog";
 import { initPostHog } from "@/lib/analytics";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -37,7 +38,10 @@ export default function RootLayout({
             projectId={process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID!}
           >
             <AuthProvider>
-              <OAuthProvider>{children}</OAuthProvider>
+              <OAuthProvider>
+                {children}
+                <OAuthReconnectDialog />
+              </OAuthProvider>
             </AuthProvider>
           </DescopeAuthProvider>
         </ThemeProvider>
@@ -45,5 +49,3 @@ export default function RootLayout({
     </html>
   );
 }
-
-import "./globals.css";

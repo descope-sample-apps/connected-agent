@@ -34,8 +34,12 @@ export async function GET() {
 
   try {
     console.log("Fetching OAuth connections for user:", userId);
+    trackOAuthEvent("connection_initiated", {
+      userId,
+      action: "check_all_connections",
+    });
 
-    // Get the status of all OAuth connections
+    // Get the status of all OAuth connections using default operations from lib/descope.ts
     const [googleCalendar, googleDocs, zoom, crm] = await Promise.all([
       getGoogleCalendarToken(userId).catch((e) => {
         console.error("Error fetching Google Calendar token:", e);
@@ -71,9 +75,21 @@ export async function GET() {
         response.error ||
         (typeof response === "object" && "error" in response)
       ) {
+        const errorMessage = response.error || "Unknown error";
+
+        // Handle connection_required error gracefully
+        if (errorMessage === "connection_required") {
+          return {
+            connected: false,
+            status: "requires_connection",
+            message: "Connection required. Please connect this service.",
+          };
+        }
+
         return {
           connected: false,
-          error: response.error || "Unknown error",
+          status: "error",
+          error: errorMessage,
         };
       }
 
@@ -81,6 +97,7 @@ export async function GET() {
       if (response.token) {
         return {
           connected: true,
+          status: "connected",
           token: {
             scopes: response.token.scopes || [],
             accessToken: response.token.accessToken || "",
@@ -89,7 +106,18 @@ export async function GET() {
         };
       }
 
-      return { connected: false };
+      // Check if Descope returned a status property indicating connection status
+      if (response.status === "connected" || response.connected === true) {
+        return {
+          connected: true,
+          status: "connected",
+        };
+      }
+
+      return {
+        connected: false,
+        status: "disconnected",
+      };
     };
 
     // Format the response
@@ -98,13 +126,26 @@ export async function GET() {
       "google-docs": processConnection(googleDocs),
       zoom: processConnection(zoom),
       crm: processConnection(crm),
-      // Add ServiceNow as a placeholder for now
-      servicenow: { connected: false },
     };
+
+    trackOAuthEvent("connection_successful", {
+      userId,
+      action: "check_all_connections",
+      googleCalendarConnected: connections["google-calendar"].connected,
+      googleDocsConnected: connections["google-docs"].connected,
+      zoomConnected: connections.zoom.connected,
+      crmConnected: connections.crm.connected,
+    });
 
     return Response.json({ connections });
   } catch (error) {
     console.error("Error fetching OAuth connections:", error);
+    trackError(error instanceof Error ? error : new Error(String(error)));
+    trackOAuthEvent("connection_failed", {
+      userId,
+      action: "check_all_connections",
+      errorMessage: String(error),
+    });
     return Response.json(
       { error: "Failed to fetch connections" },
       { status: 500 }
