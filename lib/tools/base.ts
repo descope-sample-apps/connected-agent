@@ -105,11 +105,11 @@ export abstract class Tool<InputType> {
         error: `Tool execution error: ${errorMessage}`,
         ui: {
           type: "connection_required",
-          service: "zoom",
-          message: "Please connect your Zoom account to create meetings",
+          service: this.config.id.split("-")[0] || "unknown",
+          message: `Please connect your ${this.config.name} account to use this feature.`,
           connectButton: {
-            text: "Connect Zoom",
-            action: "connection://zoom",
+            text: `Connect ${this.config.name}`,
+            action: `connection://${this.config.id.split("-")[0] || "unknown"}`,
           },
         },
       };
@@ -287,11 +287,3 @@ class ToolRegistry {
 }
 
 export const toolRegistry = new ToolRegistry();
-
-function handleConnection(service, action) {
-  // Extract the service from the action URI
-  const serviceType = action.replace("connection://", "");
-
-  // Initiate OAuth flow for that service
-  window.location.href = `/api/oauth/connect/${serviceType}`;
-}

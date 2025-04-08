@@ -25,7 +25,7 @@ export const getCRMData = {
           success: false,
           error: "To search for customers, please connect your CRM first.",
           needsConnection: true,
-          provider: "crm",
+          provider: "custom-crm",
         };
       }
 

@@ -47,7 +47,7 @@ class CRMContactsTool extends Tool<{ id?: string }> {
   async execute(userId: string, data: { id?: string }): Promise<ToolResponse> {
     try {
       const token = await getOAuthTokenWithScopeValidation(userId, "crm", {
-        appId: "crm",
+        appId: "custom-crm",
         userId,
         scopes: [],
         operation: "tool_calling",
@@ -58,11 +58,11 @@ class CRMContactsTool extends Tool<{ id?: string }> {
           error: "Failed to get CRM access token",
           ui: {
             type: "connection_required",
-            service: "crm",
+            service: "custom-crm",
             message: "CRM access is required to view contacts.",
             connectButton: {
               text: "Connect CRM",
-              action: "connection://crm",
+              action: "connection://custom-crm",
             },
           },
         };
@@ -140,7 +140,7 @@ export class CRMDealsTool extends Tool<CRMDealsArgs> {
         error: "CRM API is not properly configured",
         ui: {
           type: "connection_required",
-          service: "crm",
+          service: "custom-crm",
           message:
             "CRM API is not properly configured. Please contact support.",
           connectButton: {
@@ -157,7 +157,7 @@ export class CRMDealsTool extends Tool<CRMDealsArgs> {
         userId,
         "crm",
         {
-          appId: "crm",
+          appId: "custom-crm",
           userId,
           scopes: [],
           operation: "tool_calling",
@@ -170,11 +170,11 @@ export class CRMDealsTool extends Tool<CRMDealsArgs> {
           error: "CRM access required",
           ui: {
             type: "connection_required",
-            service: "crm",
+            service: "custom-crm",
             message: "CRM access is required to view deals data",
             connectButton: {
               text: "Connect CRM",
-              action: "connection://crm",
+              action: "connection://custom-crm",
             },
           },
         };
@@ -202,12 +202,12 @@ export class CRMDealsTool extends Tool<CRMDealsArgs> {
             error: "Authentication failed",
             ui: {
               type: "connection_required",
-              service: "crm",
+              service: "custom-crm",
               message:
                 "Your CRM connection has expired or needs to be reauthorized",
               connectButton: {
                 text: "Reconnect CRM",
-                action: "connection://crm",
+                action: "connection://custom-crm",
               },
             },
           };
@@ -228,12 +228,12 @@ export class CRMDealsTool extends Tool<CRMDealsArgs> {
           error: `Error fetching CRM data: ${error}`,
           ui: {
             type: "connection_required",
-            service: "crm",
+            service: "custom-crm",
             message:
               "There was an error connecting to your CRM. Please try reconnecting.",
             connectButton: {
               text: "Reconnect CRM",
-              action: "connection://crm",
+              action: "connection://custom-crm",
             },
           },
         };
@@ -244,11 +244,11 @@ export class CRMDealsTool extends Tool<CRMDealsArgs> {
         error: `Error accessing CRM: ${error}`,
         ui: {
           type: "connection_required",
-          service: "crm",
+          service: "custom-crm",
           message: "We encountered an error with your CRM connection",
           connectButton: {
             text: "Reconnect CRM",
-            action: "connection://crm",
+            action: "connection://custom-crm",
           },
         },
       };

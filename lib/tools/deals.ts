@@ -177,12 +177,11 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
           error: crmTokenResponse.error,
           ui: {
             type: "connection_required",
-            service: "crm",
-            message:
-              "Your CRM connection needs to be refreshed to manage deals.",
+            service: "custom-crm",
+            message: "Please connect your CRM to access deals",
             connectButton: {
               text: "Connect CRM",
-              action: "connection://crm",
+              action: "connection://custom-crm",
             },
           },
         };

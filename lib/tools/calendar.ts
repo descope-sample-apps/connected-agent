@@ -1,213 +1,91 @@
-import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
-import { getRequiredScopes } from "../openapi-utils";
+import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
+import { google } from "googleapis";
 
-interface CalendarEvent {
+export interface CalendarEvent {
+  id?: string;
   title: string;
-  description: string;
+  description?: string;
   startTime: string;
   endTime: string;
-  attendees: string[];
+  attendees?: string[];
   location?: string;
   timeZone?: string;
-  recurrence?: string[];
-  reminders?: {
-    method: string;
-    minutes: number;
-  }[];
-  zoomMeeting?: boolean;
+  lookupContacts?: boolean;
 }
 
-interface GoogleCalendarEvent {
-  id: string;
-  summary: string;
-  description: string;
-  start: {
-    dateTime: string;
-    timeZone: string;
+export class CalendarTool extends Tool<CalendarEvent> {
+  config: ToolConfig = {
+    id: "google-calendar",
+    name: "Google Calendar",
+    description: "Create and manage calendar events",
+    scopes: ["https://www.googleapis.com/auth/calendar"],
+    requiredFields: ["title", "startTime", "endTime"],
+    optionalFields: [
+      "description",
+      "attendees",
+      "location",
+      "timeZone",
+      "lookupContacts",
+    ],
+    capabilities: [
+      "Create calendar events",
+      "Schedule meetings",
+      "Add attendees to events",
+      "Set event locations",
+      "Manage event details",
+    ],
   };
-  end: {
-    dateTime: string;
-    timeZone: string;
-  };
-  attendees: Array<{ email: string }>;
-  location?: string;
-  recurrence?: string[];
-  reminders?: {
-    method: string;
-    minutes: number;
-  }[];
-}
-
-const calendarConfig: ToolConfig = {
-  id: "calendar",
-  name: "Calendar",
-  description: "Create and manage calendar events",
-  scopes: [],
-  requiredFields: ["summary", "start", "end"],
-  optionalFields: ["description", "attendees"],
-  capabilities: [
-    "Schedule meetings and events",
-    "Manage event details and timing",
-    "Add attendees and send invitations",
-    "Track event responses and updates",
-    "Handle recurring events and series",
-  ],
-};
-
-async function createCalendarEvent(
-  token: string,
-  event: CalendarEvent
-): Promise<GoogleCalendarEvent> {
-  const response = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        summary: event.title,
-        description: event.description,
-        start: {
-          dateTime: event.startTime,
-          timeZone: event.timeZone || "UTC",
-        },
-        end: {
-          dateTime: event.endTime,
-          timeZone: event.timeZone || "UTC",
-        },
-        attendees: event.attendees.map((email) => ({ email })),
-        location: event.location,
-        recurrence: event.recurrence,
-        reminders: event.reminders,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(
-      `Failed to create calendar event: ${
-        error.error?.message || response.statusText
-      }`
-    );
-  }
-
-  return response.json();
-}
-
-async function createZoomMeeting(token: string, event: CalendarEvent) {
-  const response = await fetch("https://api.zoom.us/v2/users/me/meetings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      topic: event.title,
-      type: 2, // Scheduled meeting
-      start_time: event.startTime,
-      duration: Math.round(
-        (new Date(event.endTime).getTime() -
-          new Date(event.startTime).getTime()) /
-          (1000 * 60)
-      ), // Duration in minutes
-      timezone: event.timeZone || "UTC",
-      agenda: event.description,
-      settings: {
-        host_video: true,
-        participant_video: true,
-        join_before_host: false,
-        mute_upon_entry: true,
-        waiting_room: true,
-        meeting_authentication: true,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(
-      `Failed to create Zoom meeting: ${error.message || response.statusText}`
-    );
-  }
-
-  const data = await response.json();
-  return data.id;
-}
-
-function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-class CalendarTool extends Tool<CalendarEvent> {
-  config: ToolConfig = calendarConfig;
 
   validate(data: CalendarEvent): ToolResponse | null {
-    // Check required fields
     if (!data.title) {
       return {
         success: false,
         error: "Missing title",
         needsInput: {
           field: "title",
-          message: "Please provide a meeting title",
+          message: "Please provide an event title",
         },
       };
     }
 
-    if (!data.startTime || !data.endTime) {
+    if (!data.startTime) {
       return {
         success: false,
-        error: "Missing time",
+        error: "Missing start time",
         needsInput: {
-          field: "time",
-          message: "Please provide meeting start and end times",
+          field: "startTime",
+          message: "Please provide a start time",
         },
       };
     }
 
-    // Validate dates
-    const start = new Date(data.startTime);
-    const end = new Date(data.endTime);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    if (!data.endTime) {
       return {
         success: false,
-        error: "Invalid dates",
+        error: "Missing end time",
         needsInput: {
-          field: "time",
-          message: "Please provide valid meeting dates and times",
+          field: "endTime",
+          message: "Please provide an end time",
         },
       };
     }
 
-    if (end <= start) {
-      return {
-        success: false,
-        error: "Invalid duration",
-        needsInput: {
-          field: "time",
-          message: "Please provide valid meeting duration",
-        },
-      };
-    }
-
-    // Validate attendees if provided
+    // Validate email format for attendees if provided
     if (data.attendees && data.attendees.length > 0) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       const invalidEmails = data.attendees.filter(
-        (email) => !isValidEmail(email)
+        (email) => !emailRegex.test(email)
       );
+
       if (invalidEmails.length > 0) {
         return {
           success: false,
-          error: "Invalid emails",
+          error: "Invalid email format",
           needsInput: {
             field: "attendees",
-            message: "Please provide valid email addresses",
-            currentValue: data.attendees.join(", "),
+            message: `Invalid email format: ${invalidEmails.join(", ")}`,
+            currentValue: data.attendees,
           },
         };
       }
@@ -218,109 +96,94 @@ class CalendarTool extends Tool<CalendarEvent> {
 
   async execute(userId: string, data: CalendarEvent): Promise<ToolResponse> {
     try {
-      const validationError = this.validate(data);
-      if (validationError) {
-        return validationError;
-      }
-
-      // Get required scopes for calendar operations
-      const calendarScopes = await getRequiredScopes(
-        "google-calendar",
-        "events.create"
-      );
-
       // Get OAuth token for Google Calendar
-      const calendarTokenResponse = await getOAuthTokenWithScopeValidation(
+      const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "google-calendar",
         {
           appId: "google-calendar",
           userId,
-          scopes: calendarScopes,
+          scopes: this.config.scopes,
+          operation: "tool_calling",
         }
       );
 
-      if ("error" in calendarTokenResponse) {
+      if (!tokenResponse || "error" in tokenResponse) {
         return {
           success: false,
-          error: calendarTokenResponse.error,
-        };
-      }
-
-      // Create calendar event
-      try {
-        const calendarEvent = await createCalendarEvent(
-          calendarTokenResponse.token.accessToken,
-          data
-        );
-
-        if (!calendarEvent?.id) {
-          return {
-            success: false,
-            error: "Failed to create calendar event: No event ID returned",
-          };
-        }
-
-        // If Zoom meeting is requested, create it
-        let zoomMeetingId;
-        if (data.zoomMeeting) {
-          // Get required scopes for Zoom operations
-          const zoomScopes = await getRequiredScopes("zoom", "meetings.create");
-
-          const zoomTokenResponse = await getOAuthTokenWithScopeValidation(
-            userId,
-            "zoom",
-            {
-              appId: "zoom",
-              userId,
-              scopes: zoomScopes,
-            }
-          );
-
-          if ("error" in zoomTokenResponse) {
-            return {
-              success: false,
-              error: zoomTokenResponse.error,
-            };
-          }
-
-          zoomMeetingId = await createZoomMeeting(
-            zoomTokenResponse.token.accessToken,
-            data
-          );
-        }
-
-        return {
-          success: true,
-          data: {
-            calendarEventId: calendarEvent.id,
-            ...(zoomMeetingId ? { zoomMeetingId } : {}),
+          error: "Google Calendar access required",
+          ui: {
+            type: "connection_required",
+            service: "google-calendar",
+            message: "Please connect your Google Calendar to create events",
+            connectButton: {
+              text: "Connect Google Calendar",
+              action: "connection://google-calendar",
+            },
           },
         };
-      } catch (error: any) {
-        // Handle specific Google Calendar API errors
-        if (error.message?.includes("Invalid attendee email")) {
-          return {
-            success: false,
-            error: "Invalid emails",
-            needsInput: {
-              field: "attendees",
-              message: "Please verify the email addresses",
-              currentValue: data.attendees.join(", "),
-            },
-          };
-        }
-        return {
-          success: false,
-          error: error.message,
-        };
       }
+
+      // Set up Google Calendar API client
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({
+        access_token: tokenResponse.token.accessToken,
+      });
+      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+
+      // Prepare event data
+      const event = {
+        summary: data.title,
+        description: data.description,
+        start: {
+          dateTime: data.startTime,
+          timeZone: data.timeZone || "UTC",
+        },
+        end: {
+          dateTime: data.endTime,
+          timeZone: data.timeZone || "UTC",
+        },
+        location: data.location,
+        attendees: data.attendees?.map((email) => ({ email })),
+      };
+
+      // Create the calendar event
+      const response = await calendar.events.insert({
+        calendarId: "primary",
+        requestBody: event,
+      });
+
+      return {
+        success: true,
+        data: {
+          calendarEventId: response.data.id,
+          calendarEventLink: response.data.htmlLink,
+          title: response.data.summary,
+          startTime: response.data.start?.dateTime,
+          endTime: response.data.end?.dateTime,
+          attendees: response.data.attendees
+            ?.map((a) => a.email || "")
+            .filter((email) => email !== ""),
+        },
+      };
     } catch (error) {
-      console.error("[calendarTool] Error:", error);
+      console.error("Error creating calendar event:", error);
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+          error instanceof Error
+            ? error.message
+            : "Failed to create calendar event",
+        ui: {
+          type: "connection_required",
+          service: "google-calendar",
+          message:
+            "There was an error creating your calendar event. Please try again.",
+          connectButton: {
+            text: "Retry",
+            action: "retry",
+          },
+        },
       };
     }
   }
@@ -328,6 +191,3 @@ class CalendarTool extends Tool<CalendarEvent> {
 
 // Register the calendar tool
 toolRegistry.register(new CalendarTool());
-
-// Export the calendar tool for direct use if needed
-export { CalendarTool };

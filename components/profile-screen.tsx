@@ -542,6 +542,7 @@ export default function ProfileScreen({
             <CardContent>
               <UserProfile
                 widgetId="user-profile-widget"
+                theme={theme}
                 onLogout={() => {
                   signOut();
                   window.location.href = "/login";

@@ -91,9 +91,9 @@ export class ContactsTool extends Tool<Contact> {
       console.log("[ContactsTool] Requesting CRM token...");
       const crmTokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
-        "crm",
+        "custom-crm",
         {
-          appId: "crm",
+          appId: "custom-crm",
           userId,
           scopes: crmScopes,
           operation: "tool_calling",
@@ -110,12 +110,11 @@ export class ContactsTool extends Tool<Contact> {
           error: crmTokenResponse.error,
           ui: {
             type: "connection_required",
-            service: "crm",
-            message:
-              "Your CRM connection needs to be refreshed to manage contacts.",
+            service: "custom-crm",
+            message: "Please connect your CRM to access contacts",
             connectButton: {
               text: "Connect CRM",
-              action: "connection://crm",
+              action: "connection://custom-crm",
             },
           },
         };

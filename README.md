@@ -204,3 +204,61 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+## Calendar Tools
+
+The CRM Assistant includes powerful calendar integration tools:
+
+### Google Calendar Integration
+
+- **Create Calendar Events**: Schedule meetings and events directly from the assistant
+- **List Calendar Events**: View your upcoming calendar events
+- **Add Attendees**: Automatically add attendees to your calendar events
+- **CRM Contact Integration**: Look up contact emails from your CRM when scheduling meetings
+
+## Usage Examples
+
+### Scheduling a Meeting
+
+```
+Schedule a meeting with John Smith tomorrow at 2pm for 1 hour
+```
+
+### Viewing Upcoming Events
+
+```
+Show me my upcoming calendar events for this week
+```
+
+### Creating a Meeting with Multiple Attendees
+
+```
+Schedule a team meeting with Sarah, Michael, and David next Monday at 10am for 2 hours
+```
+
+## Development
+
+### Tools Structure
+
+The calendar tools are built using a clean, modular architecture:
+
+- `lib/tools/calendar.ts`: Tool for creating calendar events
+- `lib/tools/calendar-list.ts`: Tool for listing calendar events
+
+Each tool follows a consistent pattern:
+
+- Clear interface definitions
+- Proper validation
+- Error handling with user-friendly messages
+- OAuth token management
+- Google Calendar API integration
+
+### Adding New Calendar Features
+
+To add new calendar features:
+
+1. Create a new tool class in the `lib/tools` directory
+2. Extend the base `Tool` class
+3. Implement the required methods: `validate` and `execute`
+4. Register the tool with the `toolRegistry`
+5. Add the tool to the chat route in `app/api/chat/route.ts`

@@ -6,7 +6,7 @@ interface DocumentContent {
   title?: string;
   content?: string;
   template?: {
-    type: "free-form" | "deal-summary" | "meeting-notes";
+    type: "free-form" | "deal-summary" | "meeting-notes" | "custom";
     data?: any;
   };
   format?: {
@@ -72,7 +72,7 @@ const documentsConfig: ToolConfig = {
         properties: {
           type: {
             type: "string",
-            enum: ["free-form", "deal-summary", "meeting-notes"],
+            enum: ["free-form", "deal-summary", "meeting-notes", "custom"],
             default: "free-form",
           },
         },
@@ -129,7 +129,7 @@ async function createDocument(
               location: {
                 index: 1,
               },
-              text: content.content,
+              text: content.content || "",
             },
           },
         ],
@@ -149,7 +149,7 @@ async function createDocument(
   return {
     id: doc.id,
     title: doc.name,
-    content: content.content,
+    content: content.content || "",
     lastModified: doc.modifiedTime,
   };
 }
@@ -277,10 +277,10 @@ function suggestSectionsForTopic(topic?: string): string[] {
   return ["Introduction", "Main Discussion", "Analysis", "Conclusion"];
 }
 
-const documentsTool: Tool = {
-  config: documentsConfig,
+class DocumentsTool extends Tool<DocumentContent> {
+  config: ToolConfig = documentsConfig;
 
-  validate: (data: DocumentContent) => {
+  validate(data: DocumentContent): ToolResponse | null {
     if (!data.title) {
       return {
         success: false,
@@ -304,12 +304,9 @@ const documentsTool: Tool = {
     }
 
     return null;
-  },
+  }
 
-  execute: async (
-    userId: string,
-    data: DocumentContent
-  ): Promise<ToolResponse> => {
+  async execute(userId: string, data: DocumentContent): Promise<ToolResponse> {
     try {
       // Initial request handling
       if (!data.content && !data.template && data.stage !== "gathering_info") {
@@ -442,10 +439,11 @@ const documentsTool: Tool = {
           error instanceof Error ? error.message : "Failed to create document",
       };
     }
-  },
-};
+  }
+}
 
-// Register the documents tool
+// Create and register the documents tool
+const documentsTool = new DocumentsTool();
 toolRegistry.register(documentsTool);
 
 // Export the documents tool for direct use if needed
