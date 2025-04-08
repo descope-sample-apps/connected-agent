@@ -4,14 +4,6 @@ import { trackOAuthEvent, trackError } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 
-// Add default scopes for providers when none are specified
-const DEFAULT_SCOPES: Record<string, string[]> = {
-  "google-calendar": ["https://www.googleapis.com/auth/calendar"],
-  "google-docs": ["https://www.googleapis.com/auth/documents"],
-  zoom: ["meeting:read"],
-  "custom-crm": ["contacts:read", "openid", "deals:read"],
-};
-
 /**
  * This route is used to initiate an OAuth connection flow
  */
@@ -60,21 +52,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if we need to add default scopes
-    let scopes = options.scopes;
-    if (!scopes || !Array.isArray(scopes) || scopes.length === 0) {
-      scopes = DEFAULT_SCOPES[appId] || [];
-      console.log(
-        `No scopes provided, using default scopes for ${appId}:`,
-        scopes
-      );
-    }
-
+    // Prepare request body with only redirectUrl if no scopes provided
     const requestBody = {
       appId,
       options: {
         redirectUrl: `${baseUrl}/api/oauth/callback`,
-        scopes,
+        ...(options.scopes && { scopes: options.scopes }),
       },
     };
 
@@ -105,7 +88,7 @@ export async function POST(request: Request) {
     }
 
     const { url } = await response.json();
-    console.log("Received authorization URL from Descope: ");
+    console.log("Received authorization URL from Descope: ", url);
     return NextResponse.json({ url });
   } catch (error) {
     console.error("Error connecting to OAuth provider:", error);

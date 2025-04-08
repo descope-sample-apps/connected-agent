@@ -38,6 +38,6 @@ export const OAUTH_PROVIDERS = {
   "custom-crm": {
     name: "CRM",
     icon: "/logos/crm-logo.png",
-    scopes: ["contacts:read", "deals:read"],
+    scopes: ["openid", "contacts:read", "deals:read"],
   },
 };

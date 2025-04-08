@@ -797,9 +797,6 @@ export default function Home() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Settings className="h-5 w-5" />
-            </Button>
             {isAuthenticated ? (
               <UserMenu onProfileClick={() => setShowProfileScreen(true)} />
             ) : (

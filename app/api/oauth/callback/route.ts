@@ -52,6 +52,7 @@ export async function GET(request: Request) {
                 window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
           error
         )}&redirectTo=${redirectTo}";
+                window.close();
               }, 300);
             }
           </script>
@@ -85,6 +86,7 @@ export async function GET(request: Request) {
               // Small delay to ensure the page loads
               setTimeout(function() {
                 window.location.href = "${baseUrl}?oauth=error&error=no_code&redirectTo=${redirectTo}";
+                window.close();
               }, 300);
             }
           </script>
@@ -151,6 +153,7 @@ export async function GET(request: Request) {
                 window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
           errorMessage
         )}&redirectTo=${redirectTo}";
+                window.close();
               }, 300);
             }
           </script>
@@ -183,6 +186,7 @@ export async function GET(request: Request) {
             // Small delay to ensure the page loads
             setTimeout(function() {
               window.location.href = "${baseUrl}?oauth=success&redirectTo=${redirectTo}";
+              window.close();
             }, 300);
           }
         </script>
@@ -217,6 +221,7 @@ export async function GET(request: Request) {
             // Small delay to ensure the page loads
             setTimeout(function() {
               window.location.href = "${baseUrl}?oauth=error&error=server_error&redirectTo=chat";
+              window.close();
             }, 300);
           }
         </script>

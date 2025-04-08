@@ -78,7 +78,7 @@ export async function getRequiredScopes(
     "custom-crm": {
       "contacts.list": ["contacts.read"],
       "deals.list": ["deals.read"],
-      connect: ["contacts.read", "deals.read"], // Both for connection
+      connect: ["openid", "contacts:read", "deals:read"], // Both for connection
     },
   };
 

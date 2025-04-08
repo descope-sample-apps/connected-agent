@@ -5,7 +5,7 @@ import { getRequiredScopes } from "./openapi-utils";
 interface OAuthConnectParams {
   appId: string;
   redirectUrl: string;
-  scopes?: string[]; // Optional - only passed when specific scopes are needed
+  scopes?: string[]; // Optional - only included if provided
 }
 
 interface TokenResponse {
@@ -68,8 +68,7 @@ async function getScopesFromOpenAPISpec(provider: string): Promise<string[]> {
       `[OAuth] Error getting scopes from OpenAPI spec for ${provider}:`,
       error
     );
-    // Fall back to default scopes if there's an error
-    return DEFAULT_SCOPES[provider] || [];
+    return [];
   }
 }
 
@@ -158,39 +157,20 @@ export async function connectToOAuthProvider({
     // Create a state parameter that includes the redirectTo
     const state = JSON.stringify({ redirectTo });
 
-    // If no scopes provided, get them from the OpenAPI spec
-    let scopesToUse = scopes;
-    if (!scopesToUse || scopesToUse.length === 0) {
-      scopesToUse = await getScopesFromOpenAPISpec(appId);
-      console.log(
-        `[OAuth] Using scopes from OpenAPI spec for ${appId}:`,
-        scopesToUse
-      );
-
-      // If still no scopes, fall back to defaults as last resort
-      if (!scopesToUse || scopesToUse.length === 0) {
-        scopesToUse = DEFAULT_SCOPES[appId] || [];
-        console.log(
-          `[OAuth] Falling back to default scopes for ${appId}:`,
-          scopesToUse
-        );
-      }
-    }
-
-    // Track this OAuth connection attempt with the scopes we're using
+    // Track this OAuth connection attempt
     trackOAuthEvent("connect_initiated", {
       provider: appId,
-      scopesCount: scopesToUse.length,
-      hasScopes: scopesToUse.length > 0,
+      scopesCount: scopes?.length || 0,
+      hasScopes: !!scopes && scopes.length > 0,
     });
 
-    // Include scopes in the request
+    // Include scopes in the request only if provided
     const requestBody = {
       appId,
       options: {
         redirectUrl,
         state,
-        scopes: scopesToUse,
+        ...(scopes && { scopes }),
       },
     };
 
@@ -277,6 +257,7 @@ export async function handleOAuthPopup(
           // Then check for success/error parameters
           const params = new URLSearchParams(popup.location.search);
           const oauthStatus = params.get("oauth");
+          const redirectTo = params.get("redirectTo") || "chat";
 
           if (oauthStatus === "success" || oauthStatus === "error") {
             isHandled = true;
@@ -291,6 +272,9 @@ export async function handleOAuthPopup(
             if (oauthStatus === "success") {
               console.log("OAuth completed successfully");
               if (callbacks?.onSuccess) callbacks.onSuccess();
+
+              // Redirect to the appropriate page
+              window.location.href = `${window.location.origin}/${redirectTo}`;
               resolve();
             } else {
               console.log("OAuth failed with error:", errorMsg);
