@@ -33,6 +33,9 @@ import {
   Share2,
   Trash2,
   Loader2,
+  AlertCircle,
+  Share,
+  Trash,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -44,6 +47,20 @@ import { connectToOAuthProvider } from "@/lib/oauth-utils";
 import { handleOAuthPopup } from "@/lib/oauth-utils";
 import Image from "next/image";
 import { UserProfile } from "@descope/nextjs-sdk";
+import { toast } from "@/components/ui/use-toast";
+import { getUserChats, getRecentChatsWithLastMessage } from "@/lib/db/queries";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useTheme } from "next-themes";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { availableModels } from "@/lib/ai/providers";
+import { useEffect as useClientEffect } from "react";
 
 interface OAuthProvider {
   id: string;
@@ -130,61 +147,63 @@ export default function ProfileScreen({
     },
     {
       id: "servicenow",
-      name: "ServiceNow",
+      name: "ServiceNow ITSM",
       icon: "/logos/servicenow-logo.png",
       connected: false,
     },
   ]);
 
-  // Mock data for chat history
-  const [chatHistory, setChatHistory] = useState<ChatHistory[]>([
-    {
-      id: "chat-1",
-      title: "Acme Corp Deal Summary",
-      preview:
-        "Generated summary of the Acme Corp deal status and next steps...",
-      date: "Today, 2:30 PM",
-      starred: true,
-      shared: false,
-    },
-    {
-      id: "chat-2",
-      title: "Meeting with TechStart Team",
-      preview:
-        "Scheduled a meeting with the TechStart team for next Tuesday...",
-      date: "Yesterday, 11:15 AM",
-      starred: false,
-      shared: true,
-    },
-    {
-      id: "chat-3",
-      title: "Quarterly Sales Analysis",
-      preview: "Analyzed Q1 sales performance across all regions...",
-      date: "Mar 15, 2025",
-      starred: true,
-      shared: true,
-    },
-    {
-      id: "chat-4",
-      title: "New Lead Research",
-      preview: "Researched potential leads in the healthcare sector...",
-      date: "Mar 10, 2025",
-      starred: false,
-      shared: false,
-    },
-    {
-      id: "chat-5",
-      title: "Product Demo Preparation",
-      preview: "Prepared talking points for the upcoming product demo...",
-      date: "Mar 5, 2025",
-      starred: false,
-      shared: false,
-    },
-  ]);
+  // Replace the mock data with a function to fetch real chat history
+  const [chatHistory, setChatHistory] = useState<ChatHistory[]>([]);
+  const [isLoadingChats, setIsLoadingChats] = useState<boolean>(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  // Function to fetch actual chat history
+  const fetchChatHistory = async () => {
+    try {
+      setIsLoadingChats(true);
+      setChatError(null);
+
+      // Get the user's chats with latest messages
+      const response = await fetch("/api/chats");
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch chat history");
+      }
+
+      const data = await response.json();
+
+      // Transform the data to match our ChatHistory interface
+      const formattedChats = data.chats.map((item: any) => ({
+        id: item.chat.id,
+        title: item.chat.title || "Untitled Chat",
+        preview: item.lastMessage
+          ? typeof item.lastMessage.parts[0] === "string"
+            ? item.lastMessage.parts[0].substring(0, 100)
+            : "Chat content"
+          : "No messages",
+        date: item.chat.lastMessageAt
+          ? new Date(item.chat.lastMessageAt).toLocaleString()
+          : new Date(item.chat.createdAt).toLocaleString(),
+        starred: false, // We can add this feature later
+        shared: false, // We can add this feature later
+      }));
+
+      setChatHistory(formattedChats);
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      setChatError(
+        error instanceof Error ? error.message : "Failed to load chat history"
+      );
+    } finally {
+      setIsLoadingChats(false);
+    }
+  };
 
   // Fetch connections on component mount
   useEffect(() => {
     fetchConnections();
+    fetchChatHistory();
   }, []);
 
   const fetchConnections = async () => {
@@ -198,6 +217,9 @@ export default function ProfileScreen({
       if (!data.connections) {
         throw new Error("No connections data in response");
       }
+
+      // Add debug logging
+      console.log("Received connections data:", data.connections);
 
       // Update the providers with connection data
       setOauthProviders((providers) =>
@@ -215,14 +237,23 @@ export default function ProfileScreen({
             return { ...provider, connected: false };
           }
 
+          // Check for the connected property from the API
+          if (!connectionData.connected) {
+            return { ...provider, connected: false };
+          }
+
+          // Use the token property from the connection data
+          // which contains all the necessary token information
           return {
             ...provider,
             connected: true,
-            tokenData: {
-              scopes: connectionData.scopes || [],
-              accessToken: connectionData.accessToken || "",
-              expiresAt: connectionData.accessTokenExpiry || "",
-            },
+            tokenData: connectionData.token
+              ? {
+                  scopes: connectionData.token.scopes || [],
+                  accessToken: connectionData.token.accessToken || "",
+                  expiresAt: connectionData.token.accessTokenExpiry || "",
+                }
+              : undefined,
           };
         })
       );
@@ -256,16 +287,37 @@ export default function ProfileScreen({
         redirectUrl,
       });
 
-      // Handle the OAuth popup
-      await handleOAuthPopup(authUrl);
-
-      // Refresh the connections list
-      await fetchConnections();
+      // Handle the OAuth popup with success/error callbacks
+      await handleOAuthPopup(authUrl, {
+        onSuccess: async () => {
+          console.log(`Successfully connected to ${provider}`);
+          toast({
+            title: "Connection Successful",
+            description: `Connected to ${provider.replace("-", " ")}`,
+          });
+          // Refresh connections after successful authentication
+          await fetchConnections();
+        },
+        onError: (error) => {
+          console.error(`Error connecting to ${provider}:`, error);
+          toast({
+            title: "Connection Failed",
+            description: error.message || "Failed to connect provider",
+            variant: "destructive",
+          });
+        },
+      });
     } catch (error) {
       console.error("Error toggling connection:", error);
       setError(
         error instanceof Error ? error.message : "Failed to connect to provider"
       );
+      toast({
+        title: "Connection Error",
+        description:
+          error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -333,6 +385,12 @@ export default function ProfileScreen({
       .join(" ");
   }
 
+  // Add a function to handle example clicks
+  const handleExampleClick = (example: string) => {
+    // In a real app, this would send the example to the chat
+    console.log("Example clicked:", example);
+  };
+
   // Add loading skeleton component at the top of the file
   function ConnectionsSkeleton() {
     return (
@@ -384,6 +442,64 @@ export default function ProfileScreen({
       </div>
     );
   }
+
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
+  const [sidebarDefault, setSidebarDefault] = useState(true);
+  const [autoSaveChats, setAutoSaveChats] = useState(true);
+
+  useClientEffect(() => {
+    setMounted(true);
+
+    // Get sidebar preference from cookie/localStorage
+    const storedSidebarPref = localStorage.getItem("sidebarDefault");
+    if (storedSidebarPref !== null) {
+      setSidebarDefault(storedSidebarPref === "true");
+    }
+
+    // Get auto-save preference from cookie/localStorage
+    const storedAutoSavePref = localStorage.getItem("autoSaveChats");
+    if (storedAutoSavePref !== null) {
+      setAutoSaveChats(storedAutoSavePref === "true");
+    }
+
+    // Get the selected model from cookie
+    const storedModel = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("chat-model="));
+
+    if (storedModel) {
+      setSelectedModel(storedModel.split("=")[1]);
+    }
+  }, []);
+
+  const handleModelChange = (value: string) => {
+    setSelectedModel(value);
+    document.cookie = `chat-model=${value}; path=/; max-age=31536000; SameSite=Lax`;
+    toast({
+      title: "Model Updated",
+      description: `Chat model set to ${availableModels[value]?.name || value}`,
+    });
+  };
+
+  const handleSidebarDefaultChange = (checked: boolean) => {
+    setSidebarDefault(checked);
+    localStorage.setItem("sidebarDefault", String(checked));
+    toast({
+      title: "Preference Updated",
+      description: `Sidebar will ${checked ? "show" : "hide"} by default`,
+    });
+  };
+
+  const handleAutoSaveChange = (checked: boolean) => {
+    setAutoSaveChats(checked);
+    localStorage.setItem("autoSaveChats", String(checked));
+    toast({
+      title: "Preference Updated",
+      description: `Auto-save chats ${checked ? "enabled" : "disabled"}`,
+    });
+  };
 
   return (
     <div className="container max-w-4xl py-6">
@@ -567,125 +683,99 @@ export default function ProfileScreen({
           )}
         </TabsContent>
 
-        <TabsContent value="chat-history" className="space-y-6">
-          <Card>
-            <CardHeader>
+        <TabsContent value="chat-history" className="p-0">
+          <Card className="shadow-none border-0">
+            <CardHeader className="pb-3">
               <CardTitle>Chat History</CardTitle>
               <CardDescription>
-                View and manage your saved conversations
+                Access your saved conversations and continue where you left off.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {chatHistory.length > 0 ? (
-                  chatHistory.map((chat) => (
+              {isLoadingChats ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full rounded-md" />
+                  ))}
+                </div>
+              ) : chatError ? (
+                <EmptyState
+                  icon={<AlertCircle className="h-10 w-10 text-destructive" />}
+                  title="Failed to load chats"
+                  description={chatError}
+                  action={
+                    <Button onClick={fetchChatHistory} variant="default">
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Try Again
+                    </Button>
+                  }
+                />
+              ) : chatHistory.length === 0 ? (
+                <EmptyState
+                  icon={
+                    <MessageSquare className="h-10 w-10 text-muted-foreground" />
+                  }
+                  title="No chat history"
+                  description="Your chats will automatically be saved as you use the assistant."
+                />
+              ) : (
+                <div className="space-y-4">
+                  {chatHistory.map((chat) => (
                     <div
                       key={chat.id}
-                      className="flex items-start gap-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                      className="border rounded-lg hover:border-primary overflow-hidden transition-all cursor-pointer"
+                      onClick={() => onLoadChat(chat.id)}
                     >
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <MessageSquare className="h-5 w-5" />
-                      </div>
-
-                      <div
-                        className="flex-1 min-w-0"
-                        onClick={() => onLoadChat(chat.id)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium truncate">{chat.title}</h3>
-                          {chat.starred && (
-                            <Badge
-                              variant="outline"
-                              className="bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800"
-                            >
-                              <Star className="h-3 w-3" />
-                            </Badge>
-                          )}
-                          {chat.shared && (
-                            <Badge
-                              variant="outline"
-                              className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200 dark:border-blue-800"
-                            >
-                              <Share2 className="h-3 w-3" />
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate mt-1">
-                          {chat.preview}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">
-                            {chat.date}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => toggleStarChat(chat.id)}
-                        >
-                          <Star
-                            className={`h-4 w-4 ${
-                              chat.starred
-                                ? "fill-yellow-400 text-yellow-400"
-                                : ""
-                            }`}
-                          />
-                        </Button>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                      <div className="p-4">
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="font-medium flex items-center">
+                            {chat.title}
+                            {chat.starred && (
+                              <Star
+                                className="h-4 w-4 ml-2 fill-yellow-400 text-yellow-400"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleStarChat(chat.id);
+                                }}
+                              />
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-1">
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                shareChat(chat.id);
+                              }}
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <Share className="h-4 w-4 text-muted-foreground" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => onLoadChat(chat.id)}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteChat(chat.id);
+                              }}
                             >
-                              <MessageSquare className="mr-2 h-4 w-4" />
-                              <span>Open Chat</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => shareChat(chat.id)}
-                            >
-                              <Share2 className="mr-2 h-4 w-4" />
-                              <span>Share Chat</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => deleteChat(chat.id)}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              <span>Delete Chat</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <Trash className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {chat.preview}
+                        </p>
+                        <div className="text-xs text-muted-foreground mt-2">
+                          {chat.date}
+                        </div>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-4" />
-                    <h3 className="font-medium text-lg mb-2">
-                      No saved chats yet
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Your chat history will appear here once you save
-                      conversations
-                    </p>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -706,19 +796,34 @@ export default function ProfileScreen({
                     Toggle between light and dark theme
                   </p>
                 </div>
-                <Switch />
+                <Switch
+                  checked={theme === "dark"}
+                  onCheckedChange={(checked) =>
+                    setTheme(checked ? "dark" : "light")
+                  }
+                  disabled={!mounted}
+                />
               </div>
 
               <Separator />
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">Notifications</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Receive alerts for important updates
-                  </p>
-                </div>
-                <Switch defaultChecked />
+              <div className="space-y-2">
+                <h3 className="font-medium">Default Chat Model</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Select which AI model to use for new conversations
+                </p>
+                <Select value={selectedModel} onValueChange={handleModelChange}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(availableModels).map(([id, model]) => (
+                      <SelectItem key={id} value={id}>
+                        {model.name} {model.paid ? "(Premium)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <Separator />
@@ -730,7 +835,10 @@ export default function ProfileScreen({
                     Show quick actions sidebar by default
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={sidebarDefault}
+                  onCheckedChange={handleSidebarDefaultChange}
+                />
               </div>
 
               <Separator />
@@ -742,7 +850,10 @@ export default function ProfileScreen({
                     Automatically save all chat conversations
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={autoSaveChats}
+                  onCheckedChange={handleAutoSaveChange}
+                />
               </div>
             </CardContent>
           </Card>

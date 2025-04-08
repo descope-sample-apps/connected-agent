@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { trackOAuthEvent, trackError } from "@/lib/analytics";
 
+export const runtime = "nodejs";
+
+// Add default scopes for providers when none are specified
+const DEFAULT_SCOPES: Record<string, string[]> = {
+  "google-calendar": ["https://www.googleapis.com/auth/calendar.readonly"],
+  "google-docs": ["https://www.googleapis.com/auth/documents.readonly"],
+  zoom: ["meeting:read"],
+  crm: ["contacts.read"],
+  servicenow: ["read"],
+};
+
+/**
+ * This route is used to initiate an OAuth connection flow
+ */
 export async function POST(request: Request) {
   try {
+    // Parse the request body
     const { appId, options } = await request.json();
     console.log("Received OAuth connect request:", { appId, options });
 
@@ -35,7 +51,8 @@ export async function POST(request: Request) {
     }
 
     // Ensure we have a base URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL;
     if (!baseUrl) {
       console.error("NEXT_PUBLIC_APP_URL environment variable is not set");
       return NextResponse.json(
@@ -44,11 +61,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if we need to add default scopes
+    let scopes = options.scopes;
+    if (!scopes || !Array.isArray(scopes) || scopes.length === 0) {
+      scopes = DEFAULT_SCOPES[appId] || [];
+      console.log(
+        `No scopes provided, using default scopes for ${appId}:`,
+        scopes
+      );
+    }
+
     const requestBody = {
       appId,
       options: {
         redirectUrl: `${baseUrl}/api/oauth/callback`,
-        ...(options.scopes && { scopes: options.scopes }),
+        scopes,
       },
     };
 

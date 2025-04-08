@@ -8,6 +8,7 @@ curl -o public/logos/crm-logo.png "https://cdn-icons-png.flaticon.com/512/2171/2
 curl -o public/logos/google-calendar.png "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Google_Calendar_icon_%282020%29.svg/2048px-Google_Calendar_icon_%282020%29.svg.png"
 curl -o public/logos/zoom-logo.png "https://download.logo.wine/logo/Zoom_Video_Communications/Zoom_Video_Communications-Logo.wine.png"
 curl -o public/logos/google-docs.png "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Google_Docs_logo_%282014-2020%29.svg/1481px-Google_Docs_logo_%282014-2020%29.svg.png"
+curl -o public/logos/servicenow-logo.png "https://upload.wikimedia.org/wikipedia/commons/5/57/ServiceNow_logo.svg"
 
 # Download new icons
 curl -o public/logos/user-icon.png "https://cdn-icons-png.flaticon.com/512/1077/1077114.png"

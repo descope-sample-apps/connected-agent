@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { trackOAuthEvent, trackError } from "@/lib/analytics";
 
+export const runtime = "nodejs";
+
+/**
+ * This route handles the OAuth callback after authorization
+ */
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -24,17 +30,77 @@ export async function GET(request: Request) {
       console.error("Error parsing state parameter:", e);
     }
 
+    // Base app URL
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "";
+
     if (error) {
       console.error("OAuth error:", error);
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}?oauth=error&error=${error}&redirectTo=${redirectTo}`
+
+      // For popup flow, show an HTML page that will notify the parent and close itself
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Authentication Error</title>
+          <script>
+            // Notify parent window and close
+            window.onload = function() {
+              // Small delay to ensure the page loads
+              setTimeout(function() {
+                window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
+          error
+        )}&redirectTo=${redirectTo}";
+              }, 300);
+            }
+          </script>
+        </head>
+        <body>
+          <h2>Authentication Error</h2>
+          <p>Error: ${error}</p>
+          <p>Redirecting and closing window...</p>
+        </body>
+        </html>
+        `,
+        {
+          headers: {
+            "Content-Type": "text/html",
+          },
+        }
       );
     }
 
     if (!code) {
       console.error("No authorization code received");
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}?oauth=error&error=no_code&redirectTo=${redirectTo}`
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Authentication Error</title>
+          <script>
+            // Notify parent window and close
+            window.onload = function() {
+              // Small delay to ensure the page loads
+              setTimeout(function() {
+                window.location.href = "${baseUrl}?oauth=error&error=no_code&redirectTo=${redirectTo}";
+              }, 300);
+            }
+          </script>
+        </head>
+        <body>
+          <h2>Authentication Error</h2>
+          <p>No authorization code received</p>
+          <p>Redirecting and closing window...</p>
+        </body>
+        </html>
+        `,
+        {
+          headers: {
+            "Content-Type": "text/html",
+          },
+        }
       );
     }
 
@@ -68,23 +134,105 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      return NextResponse.redirect(
-        `${
-          process.env.NEXT_PUBLIC_APP_URL
-        }?oauth=error&error=${encodeURIComponent(
-          errorData.message || "Failed to exchange code for token"
-        )}&redirectTo=${redirectTo}`
+      const errorMessage =
+        errorData.message || "Failed to exchange code for token";
+
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Authentication Error</title>
+          <script>
+            // Notify parent window and close
+            window.onload = function() {
+              // Small delay to ensure the page loads
+              setTimeout(function() {
+                window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
+          errorMessage
+        )}&redirectTo=${redirectTo}";
+              }, 300);
+            }
+          </script>
+        </head>
+        <body>
+          <h2>Authentication Error</h2>
+          <p>Error: ${errorMessage}</p>
+          <p>Redirecting and closing window...</p>
+        </body>
+        </html>
+        `,
+        {
+          headers: {
+            "Content-Type": "text/html",
+          },
+        }
       );
     }
 
-    // Redirect back to the app with success and the redirectTo parameter
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}?oauth=success&redirectTo=${redirectTo}`
+    // Success! Return a page that will redirect with success parameter
+    return new Response(
+      `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Authentication Successful</title>
+        <script>
+          // Notify parent window and close
+          window.onload = function() {
+            // Small delay to ensure the page loads
+            setTimeout(function() {
+              window.location.href = "${baseUrl}?oauth=success&redirectTo=${redirectTo}";
+            }, 300);
+          }
+        </script>
+      </head>
+      <body>
+        <h2>Authentication Successful</h2>
+        <p>You can close this window now.</p>
+        <p>Redirecting and closing window...</p>
+      </body>
+      </html>
+      `,
+      {
+        headers: {
+          "Content-Type": "text/html",
+        },
+      }
     );
   } catch (error) {
     console.error("Error in OAuth callback:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}?oauth=error&error=server_error&redirectTo=chat`
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "";
+
+    return new Response(
+      `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Authentication Error</title>
+        <script>
+          // Notify parent window and close
+          window.onload = function() {
+            // Small delay to ensure the page loads
+            setTimeout(function() {
+              window.location.href = "${baseUrl}?oauth=error&error=server_error&redirectTo=chat";
+            }, 300);
+          }
+        </script>
+      </head>
+      <body>
+        <h2>Authentication Error</h2>
+        <p>A server error occurred during authentication.</p>
+        <p>Redirecting and closing window...</p>
+      </body>
+      </html>
+      `,
+      {
+        headers: {
+          "Content-Type": "text/html",
+        },
+      }
     );
   }
 }

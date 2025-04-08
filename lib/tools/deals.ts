@@ -34,6 +34,14 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
       "description",
       "notes",
     ],
+    capabilities: [
+      "Create and manage deals in CRM",
+      "Track deal progress and stages",
+      "Monitor deal values and probabilities",
+      "Set and track close dates",
+      "Associate deals with accounts and owners",
+      "Add detailed descriptions and notes",
+    ],
   };
 
   validate(data: Deal | { id?: string }): ToolResponse | null {
@@ -133,15 +141,24 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
     data: Deal | { id?: string }
   ): Promise<ToolResponse> {
     try {
+      console.log("[DealsTool] Starting execution with data:", {
+        userId,
+        data,
+        isFetching: "id" in data && data.id !== undefined,
+      });
+
       const validationError = this.validate(data);
       if (validationError) {
+        console.log("[DealsTool] Validation failed:", validationError);
         return validationError;
       }
 
       // Get required scopes for CRM operations
       const crmScopes = await getRequiredScopes("crm", "deals.list");
+      console.log("[DealsTool] Required CRM scopes:", crmScopes);
 
       // Get OAuth token for CRM
+      console.log("[DealsTool] Requesting CRM token...");
       const crmTokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "crm",
@@ -149,13 +166,25 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
           appId: "crm",
           userId,
           scopes: crmScopes,
+          operation: "tool_calling",
         }
       );
 
       if ("error" in crmTokenResponse) {
+        console.error("[DealsTool] CRM token error:", crmTokenResponse.error);
         return {
           success: false,
           error: crmTokenResponse.error,
+          ui: {
+            type: "connection_required",
+            service: "crm",
+            message:
+              "Your CRM connection needs to be refreshed to manage deals.",
+            connectButton: {
+              text: "Connect CRM",
+              action: "connection://crm",
+            },
+          },
         };
       }
 

@@ -42,16 +42,16 @@ interface GoogleCalendarEvent {
 const calendarConfig: ToolConfig = {
   id: "calendar",
   name: "Calendar",
-  description: "Schedule meetings and manage calendar events",
-  scopes: [], // Will be populated dynamically
-  requiredFields: ["title", "startTime", "endTime"],
-  optionalFields: [
-    "description",
-    "attendees",
-    "location",
-    "timeZone",
-    "recurrence",
-    "reminders",
+  description: "Create and manage calendar events",
+  scopes: [],
+  requiredFields: ["summary", "start", "end"],
+  optionalFields: ["description", "attendees"],
+  capabilities: [
+    "Schedule meetings and events",
+    "Manage event details and timing",
+    "Add attendees and send invitations",
+    "Track event responses and updates",
+    "Handle recurring events and series",
   ],
 };
 

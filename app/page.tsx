@@ -44,6 +44,8 @@ import {
 import SaveChatDialog from "@/components/save-chat-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { useToast } from "@/components/ui/use-toast";
+import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import { convertToUIMessages } from "@/lib/utils";
 
 type PromptType =
   | "crm-lookup"
@@ -272,6 +274,8 @@ export default function Home() {
     useState<PromptType>("crm-lookup");
   const [showDealSummaryPrompt, setShowDealSummaryPrompt] = useState(false);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] =
+    useState<string>(DEFAULT_CHAT_MODEL);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
@@ -286,6 +290,9 @@ export default function Home() {
     append,
   } = useChat({
     api: "/api/chat",
+    body: {
+      selectedChatModel: selectedModel,
+    },
     onError: (error) => {
       console.error("Chat error details:", error);
 
@@ -379,6 +386,78 @@ export default function Home() {
     }
   }, [error, toast]);
 
+  useEffect(() => {
+    // Load sidebar preference
+    const storedSidebarPref = localStorage.getItem("sidebarDefault");
+    if (storedSidebarPref !== null) {
+      setSidebarOpen(storedSidebarPref === "true");
+    }
+
+    // Get the selected model from cookie
+    const storedModel = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("chat-model="));
+
+    if (storedModel) {
+      setSelectedModel(storedModel.split("=")[1]);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Check for OAuth redirect
+    const url = new URL(window.location.href);
+
+    // Handle OAuth success/error
+    const oauthStatus = url.searchParams.get("oauth");
+    if (oauthStatus === "success") {
+      toast({
+        title: "Connection Successful",
+        description: "Your account has been connected successfully.",
+        variant: "default",
+      });
+
+      // Check for redirectTo parameter to determine where to redirect
+      const redirectTo = url.searchParams.get("redirectTo") || "chat";
+      if (redirectTo === "profile" && isAuthenticated) {
+        setShowProfileScreen(true);
+      }
+
+      // Remove the query parameters
+      url.searchParams.delete("oauth");
+      url.searchParams.delete("redirectTo");
+      window.history.replaceState({}, "", url.toString());
+    } else if (oauthStatus === "error") {
+      const error = url.searchParams.get("error") || "Unknown error";
+      toast({
+        title: "Connection Failed",
+        description: `Failed to connect: ${error}`,
+        variant: "destructive",
+      });
+
+      // Check for redirectTo parameter to determine where to redirect
+      const redirectTo = url.searchParams.get("redirectTo") || "chat";
+      if (redirectTo === "profile" && isAuthenticated) {
+        setShowProfileScreen(true);
+      }
+
+      // Remove the query parameters
+      url.searchParams.delete("oauth");
+      url.searchParams.delete("error");
+      url.searchParams.delete("redirectTo");
+      window.history.replaceState({}, "", url.toString());
+    }
+
+    // Show profile screen if explicitly requested
+    const showProfile = url.searchParams.get("profile") === "true";
+    if (showProfile && isAuthenticated) {
+      setShowProfileScreen(true);
+
+      // Remove the query parameter
+      url.searchParams.delete("profile");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [isAuthenticated, toast]);
+
   const handleCreateZoomMeeting = () => {
     chatHandleSubmit(new Event("submit") as any, {
       data: { fromQuickAction: true },
@@ -404,58 +483,6 @@ export default function Home() {
 
     return title;
   }, [messages]);
-
-  const handleSaveChat = useCallback(
-    async (customTitle?: string) => {
-      if (!isAuthenticated) {
-        setShowAuthModal(true);
-        return;
-      }
-
-      try {
-        const title = customTitle || generateDefaultTitle();
-
-        toast({
-          title: "Saving conversation...",
-          description: customTitle ? undefined : "Using auto-generated title",
-          duration: 2000,
-        });
-
-        const response = await fetch("/api/save-chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages,
-            title,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          setCurrentChatId(data.id);
-          toast({
-            title: "Conversation saved",
-            description: `Saved as "${title}"`,
-            duration: 3000,
-          });
-        } else {
-          throw new Error(data.error || "Failed to save chat");
-        }
-      } catch (error) {
-        console.error("Error saving chat:", error);
-        toast({
-          title: "Save failed",
-          description: error instanceof Error ? error.message : "Unknown error",
-          variant: "destructive",
-          duration: 3000,
-        });
-      }
-    },
-    [messages, isAuthenticated, setShowAuthModal, generateDefaultTitle]
-  );
 
   const handleShareChat = () => {
     if (!currentChatId) {
@@ -656,6 +683,13 @@ export default function Home() {
     setShowDealSummaryPrompt(true);
   };
 
+  // Update the sidebar toggle to save preferences
+  const toggleSidebar = () => {
+    const newValue = !sidebarOpen;
+    setSidebarOpen(newValue);
+    // Don't save the preference here - only save when explicitly changed in settings
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -697,7 +731,10 @@ export default function Home() {
       <SaveChatDialog
         open={showSaveDialog}
         onOpenChange={setShowSaveDialog}
-        onSave={handleSaveChat}
+        onSave={() => {
+          // Chat is now saved automatically
+          setShowSaveDialog(false);
+        }}
       />
       <DealSummaryPrompt
         isOpen={showDealSummaryPrompt}
@@ -715,15 +752,6 @@ export default function Home() {
           <div className="flex items-center gap-3">
             {isAuthenticated && messages.length > 0 && (
               <div className="flex items-center gap-2 mr-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleSaveChat()}
-                  className="rounded-full"
-                  title="Save conversation"
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -912,7 +940,7 @@ export default function Home() {
                         variant="outline"
                         size="icon"
                         className="absolute right-4 top-4 rounded-full shadow-md border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
-                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                        onClick={toggleSidebar}
                       >
                         {sidebarOpen ? (
                           <PanelRightClose className="h-4 w-4" />
@@ -968,47 +996,19 @@ export default function Home() {
                         <h2 className="text-lg font-semibold">Quick Actions</h2>
                       </div>
                       <div className="space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {actionOptions.map((option) => (
                           <ActionCard
-                            title="CRM Lookup"
-                            description="Find customer info in CRM"
-                            logo="/logos/crm-logo.png"
-                            onClick={() =>
-                              usePredefinedPrompt(
-                                "Can you look up customer information for John Smith in our CRM?",
-                                "crm-lookup"
-                              )
+                            key={option.id}
+                            title={option.title}
+                            description={option.description}
+                            logo={option.logo}
+                            onClick={
+                              option.id === "summarize-deal"
+                                ? () => handleCreateDealSummary()
+                                : option.action
                             }
                           />
-                          <ActionCard
-                            title="Schedule Meeting"
-                            description="Create a calendar event"
-                            logo="/logos/google-calendar.png"
-                            onClick={() =>
-                              usePredefinedPrompt(
-                                "Schedule a meeting with Sarah for tomorrow at 2 PM",
-                                "schedule-meeting"
-                              )
-                            }
-                          />
-                          <ActionCard
-                            title="Create Zoom Meeting"
-                            description="Generate video conference links"
-                            logo="/logos/zoom-logo.png"
-                            onClick={() =>
-                              usePredefinedPrompt(
-                                "Create a Zoom meeting for my team sync tomorrow",
-                                "create-zoom"
-                              )
-                            }
-                          />
-                          <ActionCard
-                            title="Deal Summary"
-                            description="Summarize deal to Google Docs"
-                            logo="/logos/google-docs.png"
-                            onClick={() => handleCreateDealSummary()}
-                          />
-                        </div>
+                        ))}
                       </div>
 
                       <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">

@@ -10,6 +10,16 @@ export interface ToolResponse {
     options?: string[];
     currentValue?: any;
   };
+  ui?: {
+    type: string;
+    service?: string;
+    message?: string;
+    connectButton?: {
+      text: string;
+      action: string;
+    };
+    alternativeMessage?: string;
+  };
 }
 
 export interface ToolConfig {
@@ -166,6 +176,10 @@ class ToolRegistry {
   private tools: Map<string, Tool<any>> = new Map();
 
   register<T>(tool: Tool<T>) {
+    console.log(`[ToolRegistry] Registering tool: ${tool.config.name}`, {
+      toolId: tool.config.id,
+      capabilities: tool.config.capabilities || [],
+    });
     toolLogger.info(`Registering tool: ${tool.config.name}`, {
       toolId: tool.config.id,
       capabilities: tool.config.capabilities || [],
@@ -174,15 +188,65 @@ class ToolRegistry {
   }
 
   getTool<T>(id: string): Tool<T> | undefined {
-    return this.tools.get(id) as Tool<T>;
+    console.log(`[ToolRegistry] Getting tool by ID: ${id}`);
+    const tool = this.tools.get(id) as Tool<T>;
+    console.log(`[ToolRegistry] Tool lookup result:`, {
+      id,
+      found: !!tool,
+      name: tool?.config?.name,
+    });
+    return tool;
   }
 
   getAllTools(): Tool<any>[] {
+    console.log(`[ToolRegistry] Getting all tools, count: ${this.tools.size}`);
     return Array.from(this.tools.values());
   }
 
   getToolConfigs(): ToolConfig[] {
+    console.log(`[ToolRegistry] Getting all tool configs`);
     return this.getAllTools().map((tool) => tool.config);
+  }
+
+  // Find a tool by capability or description keyword
+  findToolByCapability(keyword: string): Tool<any> | undefined {
+    console.log(
+      `[ToolRegistry] Searching for tool by capability: "${keyword}"`
+    );
+
+    const tools = this.getAllTools();
+    for (const tool of tools) {
+      // Check in capabilities
+      if (
+        tool.config.capabilities?.some((cap) =>
+          cap.toLowerCase().includes(keyword.toLowerCase())
+        )
+      ) {
+        console.log(
+          `[ToolRegistry] Found tool by capability: ${tool.config.name}`
+        );
+        return tool;
+      }
+
+      // Check in description
+      if (
+        tool.config.description.toLowerCase().includes(keyword.toLowerCase())
+      ) {
+        console.log(
+          `[ToolRegistry] Found tool by description: ${tool.config.name}`
+        );
+        return tool;
+      }
+
+      // Check in name
+      if (tool.config.name.toLowerCase().includes(keyword.toLowerCase())) {
+        console.log(`[ToolRegistry] Found tool by name: ${tool.config.name}`);
+        return tool;
+      }
+    }
+
+    console.log(`[ToolRegistry] No tool found for capability: "${keyword}"`);
+    return undefined;
   }
 
   // Execute a tool with proper logging
@@ -191,9 +255,16 @@ class ToolRegistry {
     userId: string,
     data: T
   ): Promise<ToolResponse> {
+    console.log(`[ToolRegistry] Executing tool: ${toolId}`, {
+      userId,
+      dataKeys: data ? Object.keys(data) : [],
+      dataType: typeof data,
+    });
+
     const tool = this.getTool<T>(toolId);
 
     if (!tool) {
+      console.error(`[ToolRegistry] Tool not found: ${toolId}`);
       toolLogger.error(`Tool not found: ${toolId}`, { userId });
       return {
         success: false,
@@ -201,6 +272,7 @@ class ToolRegistry {
       };
     }
 
+    console.log(`[ToolRegistry] Found tool to execute: ${tool.config.name}`);
     return tool.executeWithLogging(userId, data);
   }
 }

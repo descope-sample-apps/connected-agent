@@ -60,19 +60,34 @@ export async function getOAuthToken(
     return null;
   }
 
-  // For connection checking, we don't need to specify scopes at all
-  // For API operations, we need to get required scopes from the OpenAPI spec
+  // Basic default scopes for different providers when just checking connections
+  const defaultScopes: Record<string, string[]> = {
+    "google-calendar": ["https://www.googleapis.com/auth/calendar.readonly"],
+    "google-docs": ["https://www.googleapis.com/auth/documents.readonly"],
+    zoom: ["meeting:read"],
+    crm: ["contacts.read"],
+    servicenow: ["read"],
+  };
+
+  // For connection checking, use default scopes
+  // For API operations, get required scopes from the OpenAPI spec
   let scopes: string[] | undefined = undefined;
 
-  if (operation !== "check_connection") {
+  if (operation === "check_connection") {
+    // Use default scopes for the provider if available
+    scopes = defaultScopes[appId] || [];
+    console.log(`Using default scopes for ${appId}:`, scopes);
+  } else {
+    // For specific operations, get required scopes from OpenAPI spec
     scopes = await getRequiredScopes(appId, operation);
-    console.log("Required scopes:", scopes);
+    console.log("Required scopes for operation:", scopes);
 
     if (!scopes || scopes.length === 0) {
       console.warn(
-        `No scopes found for operation ${operation} in app ${appId}`
+        `No scopes found for operation ${operation} in app ${appId}, falling back to defaults`
       );
-      return null;
+      // Fall back to default scopes if no operation-specific scopes found
+      scopes = defaultScopes[appId] || [];
     }
   }
 
@@ -80,7 +95,7 @@ export async function getOAuthToken(
   const requestBody = {
     appId,
     userId,
-    ...(scopes && { scopes }),
+    scopes,
     options,
   };
 

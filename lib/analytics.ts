@@ -1,4 +1,14 @@
+/**
+ * Analytics utilities for tracking events and errors
+ */
+
 import posthog from "posthog-js";
+
+export type EventType =
+  | "connection_initiated"
+  | "connection_successful"
+  | "connection_failed"
+  | "tool_action";
 
 // Initialize PostHog
 export function initPostHog() {
@@ -11,21 +21,32 @@ export function initPostHog() {
       autocapture: false,
       disable_session_recording: true, // Enable only if needed
     });
+    console.log("[Analytics] Initialized");
   }
 }
 
-// Track OAuth-related events
+/**
+ * Track an OAuth-related event
+ */
 export function trackOAuthEvent(
-  eventName: string,
-  properties: Record<string, any>
+  event: EventType,
+  data: Record<string, any> = {}
 ) {
-  posthog.capture(`oauth_${eventName}`, {
-    ...properties,
+  // In development, log to console
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[Analytics] OAuth Event: ${event}`, data);
+  }
+
+  // In production, send to PostHog
+  posthog.capture(`oauth_${event}`, {
+    ...data,
     timestamp: new Date().toISOString(),
   });
 }
 
-// Track tool usage
+/**
+ * Track tool usage
+ */
 export function trackToolUsage(
   toolName: string,
   data: {
@@ -36,6 +57,12 @@ export function trackToolUsage(
     duration?: number;
   }
 ) {
+  // In development, log to console
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[Analytics] Tool Usage: ${toolName}`, data);
+  }
+
+  // In production, send to PostHog
   posthog.capture("tool_execution", {
     tool: toolName,
     ...data,
@@ -43,8 +70,19 @@ export function trackToolUsage(
   });
 }
 
-// Track errors
-export function trackError(error: Error, context: Record<string, any>) {
+/**
+ * Track an error
+ */
+export function trackError(error: Error, context: Record<string, any> = {}) {
+  // In development, log to console
+  if (process.env.NODE_ENV !== "production") {
+    console.error(`[Analytics] Error: ${error.message}`, {
+      ...context,
+      stack: error.stack,
+    });
+  }
+
+  // In production, send to PostHog
   posthog.capture("error", {
     error_name: error.name,
     error_message: error.message,

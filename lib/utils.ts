@@ -1,6 +1,123 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { UIMessage } from "ai";
+import { v4 as uuidv4 } from "uuid";
+import { messages } from "./db/schema";
+import { Message } from "./db/queries";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
+}
+
+/**
+ * Generates a UUID for message IDs
+ */
+export function generateUUID(): string {
+  return uuidv4();
+}
+
+/**
+ * Gets the most recent user message from an array of messages
+ */
+export function getMostRecentUserMessage(
+  messages: UIMessage[]
+): UIMessage | undefined {
+  // Filter for user messages and get the last one
+  return messages.filter((message) => message.role === "user").pop();
+}
+
+/**
+ * Gets the trailing message ID for use in database operations
+ */
+export function getTrailingMessageId({
+  messages,
+}: {
+  messages: UIMessage[];
+}): string | undefined {
+  return messages.length > 0 ? messages[messages.length - 1].id : undefined;
+}
+
+/**
+ * Checks if a string is a valid email
+ */
+export function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * Determines if a query is CRM-related
+ */
+export function isCrmRelatedQuery(message: string): boolean {
+  const crmKeywords = [
+    "crm",
+    "customer",
+    "deal",
+    "sales",
+    "lead",
+    "contact",
+    "account",
+  ];
+  return crmKeywords.some((keyword) =>
+    message.toLowerCase().includes(keyword.toLowerCase())
+  );
+}
+
+/**
+ * Determines if a query is calendar-related
+ */
+export function isCalendarRelatedQuery(message: string): boolean {
+  const calendarKeywords = [
+    "calendar",
+    "schedule",
+    "meeting",
+    "appointment",
+    "availability",
+    "free time",
+  ];
+  return calendarKeywords.some((keyword) =>
+    message.toLowerCase().includes(keyword.toLowerCase())
+  );
+}
+
+/**
+ * Fetches a resource with automatic retries on failure
+ */
+export async function fetchWithRetry<T>(
+  url: string,
+  options: RequestInit = {},
+  retries = 3,
+  backoff = 300
+): Promise<T> {
+  try {
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      const error = new Error(`HTTP error! Status: ${response.status}`);
+      (error as any).status = response.status;
+      throw error;
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (retries <= 1) throw error;
+
+    await new Promise((resolve) => setTimeout(resolve, backoff));
+    return fetchWithRetry(url, options, retries - 1, backoff * 2);
+  }
+}
+
+/**
+ * Converts database messages to UI messages
+ */
+export function convertToUIMessages(messages: Message[]): UIMessage[] {
+  return messages.map((message) => ({
+    id: message.id,
+    parts: message.parts as UIMessage["parts"],
+    role: message.role as UIMessage["role"],
+    // Note: content will soon be deprecated in @ai-sdk/react
+    content: "",
+    createdAt: message.createdAt,
+    experimental_attachments: (message.attachments as any[]) ?? [],
+  }));
 }
