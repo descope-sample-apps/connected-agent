@@ -49,6 +49,8 @@ export async function POST(request: Request) {
       providerId
     )}&userId=${encodeURIComponent(userId)}`;
 
+    console.log(`Making disconnect request to Descope: ${url}`);
+
     const response = await fetch(url, {
       method: "DELETE",
       headers: {
@@ -58,11 +60,33 @@ export async function POST(request: Request) {
     });
 
     // Log the response
-    console.log(`Descope disconnect response: ${response.status}`);
+    console.log(
+      `Descope disconnect response status: ${response.status} ${response.statusText}`
+    );
+
+    try {
+      const responseText = await response.text();
+      console.log(`Descope disconnect response body: ${responseText}`);
+    } catch (e) {
+      console.log("No response body available");
+    }
+
+    // Always consider the token removed even if Descope returns an error
+    // This is crucial to fix the "token doesn't exist but UI shows connected" issue
+    trackOAuthEvent("disconnect_successful", {
+      userId,
+      provider: providerId,
+      status: response.ok ? "success" : `error_${response.status}`,
+    });
 
     if (!response.ok) {
       // Even if the token doesn't exist, we consider it a success
       if (response.status === 404) {
+        // Token not found is still a success for our purposes
+        console.log(
+          `Token not found for ${providerId}, user ${userId}. Treating as successful disconnect.`
+        );
+
         // Track success even if token was not found
         trackOAuthEvent("disconnect_successful", {
           userId,

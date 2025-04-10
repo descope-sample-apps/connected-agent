@@ -68,29 +68,57 @@ export async function GET() {
 
     // Process token responses
     const processConnection = (response: any) => {
-      if (!response) return { connected: false };
+      // First, add more detailed debug logging to see exactly what we're receiving
+      console.log(
+        `Processing connection response:`,
+        JSON.stringify(response, null, 2)
+      );
 
-      // Check if response has error property
+      // Return disconnected status if response is null or undefined
+      if (!response) {
+        console.log(
+          "Connection response is null or undefined - marking as disconnected"
+        );
+        return { connected: false, status: "disconnected" };
+      }
+
+      // Explicitly handle the connection_required error
+      if (
+        (response.error && response.error === "connection_required") ||
+        (typeof response === "object" &&
+          "error" in response &&
+          response.error === "connection_required")
+      ) {
+        console.log(
+          "Connection requires authorization - marking as disconnected"
+        );
+        return {
+          connected: false,
+          status: "requires_connection",
+          message: "Connection required. Please connect this service.",
+        };
+      }
+
+      // Check if response has any error property
       if (
         response.error ||
         (typeof response === "object" && "error" in response)
       ) {
         const errorMessage = response.error || "Unknown error";
-
-        // Handle connection_required error gracefully
-        if (errorMessage === "connection_required") {
-          return {
-            connected: false,
-            status: "requires_connection",
-            message: "Connection required. Please connect this service.",
-          };
-        }
+        console.log(
+          `Connection error detected: ${errorMessage} - marking as disconnected`
+        );
 
         return {
           connected: false,
           status: "error",
           error: errorMessage,
         };
+      }
+
+      // If response is empty object or doesn't have expected properties
+      if (typeof response === "object" && Object.keys(response).length === 0) {
+        return { connected: false, status: "disconnected" };
       }
 
       // If response has token, it's connected
@@ -106,14 +134,19 @@ export async function GET() {
         };
       }
 
-      // Check if Descope returned a status property indicating connection status
+      // Only mark as connected if explicitly stated
       if (response.status === "connected" || response.connected === true) {
+        console.log("Connection status explicitly marked connected");
         return {
           connected: true,
           status: "connected",
         };
       }
 
+      // Default to disconnected for any other case
+      console.log(
+        "Connection has no valid token or connected status - marking as disconnected"
+      );
       return {
         connected: false,
         status: "disconnected",

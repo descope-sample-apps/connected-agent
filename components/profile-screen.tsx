@@ -246,26 +246,30 @@ export default function ProfileScreen({
 
   const fetchConnections = async () => {
     try {
-      const response = await fetch("/api/oauth/connections", {
-        // Add cache-busting parameter
+      // Add a timestamp parameter to prevent any caching
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/oauth/connections?_=${timestamp}`, {
+        // Add cache-busting headers
         headers: {
-          "Cache-Control": "no-cache",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
           Pragma: "no-cache",
+          Expires: "0",
         },
-        // Generate a unique timestamp to prevent caching
+        // Explicitly tell fetch not to use cache
         cache: "no-store",
       });
 
       // Log the full response details
-      console.log("Response status:", response.status);
+      console.log("Connections response status:", response.status);
       console.log(
-        "Response headers:",
+        "Connections response headers:",
         Object.fromEntries([...response.headers.entries()])
       );
-      console.log("Response type:", response.type);
 
       if (!response.ok) {
-        throw new Error("Failed to fetch connections");
+        throw new Error(
+          `Failed to fetch connections: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -273,50 +277,84 @@ export default function ProfileScreen({
         throw new Error("No connections data in response");
       }
 
-      // Add debug logging
-      console.log("Received connections data:", data.connections);
-
-      // Update the providers with connection data
+      // Force reset the connection status before updating
       setOauthProviders((providers) =>
-        providers.map((provider) => {
-          const connectionData = data.connections[provider.id];
-          if (!connectionData) {
-            return { ...provider, connected: false };
-          }
+        providers.map((provider) => ({
+          ...provider,
+          connected: false,
+          tokenData: undefined,
+        }))
+      );
 
-          if (typeof connectionData === "object" && "error" in connectionData) {
-            console.error(
-              `Connection error for ${provider.id}:`,
-              connectionData.error
-            );
-            return { ...provider, connected: false };
-          }
+      // After a brief delay, update the providers with connection data
+      setTimeout(() => {
+        setOauthProviders((providers) =>
+          providers.map((provider) => {
+            const connectionData = data.connections[provider.id];
+            if (!connectionData) {
+              console.log(
+                `No connection data for ${provider.id} - marking as disconnected`
+              );
+              return { ...provider, connected: false };
+            }
 
-          // Check for the connected property from the API
-          if (!connectionData.connected) {
-            return { ...provider, connected: false };
-          }
+            if (
+              typeof connectionData === "object" &&
+              "error" in connectionData
+            ) {
+              console.error(
+                `Connection error for ${provider.id}:`,
+                connectionData.error
+              );
+              return { ...provider, connected: false };
+            }
 
-          // Use the token property from the connection data
-          // which contains all the necessary token information
-          return {
-            ...provider,
-            connected: true,
-            tokenData: connectionData.token
-              ? {
+            // Check for the connected property from the API
+            if (!connectionData.connected) {
+              return { ...provider, connected: false };
+            }
+
+            // Only mark as connected if we have a token
+            if (connectionData.token) {
+              return {
+                ...provider,
+                connected: true,
+                tokenData: {
                   scopes: connectionData.token.scopes || [],
                   accessToken: connectionData.token.accessToken || "",
                   expiresAt: connectionData.token.accessTokenExpiry || "",
-                }
-              : undefined,
-          };
-        })
-      );
+                },
+              };
+            }
+
+            return {
+              ...provider,
+              connected: connectionData.connected === true,
+            };
+          })
+        );
+      }, 100);
     } catch (error) {
       console.error("Error fetching connections:", error);
       setError(
         error instanceof Error ? error.message : "Failed to fetch connections"
       );
+      // Reset all connections to disconnected on error
+      setOauthProviders((providers) =>
+        providers.map((provider) => ({
+          ...provider,
+          connected: false,
+          tokenData: undefined,
+        }))
+      );
+
+      // Show error toast
+      toast({
+        title: "Connection Error",
+        description:
+          "Failed to verify connection status. All services have been marked as disconnected.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -568,26 +606,42 @@ export default function ProfileScreen({
   const disconnectProvider = async (providerId: string) => {
     try {
       setIsLoading(true);
+      setError(null);
 
-      // Call the disconnect function
+      // Immediately mark as disconnected in the UI for better UX
+      setOauthProviders((providers) =>
+        providers.map((provider) =>
+          provider.id === providerId
+            ? { ...provider, connected: false, tokenData: undefined }
+            : provider
+        )
+      );
+
+      // Call the disconnection function
       const success = await disconnectOAuthProvider({ providerId });
 
       if (success) {
-        // Refresh connections list
-        await fetchConnections();
+        console.log(`Successfully disconnected ${providerId}`);
 
-        toast({
-          title: "Disconnected",
-          description: `Successfully disconnected from ${providerId.replace(
-            "-",
-            " "
-          )}`,
-        });
+        // Fetch the latest connection status with a delay to ensure Descope has time to update
+        setTimeout(async () => {
+          await fetchConnections();
+          toast({
+            title: "Disconnected",
+            description: `Successfully disconnected from ${
+              oauthProviders.find((p) => p.id === providerId)?.name ||
+              providerId
+            }`,
+          });
+        }, 500);
       } else {
-        throw new Error("Failed to disconnect");
+        throw new Error("Failed to disconnect provider");
       }
     } catch (error) {
-      console.error(`Error disconnecting ${providerId}:`, error);
+      console.error("Error disconnecting provider:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to disconnect service"
+      );
       toast({
         title: "Error",
         description:
@@ -596,6 +650,9 @@ export default function ProfileScreen({
             : "Failed to disconnect service",
         variant: "destructive",
       });
+
+      // Still refresh connections to get the real status
+      await fetchConnections();
     } finally {
       setIsLoading(false);
     }
