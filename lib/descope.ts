@@ -66,11 +66,9 @@ export async function getOAuthToken(
   if (operation === "check_connection") {
     // For connection checking, get scopes from OpenAPI spec
     scopes = await getRequiredScopes(appId, "connect");
-    console.log(`Using connect scopes for ${appId}:`, scopes);
   } else {
     // For specific operations, get required scopes from OpenAPI spec
     scopes = await getRequiredScopes(appId, operation);
-    console.log("Required scopes for operation:", scopes);
   }
 
   // Prepare the request body

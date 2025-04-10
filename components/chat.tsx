@@ -1,64 +1,62 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { ExternalLink } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { useChat, Message as AIMessage } from "ai/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MeetingCard } from "@/components/meeting-card";
+import { Send } from "lucide-react";
 import InChatConnectionPrompt from "@/components/in-chat-connection-prompt";
-import { Calendar, Database } from "lucide-react";
-import { ConnectionNotification } from "./connection-notification";
 import { useConnectionNotification } from "@/hooks/use-connection-notification";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
-import { convertToUIMessages } from "@/lib/utils";
-import { UIMessage } from "ai";
 import ActionCard from "@/components/action-card";
 
-// Define tool action result types
-interface ToolActionResult {
-  success: boolean;
-  action: string;
-  provider?: string;
-  details: any;
-  timestamp: string;
-  requiresConnection?: boolean;
-  connectionType?: string;
-  ui?: {
-    type: string;
-    service?: string;
-    message?: string;
-    connectButton?: {
-      text: string;
-      action: string;
-    };
-    alternativeMessage?: string;
+// Define message types
+interface UIElement {
+  type: string;
+  service: string;
+  message: string;
+  connectButton: {
+    text: string;
+    action: string;
   };
+  alternativeMessage?: string;
 }
 
-interface Message extends AIMessage {
-  toolActions?: ToolActionResult[];
+// Extend the AIMessage type for our custom properties
+interface ExtendedMessage extends AIMessage {
+  ui?: UIElement;
+  parts?: any[];
+  toolActions?: any[];
   actionCard?: {
     type: string;
     data: any;
   };
 }
 
-export default function Chat({
-  id,
-  initialMessages,
-  selectedChatModel = DEFAULT_CHAT_MODEL,
-  selectedVisibilityType = "private",
-  isReadonly = false,
-}: {
-  id: string;
-  initialMessages: any[];
+interface ChatProps {
+  id?: string;
+  initialMessages?: AIMessage[];
   selectedChatModel?: string;
   selectedVisibilityType?: string;
   isReadonly?: boolean;
-}) {
-  const { messages, input, handleInputChange, handleSubmit } = useChat({
+  onNewChat?: () => void;
+}
+
+export default function Chat({
+  id,
+  initialMessages = [],
+  selectedChatModel = DEFAULT_CHAT_MODEL,
+  selectedVisibilityType = "private",
+  isReadonly = false,
+  onNewChat,
+}: ChatProps) {
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit: chatHandleSubmit,
+  } = useChat({
     api: "/api/chat",
     body: {
       id,
@@ -66,14 +64,26 @@ export default function Chat({
     },
     initialMessages,
   });
+
   // Messages that have action cards to display
   const [messagesWithActions, setMessagesWithActions] = useState<string[]>([]);
+
   // Reference to scroll to the bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Get the last message for connection detection
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   // Use our custom hook to detect connection needs
   const { provider, isNeeded, hideNotification, checkConnections } =
@@ -86,7 +96,6 @@ export default function Chat({
           .reverse()
           .find((m) => m.role === "user");
         if (lastUserMessage) {
-          // We could implement a resend mechanism here
           console.log(
             "Connection successful, could resend:",
             lastUserMessage.content
@@ -95,80 +104,8 @@ export default function Chat({
       },
     });
 
-  // Formats tool action results (for display purposes)
-  const formatToolAction = (action: ToolActionResult) => {
-    if (!action.success) {
-      return `Failed to ${action.action.replace(/_/g, " ")}: ${
-        action.details.error
-      }`;
-    }
-
-    switch (action.action) {
-      case "schedule_meeting":
-        return `Meeting "${action.details.title}" scheduled${
-          action.details.link ? ` ([View Meeting](${action.details.link}))` : ""
-        }`;
-      case "create_document":
-        return `Document "${action.details.title}" created${
-          action.details.link
-            ? ` ([View Document](${action.details.link}))`
-            : ""
-        }`;
-      case "create_event":
-        return `Calendar event "${action.details.title}" created${
-          action.details.link ? ` ([View Event](${action.details.link}))` : ""
-        }`;
-      default:
-        return `Action "${action.action}" completed successfully`;
-    }
-  };
-
-  // Process message content to look for action triggers
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === "assistant" && lastMessage.content) {
-      const content = lastMessage.content.toLowerCase();
-
-      // Check for connection requirements in the text using multiple patterns
-      if (
-        // Look for common connection phrases
-        ((content.includes("connect") &&
-          (content.includes("calendar") ||
-            content.includes("crm") ||
-            content.includes("service"))) ||
-          // Look for markdown link patterns related to connections
-          (content.includes("connect") && content.includes("](connection:")) ||
-          // Look for phrases about needing access
-          (content.includes("need") &&
-            (content.includes("access") || content.includes("connect")))) &&
-        !messagesWithActions.includes(lastMessage.id || "")
-      ) {
-        console.log(
-          "Detected connection requirement in message:",
-          lastMessage.id
-        );
-        setMessagesWithActions((prev) => [...prev, lastMessage.id || ""]);
-
-        // Automatically scroll to the bottom when connection prompt appears
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-      }
-
-      // Check if this is a continuation message after reconnection
-      if (
-        content.includes("i'll continue retrieving the information") &&
-        !messagesWithActions.includes(lastMessage.id || "")
-      ) {
-        console.log("Detected context continuation message:", lastMessage.id);
-        // Don't show this message, just wait for the next response
-        setMessagesWithActions((prev) => [...prev, lastMessage.id || ""]);
-      }
-    }
-  }, [messages, messagesWithActions]);
-
   // Function to render a connection prompt if needed
-  const renderConnectionPrompt = (message: Message) => {
+  const renderConnectionPrompt = (message: ExtendedMessage) => {
     // Extract connection information from the message
     const content = message.content.toLowerCase();
     let service = "service";
@@ -196,16 +133,59 @@ export default function Chat({
         connectButtonText={connectButtonText}
         connectButtonAction={connectButtonAction}
         alternativeMessage="This will allow the assistant to access the necessary data to fulfill your request."
+        chatId={id}
       />
     );
   };
 
+  // Process message content to look for action triggers
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === "assistant" && lastMessage.content) {
+      const content = lastMessage.content.toLowerCase();
+
+      // Check for connection requirements in the text using multiple patterns
+      if (
+        // Look for common connection phrases
+        ((content.includes("connect") &&
+          (content.includes("calendar") ||
+            content.includes("crm") ||
+            content.includes("service"))) ||
+          // Look for markdown link patterns related to connections
+          (content.includes("connect") && content.includes("](connection:")) ||
+          // Look for phrases about needing access
+          (content.includes("need") &&
+            (content.includes("access") || content.includes("connect")))) &&
+        !messagesWithActions.includes(lastMessage.id)
+      ) {
+        console.log(
+          "Detected connection requirement in message:",
+          lastMessage.id
+        );
+        setMessagesWithActions((prev) => [...prev, lastMessage.id]);
+
+        // Automatically scroll to the bottom when connection prompt appears
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      }
+    }
+  }, [messages, messagesWithActions]);
+
   // Render a standard message bubble
-  const renderMessage = (message: Message) => {
+  const renderMessage = (message: ExtendedMessage) => {
     // Check if this message has an action card
     const hasActionCard = message.actionCard !== undefined;
     const hasToolActions =
       message.toolActions && message.toolActions.length > 0;
+    const showConnectionPrompt =
+      message.role === "assistant" &&
+      message.content &&
+      message.content.toLowerCase().includes("connect") &&
+      (message.content.toLowerCase().includes("calendar") ||
+        message.content.toLowerCase().includes("crm") ||
+        message.content.toLowerCase().includes("service") ||
+        message.content.includes("](connection:"));
 
     return (
       <div
@@ -214,22 +194,16 @@ export default function Chat({
         } mb-4`}
       >
         <div
-          className={`max-w-[80%] rounded-lg p-4 ${
+          className={`max-w-[85%] md:max-w-[75%] rounded-2xl p-4 ${
             message.role === "user"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted"
+              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
+              : "bg-white border border-gray-200 text-gray-800 shadow-sm"
           }`}
         >
-          {message.parts ? (
-            message.parts.map((part, index) => {
-              if ("text" in part) {
-                return <div key={index}>{part.text}</div>;
-              }
-              return null;
-            })
-          ) : (
-            <div>{message.content || ""}</div>
-          )}
+          <div className="prose prose-sm">{message.content}</div>
+
+          {/* Render connection prompt if needed */}
+          {showConnectionPrompt && renderConnectionPrompt(message)}
 
           {/* Render action card if present */}
           {hasActionCard && message.actionCard && (
@@ -243,15 +217,33 @@ export default function Chat({
             </div>
           )}
 
-          {/* Render tool actions if present */}
-          {hasToolActions && (
-            <div className="mt-4 space-y-2">
-              {message.toolActions?.map((action, index) => (
-                <div key={index} className="text-sm">
-                  <span className="font-semibold">{action.action}:</span>{" "}
-                  {action.details?.message || JSON.stringify(action.details)}
-                </div>
-              ))}
+          {/* Render UI element if present */}
+          {message.ui && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100 shadow-inner">
+              <p className="text-gray-700 mb-3 font-medium">
+                {message.ui.message}
+              </p>
+              <button
+                onClick={() => {
+                  if (
+                    message.ui?.connectButton.action.startsWith("connection://")
+                  ) {
+                    const service = message.ui.connectButton.action.replace(
+                      "connection://",
+                      ""
+                    );
+                    console.log(`Connecting to ${service}...`);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {message.ui.connectButton.text}
+              </button>
+              {message.ui.alternativeMessage && (
+                <p className="text-gray-500 text-sm mt-3">
+                  {message.ui.alternativeMessage}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -259,52 +251,68 @@ export default function Chat({
     );
   };
 
-  // Render the UI
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    chatHandleSubmit(e);
+  };
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto">
-        <ScrollArea className="h-full">
-          <div className="flex flex-col space-y-4 p-4">
-            {messages.map((m) => {
-              const message = m as Message;
-              const isActionMessage = messagesWithActions.includes(
-                message.id || ""
-              );
-
-              return (
-                <div key={message.id || ""}>
-                  {renderMessage(message as Message)}
-                </div>
-              );
-            })}
-            {/* Reference for auto-scrolling */}
+      <ScrollArea className="flex-1 p-4 md:p-6">
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-12">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-8 w-8 text-blue-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">
+              Start a new conversation
+            </h3>
+            <p className="text-gray-500 max-w-md mb-6">
+              Ask a question or type a message to begin chatting with the AI
+              assistant.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message, index) => (
+              <div key={index}>{renderMessage(message as ExtendedMessage)}</div>
+            ))}
             <div ref={messagesEndRef} />
           </div>
-        </ScrollArea>
-      </div>
+        )}
+      </ScrollArea>
 
-      <div className="p-4 border-t border-primary/10">
-        <form onSubmit={handleSubmit} className="flex space-x-2 items-center">
-          <Input
-            value={input}
-            onChange={handleInputChange}
-            placeholder="Type a message..."
-            className="flex-1"
-          />
-          <Button type="submit">Send</Button>
-        </form>
-      </div>
-
-      {/* Render the connection notification if needed */}
-      {isNeeded && provider && (
-        <ConnectionNotification
-          provider={provider}
-          onSuccess={() => {
-            hideNotification();
-            // We could add additional success handling here
-          }}
-          onCancel={hideNotification}
-        />
+      {!isReadonly && (
+        <div className="border-t bg-white p-4">
+          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+            <Input
+              value={input}
+              onChange={handleInputChange}
+              placeholder="Type your message..."
+              className="flex-1"
+              disabled={isLoading}
+            />
+            <Button type="submit" disabled={isLoading || !input.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </div>
       )}
     </div>
   );

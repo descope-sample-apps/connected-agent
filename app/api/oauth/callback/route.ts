@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { trackOAuthEvent, trackError } from "@/lib/analytics";
-
-export const runtime = "nodejs";
 
 /**
  * This route handles the OAuth callback after authorization
@@ -17,6 +14,7 @@ export async function GET(request: Request) {
 
     // Parse the state parameter to get the redirectTo value
     let redirectTo = "chat";
+    let originalUrl = "";
     try {
       if (state) {
         const stateObj = JSON.parse(state);
@@ -26,6 +24,11 @@ export async function GET(request: Request) {
         ) {
           redirectTo = stateObj.redirectTo;
         }
+
+        // Get the original URL if available (for returning to specific chats)
+        if (stateObj.originalUrl) {
+          originalUrl = stateObj.originalUrl;
+        }
       }
     } catch (e) {
       console.error("Error parsing state parameter:", e);
@@ -34,6 +37,24 @@ export async function GET(request: Request) {
     // Base app URL
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "";
+
+    // Determine if the connection was initiated from the chat interface
+    const isFromChat = redirectTo === "chat" && chatId;
+
+    // Determine the redirect URL to return to
+    let redirectURL = `${baseUrl}?oauth=${
+      error ? "error" : "success"
+    }&redirectTo=${redirectTo}`;
+
+    // Add chat ID if available
+    if (chatId) {
+      redirectURL += `&chatId=${chatId}`;
+    }
+
+    // Add the original URL if available (full path where connection was initiated)
+    if (originalUrl) {
+      redirectURL += `&originalUrl=${encodeURIComponent(originalUrl)}`;
+    }
 
     if (error) {
       console.error("OAuth error:", error);
@@ -50,10 +71,13 @@ export async function GET(request: Request) {
             window.onload = function() {
               // Small delay to ensure the page loads
               setTimeout(function() {
-                window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
+                window.location.href = "${redirectURL}&error=${encodeURIComponent(
           error
-        )}&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
-                window.close();
+        )}";
+                // Only close if in a popup
+                if (window.opener) {
+                  window.close();
+                }
               }, 300);
             }
           </script>
@@ -61,7 +85,7 @@ export async function GET(request: Request) {
         <body>
           <h2>Authentication Error</h2>
           <p>Error: ${error}</p>
-          <p>Redirecting and closing window...</p>
+          <p>Redirecting${window.opener ? " and closing window" : ""}...</p>
         </body>
         </html>
         `,
@@ -86,8 +110,11 @@ export async function GET(request: Request) {
             window.onload = function() {
               // Small delay to ensure the page loads
               setTimeout(function() {
-                window.location.href = "${baseUrl}?oauth=error&error=no_code&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
-                window.close();
+                window.location.href = "${redirectURL}&error=no_code";
+                // Only close if in a popup
+                if (window.opener) {
+                  window.close();
+                }
               }, 300);
             }
           </script>
@@ -95,7 +122,7 @@ export async function GET(request: Request) {
         <body>
           <h2>Authentication Error</h2>
           <p>No authorization code received</p>
-          <p>Redirecting and closing window...</p>
+          <p>Redirecting${window.opener ? " and closing window" : ""}...</p>
         </body>
         </html>
         `,
@@ -151,10 +178,13 @@ export async function GET(request: Request) {
             window.onload = function() {
               // Small delay to ensure the page loads
               setTimeout(function() {
-                window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
+                window.location.href = "${redirectURL}&error=${encodeURIComponent(
           errorMessage
-        )}&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
-                window.close();
+        )}";
+                // Only close if in a popup
+                if (window.opener) {
+                  window.close();
+                }
               }, 300);
             }
           </script>
@@ -162,7 +192,7 @@ export async function GET(request: Request) {
         <body>
           <h2>Authentication Error</h2>
           <p>Error: ${errorMessage}</p>
-          <p>Redirecting and closing window...</p>
+          <p>Redirecting${window.opener ? " and closing window" : ""}...</p>
         </body>
         </html>
         `,
@@ -175,6 +205,7 @@ export async function GET(request: Request) {
     }
 
     // Success! Return a page that will redirect with success parameter
+    // Add JavaScript to reload connections if coming from profile page
     return new Response(
       `
       <!DOCTYPE html>
@@ -186,16 +217,28 @@ export async function GET(request: Request) {
           window.onload = function() {
             // Small delay to ensure the page loads
             setTimeout(function() {
-              window.location.href = "${baseUrl}?oauth=success&redirectTo=${redirectTo}${chatId ? `&chatId=${chatId}` : ''}`;
-              window.close();
+              // Set success flag for parent window
+              if (window.opener) {
+                window.opener.postMessage({ type: 'oauth-success', redirectTo: '${redirectTo}', originalUrl: '${originalUrl}', chatId: '${
+        chatId || ""
+      }' }, '*');
+              }
+              
+              // Redirect to the appropriate page
+              window.location.href = "${redirectURL}";
+              
+              // Only close if in a popup
+              if (window.opener) {
+                window.close();
+              }
             }, 300);
           }
         </script>
       </head>
       <body>
         <h2>Authentication Successful</h2>
-        <p>You can close this window now.</p>
-        <p>Redirecting and closing window...</p>
+        <p>You have successfully connected your account.</p>
+        <p>Redirecting${window.opener ? " and closing window" : ""}...</p>
       </body>
       </html>
       `,
@@ -221,16 +264,21 @@ export async function GET(request: Request) {
           window.onload = function() {
             // Small delay to ensure the page loads
             setTimeout(function() {
-              window.location.href = "${baseUrl}?oauth=error&error=server_error&redirectTo=chat";
-              window.close();
+              window.location.href = "${baseUrl}?oauth=error&error=${encodeURIComponent(
+        String(error)
+      )}";
+              // Only close if in a popup
+              if (window.opener) {
+                window.close();
+              }
             }, 300);
           }
         </script>
       </head>
       <body>
         <h2>Authentication Error</h2>
-        <p>A server error occurred during authentication.</p>
-        <p>Redirecting and closing window...</p>
+        <p>An unexpected error occurred: ${String(error)}</p>
+        <p>Redirecting${window.opener ? " and closing window" : ""}...</p>
       </body>
       </html>
       `,

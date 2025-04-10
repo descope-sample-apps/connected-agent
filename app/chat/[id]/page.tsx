@@ -2,7 +2,18 @@ import React from "react";
 import { notFound } from "next/navigation";
 import Chat from "@/app/components/Chat";
 import ChatHeader from "@/app/components/ChatHeader";
-import { Message, ChatType } from "@/app/lib/schema";
+import { chats, messages } from "@/lib/db/schema";
+
+// Define types based on schema
+type ChatType = typeof chats.$inferSelect;
+type MessageType = typeof messages.$inferSelect;
+
+// Define the format expected by the Chat component
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
 
 async function getChatById(id: string) {
   // Determine the base URL
@@ -35,23 +46,12 @@ async function getMessagesForChat(id: string) {
 
   if (!res.ok) return [];
   const data = await res.json();
-  return data.messages as Message[];
+  return data.messages as MessageType[];
 }
 
 // Transform database messages to the format expected by the Chat component
-function transformMessages(dbMessages: any[]) {
+function transformMessages(dbMessages: MessageType[]): ChatMessage[] {
   return dbMessages.map((msg) => {
-    // Extract UI elements from attachments if present
-    let ui = undefined;
-    if (msg.attachments && Array.isArray(msg.attachments)) {
-      const uiElement = msg.attachments.find(
-        (att: any) => att.type === "ui_element"
-      );
-      if (uiElement && uiElement.ui) {
-        ui = uiElement.ui;
-      }
-    }
-
     // Extract content from parts
     let content = "";
     if (Array.isArray(msg.parts)) {
@@ -64,14 +64,14 @@ function transformMessages(dbMessages: any[]) {
         .join("");
     } else if (typeof msg.parts === "string") {
       content = msg.parts;
-    } else if (msg.parts && msg.parts.text) {
-      content = msg.parts.text;
+    } else if (msg.parts && typeof msg.parts === "object") {
+      content = JSON.stringify(msg.parts);
     }
 
     return {
-      role: msg.role,
+      id: msg.id,
+      role: msg.role as "user" | "assistant",
       content,
-      ui,
     };
   });
 }
@@ -85,11 +85,7 @@ export default async function ChatPage({ params }: { params: { id: string } }) {
   const messages = await getMessagesForChat(params.id);
 
   // Transform the messages for the Chat component
-  const transformedMessages = messages.map((msg) => ({
-    id: msg.id,
-    role: msg.role,
-    content: msg.content,
-  }));
+  const transformedMessages = transformMessages(messages);
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-white to-gray-50">

@@ -10,6 +10,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Calendar, Database, Lock, Zap } from "lucide-react";
+import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
+import { useToast } from "./ui/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface InChatConnectionPromptProps {
   service: string;
@@ -17,6 +20,7 @@ interface InChatConnectionPromptProps {
   connectButtonText: string;
   connectButtonAction: string;
   alternativeMessage?: string;
+  chatId?: string;
 }
 
 export default function InChatConnectionPrompt({
@@ -25,17 +29,81 @@ export default function InChatConnectionPrompt({
   connectButtonText,
   connectButtonAction,
   alternativeMessage,
+  chatId,
 }: InChatConnectionPromptProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  // Extract the provider ID from the connection action
+  const getProviderId = () => {
+    const url = connectButtonAction;
+    // Extract provider from connection://provider format
+    if (url.startsWith("connection://")) {
+      return url.replace("connection://", "");
+    }
+    // Fallback to service name
+    return service.toLowerCase().replace(" ", "-");
+  };
 
   const handleConnect = async () => {
     setIsLoading(true);
     try {
-      // Redirect to the connection endpoint
-      window.location.href = connectButtonAction;
+      // Extract the provider ID
+      const providerId = getProviderId();
+
+      // Use OAuth popup mechanism instead of direct redirect
+      // We want to stay on the same page when connecting from the chat
+
+      // Construct redirect URL back to the chat
+      const redirectUrl = `${
+        window.location.origin
+      }/api/oauth/callback?redirectTo=chat${chatId ? `&chatId=${chatId}` : ""}`;
+
+      // Get the authorization URL
+      const url = await connectToOAuthProvider({
+        appId: providerId,
+        redirectUrl,
+        state: {
+          redirectTo: "chat",
+          chatId,
+          originalUrl: window.location.href,
+        },
+      });
+
+      // Handle the OAuth popup
+      await handleOAuthPopup(url, {
+        onSuccess: () => {
+          setIsLoading(false);
+          toast({
+            title: "Connected successfully",
+            description: `Successfully connected to ${service}`,
+          });
+
+          // Reload the page to retry the conversation with the new connection
+          if (chatId) {
+            window.location.reload();
+          }
+        },
+        onError: (error) => {
+          setIsLoading(false);
+          toast({
+            title: "Connection failed",
+            description: error.message || "Failed to connect to service",
+            variant: "destructive",
+          });
+        },
+      });
     } catch (error) {
       console.error("Connection error:", error);
       setIsLoading(false);
+      toast({
+        title: "Connection failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to connect to service",
+        variant: "destructive",
+      });
     }
   };
 
@@ -80,9 +148,7 @@ export default function InChatConnectionPrompt({
               Connecting
             </span>
           ) : (
-            <>
-              Connect
-            </>
+            <>Connect</>
           )}
         </Button>
       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,36 +22,76 @@ interface ConnectionNotificationProps {
   };
   onSuccess: () => void;
   onCancel: () => void;
+  chatId?: string;
 }
 
 export function ConnectionNotification({
   provider,
   onSuccess,
   onCancel,
+  chatId,
 }: ConnectionNotificationProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Add effect to listen for post messages from the OAuth popup
+  useEffect(() => {
+    const handleOAuthMessage = (event: MessageEvent) => {
+      // Verify this is a message from our OAuth flow
+      if (event.data?.type === "oauth-success") {
+        console.log("Received oauth-success message:", event.data);
+
+        // If the connection was successful, call onSuccess
+        setIsConnecting(false);
+        setIsOpen(false);
+        onSuccess();
+      }
+    };
+
+    // Add event listener for messages
+    window.addEventListener("message", handleOAuthMessage);
+
+    // Clean up listener on unmount
+    return () => {
+      window.removeEventListener("message", handleOAuthMessage);
+    };
+  }, [onSuccess]);
 
   const handleConnect = async () => {
     try {
       setIsConnecting(true);
 
+      // Get the current path for redirect purposes
+      const currentPath = window.location.pathname;
+      const isFromChat = currentPath.includes("/chat/");
+
+      // Save the original URL for returning to the exact same place
+      const originalUrl = window.location.href;
+
+      // Determine the redirect target (chat or profile)
+      const redirectTarget = isFromChat ? "chat" : "profile";
+
       // Construct redirect URL back to the current page
       const redirectUrl = `${
         window.location.origin
-      }/api/oauth/callback?redirectTo=${encodeURIComponent(
-        window.location.pathname
-      )}`;
+      }/api/oauth/callback?redirectTo=${redirectTarget}${
+        chatId ? `&chatId=${chatId}` : ""
+      }`;
 
-      // Get the authorization URL
+      // Get the authorization URL with the current state
       const url = await connectToOAuthProvider({
         appId: provider.id,
         redirectUrl,
         scopes: provider.scopes,
+        state: {
+          redirectTo: redirectTarget,
+          originalUrl,
+          chatId,
+        },
       });
 
       // Handle the OAuth popup
-      handleOAuthPopup(url, {
+      await handleOAuthPopup(url, {
         onSuccess: async () => {
           try {
             // Verify the connection was successful
@@ -84,7 +124,7 @@ export function ConnectionNotification({
             // Close the dialog and notify parent of success
             setIsOpen(false);
             onSuccess();
-          } catch (error: unknown) {
+          } catch (error) {
             console.error("Error verifying connection:", error);
             toast({
               title: "Connection failed",
@@ -134,76 +174,48 @@ export function ConnectionNotification({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 flex-shrink-0">
-              <Image
-                src={provider.icon}
-                alt={provider.name}
-                width={48}
-                height={48}
-                className="rounded-md"
-              />
+          <div className="flex items-center mb-2">
+            <div className="mr-2 p-2 rounded-full bg-blue-50">
+              {provider.icon && (
+                <Image
+                  src={provider.icon}
+                  width={24}
+                  height={24}
+                  alt={provider.name}
+                />
+              )}
             </div>
-            <div>
-              <DialogTitle>Connect to {provider.name}</DialogTitle>
-              <DialogDescription>
-                The assistant needs access to {provider.name} to complete your
-                request
-              </DialogDescription>
-            </div>
+            <DialogTitle>Connect to {provider.name}</DialogTitle>
           </div>
+          <DialogDescription>
+            Connect your {provider.name} account to enable integration with this
+            app.
+          </DialogDescription>
         </DialogHeader>
-
         <div className="py-4">
-          <p className="text-sm text-muted-foreground mb-4">
-            Connecting to {provider.name} will allow the assistant to:
+          <p className="text-sm text-gray-500 mb-4">
+            You'll be redirected to {provider.name} to authorize access to your
+            account. This gives the assistant the ability to:
           </p>
-          <ul className="list-disc pl-6 space-y-2 text-sm">
-            {provider.id === "google-calendar" && (
-              <>
-                <li>View and manage your calendar events</li>
-                <li>Schedule meetings on your behalf</li>
-                <li>Check your availability</li>
-              </>
-            )}
-            {provider.id === "google-docs" && (
-              <>
-                <li>Create and edit documents</li>
-                <li>Read content from your documents</li>
-                <li>Share documents with others</li>
-              </>
-            )}
-            {provider.id === "zoom" && (
-              <>
-                <li>Create Zoom meetings</li>
-                <li>Manage meeting settings</li>
-                <li>View your scheduled meetings</li>
-              </>
-            )}
-            {provider.id === "crm" && (
-              <>
-                <li>View your customer data</li>
-                <li>Access deal information</li>
-                <li>Update contact records</li>
-              </>
-            )}
-            {provider.id === "custom-crm" && (
-              <>
-                <li>Access customer contact information</li>
-                <li>View and update deal statuses</li>
-                <li>Create new leads and opportunities</li>
-              </>
-            )}
+          <ul className="list-disc pl-6 text-sm text-gray-500 space-y-1">
+            <li>View and manage your calendar events</li>
+            <li>Access your contacts</li>
+            <li>Create and modify documents on your behalf</li>
           </ul>
         </div>
-
-        <DialogFooter className="flex sm:justify-between">
-          <Button variant="ghost" onClick={handleClose} disabled={isConnecting}>
-            Not now
+        <DialogFooter className="flex space-x-2">
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
           </Button>
           <Button onClick={handleConnect} disabled={isConnecting}>
-            {isConnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Connect to {provider.name}
+            {isConnecting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              "Connect"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

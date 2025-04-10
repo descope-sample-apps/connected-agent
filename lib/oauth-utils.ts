@@ -6,6 +6,17 @@ interface OAuthConnectParams {
   appId: string;
   redirectUrl: string;
   scopes?: string[]; // Optional - only included if provided
+  state?: {
+    redirectTo?: string;
+    originalUrl?: string;
+    chatId?: string;
+    [key: string]: any;
+  };
+}
+
+// Add new interface for disconnection
+interface OAuthDisconnectParams {
+  providerId: string;
 }
 
 interface TokenResponse {
@@ -136,6 +147,7 @@ export async function connectToOAuthProvider({
   appId,
   redirectUrl,
   scopes,
+  state,
 }: OAuthConnectParams) {
   try {
     // Get refresh token from localStorage if available
@@ -154,8 +166,15 @@ export async function connectToOAuthProvider({
     const redirectUrlObj = new URL(redirectUrl);
     const redirectTo = redirectUrlObj.searchParams.get("redirectTo") || "chat";
 
-    // Create a state parameter that includes the redirectTo
-    const state = JSON.stringify({ redirectTo });
+    // Create a state parameter that includes the redirectTo and any other state
+    let stateObject = { redirectTo };
+
+    // Add any additional state parameters if provided
+    if (state) {
+      stateObject = { ...stateObject, ...state };
+    }
+
+    const stateParam = JSON.stringify(stateObject);
 
     // Track this OAuth connection attempt
     trackOAuthEvent("connect_initiated", {
@@ -169,7 +188,7 @@ export async function connectToOAuthProvider({
       appId,
       options: {
         redirectUrl,
-        state,
+        state: stateParam,
         ...(scopes && { scopes }),
       },
     };
@@ -373,4 +392,46 @@ export function trackToolAction(
     details: result.details,
     timestamp: new Date().toISOString(),
   });
+}
+
+// Add disconnection utility function
+export async function disconnectOAuthProvider({
+  providerId,
+}: OAuthDisconnectParams): Promise<boolean> {
+  try {
+    // Track disconnect initiated
+    trackOAuthEvent("disconnect_initiated", {
+      provider: providerId,
+    });
+
+    // Call our API endpoint to disconnect the provider
+    const response = await fetch("/api/oauth/disconnect", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ providerId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Error disconnecting provider:", errorData);
+      throw new Error(errorData.error || "Failed to disconnect provider");
+    }
+
+    const data = await response.json();
+
+    // Track disconnect success if we got a positive response
+    if (data.success) {
+      trackOAuthEvent("disconnect_successful", {
+        provider: providerId,
+      });
+    }
+
+    return data.success === true;
+  } catch (error) {
+    console.error("Error disconnecting OAuth provider:", error);
+    trackError(error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
 }

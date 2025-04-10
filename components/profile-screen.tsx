@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/select";
 import { availableModels } from "@/lib/ai/providers";
 import { useEffect as useClientEffect } from "react";
+import { disconnectOAuthProvider } from "@/lib/oauth-utils";
 
 interface OAuthProvider {
   id: string;
@@ -320,30 +321,8 @@ export default function ProfileScreen({
         throw new Error("Provider not found");
       }
 
-      if (providerData.connected) {
-        // Handle disconnection
-        const response = await fetch(`/api/oauth/disconnect/${provider}`, {
-          method: "POST",
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to disconnect");
-        }
-
-        // Update the provider's connection status
-        setOauthProviders((providers) =>
-          providers.map((p) =>
-            p.id === provider
-              ? { ...p, connected: false, tokenData: undefined }
-              : p
-          )
-        );
-
-        toast({
-          title: "Disconnected",
-          description: `Successfully disconnected from ${providerData.name}`,
-        });
-      } else {
+      // Only handle connection, disconnection is handled by disconnectProvider
+      if (!providerData.connected) {
         // Get the current chat ID from localStorage
         const currentChatId = localStorage.getItem("currentChatId");
 
@@ -389,16 +368,14 @@ export default function ProfileScreen({
         });
       }
     } catch (error) {
-      console.error("Error toggling connection:", error);
+      console.error("Error connecting:", error);
       setError(
-        error instanceof Error ? error.message : "Failed to toggle connection"
+        error instanceof Error ? error.message : "Failed to connect service"
       );
       toast({
         title: "Error",
         description:
-          error instanceof Error
-            ? error.message
-            : "Failed to toggle connection",
+          error instanceof Error ? error.message : "Failed to connect service",
         variant: "destructive",
       });
     } finally {
@@ -584,6 +561,42 @@ export default function ProfileScreen({
     });
   };
 
+  const disconnectProvider = async (providerId: string) => {
+    try {
+      setIsLoading(true);
+
+      // Call the disconnect function
+      const success = await disconnectOAuthProvider({ providerId });
+
+      if (success) {
+        // Refresh connections list
+        await fetchConnections();
+
+        toast({
+          title: "Disconnected",
+          description: `Successfully disconnected from ${providerId.replace(
+            "-",
+            " "
+          )}`,
+        });
+      } else {
+        throw new Error("Failed to disconnect");
+      }
+    } catch (error) {
+      console.error(`Error disconnecting ${providerId}:`, error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to disconnect service",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="container max-w-4xl py-6">
       <Button variant="ghost" className="mb-6" onClick={onBack}>
@@ -668,50 +681,45 @@ export default function ProfileScreen({
                           />
                         </div>
                         <div>
-                          <h3 className="font-medium">{provider.name}</h3>
-                          <div className="flex items-center mt-1">
-                            {provider.connected ? (
-                              <>
-                                <Badge
-                                  variant="default"
-                                  className="mr-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                                >
-                                  Connected
-                                </Badge>
-                              </>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                              >
-                                Not connected
-                              </Badge>
-                            )}
+                          <div className="font-medium">{provider.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {provider.connected ? "Connected" : "Not connected"}
                           </div>
                         </div>
                       </div>
-                      <div>
-                        {provider.connected ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleConnection(provider.id)}
-                            className="mr-2"
-                            disabled={isLoading}
-                          >
-                            Disconnect
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => toggleConnection(provider.id)}
-                            disabled={isLoading}
-                          >
-                            Connect
-                          </Button>
-                        )}
-                      </div>
+                      {provider.connected ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => disconnectProvider(provider.id)}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                              Disconnecting...
+                            </>
+                          ) : (
+                            "Disconnect"
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => toggleConnection(provider.id)}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                              Connecting...
+                            </>
+                          ) : (
+                            "Connect"
+                          )}
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </CardContent>

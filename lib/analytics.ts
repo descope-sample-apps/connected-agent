@@ -9,7 +9,9 @@ export type EventType =
   | "connection_successful"
   | "connection_failed"
   | "tool_action"
-  | "connect_initiated";
+  | "connect_initiated"
+  | "disconnect_initiated"
+  | "disconnect_successful";
 
 // Initialize PostHog
 export function initPostHog() {
