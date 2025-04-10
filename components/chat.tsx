@@ -104,39 +104,53 @@ export default function Chat({
       },
     });
 
-  // Function to render a connection prompt if needed
-  const renderConnectionPrompt = (message: ExtendedMessage) => {
-    // Extract connection information from the message
-    const content = message.content.toLowerCase();
-    let service = "service";
+  // Listen for connection success events
+  useEffect(() => {
+    const handleConnectionSuccess = (event: CustomEvent) => {
+      console.log("Connection success event received:", event.detail);
 
-    if (content.includes("crm")) service = "crm";
-    if (content.includes("calendar")) service = "google-calendar";
-    if (content.includes("docs")) service = "google-docs";
+      // Resend the last user message to get a complete response after connection
+      const lastUserMessage = [...messages]
+        .reverse()
+        .find((m) => m.role === "user");
 
-    // Extract the action URL if available
-    const actionMatch = message.content.match(
-      /\[([^\]]+)\]\(connection:\/\/([^)]+)\)/
+      if (lastUserMessage) {
+        console.log(
+          "Connection successful, resending message:",
+          lastUserMessage.content
+        );
+        // You could either submit the message again or reload the chat
+        // For simplicity, we'll do a very mild reload that preserves the current chat
+        if (id) {
+          // Optional: Show a loading state
+          setIsLoading(true);
+
+          // Check connections to refresh state
+          checkConnections().then(() => {
+            // Hide any connection prompts
+            hideNotification();
+
+            // Reset loading state
+            setIsLoading(false);
+          });
+        }
+      }
+    };
+
+    // Add event listener
+    window.addEventListener(
+      "connection-success",
+      handleConnectionSuccess as EventListener
     );
-    const connectButtonText = actionMatch ? actionMatch[1] : "Connect";
-    const connectButtonAction = actionMatch
-      ? `connection://${actionMatch[2]}`
-      : `connection://${service}`;
 
-    return (
-      <InChatConnectionPrompt
-        service={service.replace("-", " ")}
-        message={`To continue, you need to connect your ${service.replace(
-          "-",
-          " "
-        )}.`}
-        connectButtonText={connectButtonText}
-        connectButtonAction={connectButtonAction}
-        alternativeMessage="This will allow the assistant to access the necessary data to fulfill your request."
-        chatId={id}
-      />
-    );
-  };
+    // Cleanup
+    return () => {
+      window.removeEventListener(
+        "connection-success",
+        handleConnectionSuccess as EventListener
+      );
+    };
+  }, [messages, id, hideNotification, checkConnections]);
 
   // Process message content to look for action triggers
   useEffect(() => {
@@ -171,6 +185,40 @@ export default function Chat({
       }
     }
   }, [messages, messagesWithActions]);
+
+  // Function to render a connection prompt if needed
+  const renderConnectionPrompt = (message: ExtendedMessage) => {
+    // Extract connection information from the message
+    const content = message.content.toLowerCase();
+    let service = "service";
+
+    if (content.includes("crm")) service = "crm";
+    if (content.includes("calendar")) service = "google-calendar";
+    if (content.includes("docs")) service = "google-docs";
+
+    // Extract the action URL if available
+    const actionMatch = message.content.match(
+      /\[([^\]]+)\]\(connection:\/\/([^)]+)\)/
+    );
+    const connectButtonText = actionMatch ? actionMatch[1] : "Connect";
+    const connectButtonAction = actionMatch
+      ? `connection://${actionMatch[2]}`
+      : `connection://${service}`;
+
+    return (
+      <InChatConnectionPrompt
+        service={service.replace("-", " ")}
+        message={`To continue, you need to connect your ${service.replace(
+          "-",
+          " "
+        )}.`}
+        connectButtonText={connectButtonText}
+        connectButtonAction={connectButtonAction}
+        alternativeMessage="This will allow the assistant to access the necessary data to fulfill your request."
+        chatId={id}
+      />
+    );
+  };
 
   // Render a standard message bubble
   const renderMessage = (message: ExtendedMessage) => {

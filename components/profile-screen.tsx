@@ -340,44 +340,31 @@ export default function ProfileScreen({
 
       // Only handle connection, disconnection is handled by disconnectProvider
       if (!providerData.connected) {
-        // Get the current chat ID from localStorage
-        const currentChatId = localStorage.getItem("currentChatId");
-
-        // Construct the redirect URL with the chat ID if available
-        const redirectUrl = `${
-          window.location.origin
-        }/api/oauth/callback?redirectTo=chat${
-          currentChatId ? `&chatId=${currentChatId}` : ""
-        }`;
+        // Simple redirect URL (no need for redirectTo param as we'll handle it in the popup)
+        const redirectUrl = `${window.location.origin}/api/oauth/callback`;
 
         // Handle connection
         const authUrl = await connectToOAuthProvider({
           appId: provider,
           redirectUrl,
+          state: {
+            originalUrl: window.location.href,
+          },
         });
 
         // Handle the OAuth popup
         await handleOAuthPopup(authUrl, {
           onSuccess: () => {
-            // Update the provider's connection status
-            setOauthProviders((providers) =>
-              providers.map((p) =>
-                p.id === provider
-                  ? {
-                      ...p,
-                      connected: true,
-                    }
-                  : p
-              )
-            );
+            // Refresh connections immediately
+            fetchConnections().then(() => {
+              toast({
+                title: "Connected",
+                description: `Successfully connected to ${providerData.name}`,
+              });
 
-            toast({
-              title: "Connected",
-              description: `Successfully connected to ${providerData.name}`,
+              // Additional refresh for chat history if needed
+              handleConnectionSuccess(provider);
             });
-
-            // Refresh chat history after successful connection
-            handleConnectionSuccess(provider);
           },
           onError: (error) => {
             throw new Error(error.message || "Failed to connect");

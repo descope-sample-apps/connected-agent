@@ -66,13 +66,6 @@ export async function GET() {
       }),
     ]);
 
-    console.log("OAuth connection raw results:", {
-      googleCalendar: JSON.stringify(googleCalendar).substring(0, 200) + "...",
-      googleDocs: JSON.stringify(googleDocs).substring(0, 200) + "...",
-      zoom: JSON.stringify(zoom).substring(0, 200) + "...",
-      customCrm: JSON.stringify(customCrm).substring(0, 200) + "...",
-    });
-
     // Process token responses
     const processConnection = (response: any) => {
       if (!response) return { connected: false };

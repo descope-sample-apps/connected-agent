@@ -258,10 +258,30 @@ export async function handleOAuthPopup(
     // Track if we've already handled the popup closure
     let isHandled = false;
 
+    // Setup message listener for the postMessage from the popup
+    const messageHandler = (event: MessageEvent) => {
+      // Verify origin for security
+      if (event.origin !== appOrigin) return;
+
+      // Check if this is our OAuth success message
+      if (event.data?.type === "oauth-success") {
+        console.log("Received oauth-success message from popup");
+        isHandled = true;
+        window.removeEventListener("message", messageHandler);
+        clearInterval(checkInterval);
+
+        if (callbacks?.onSuccess) callbacks.onSuccess();
+        resolve();
+      }
+    };
+
+    window.addEventListener("message", messageHandler);
+
     const checkInterval = setInterval(() => {
       if (!popup || popup.closed) {
         if (!isHandled) {
           console.log("Popup was closed manually");
+          window.removeEventListener("message", messageHandler);
           clearInterval(checkInterval);
           reject(new Error("Authentication window was closed"));
         }
@@ -269,48 +289,48 @@ export async function handleOAuthPopup(
       }
 
       try {
-        // First check if we're back on our origin
+        // Check if we're back on our origin - this is a fallback check
+        // in case the postMessage doesn't work for some reason
         if (popup.location.origin === appOrigin) {
-          console.log("Popup returned to app origin:", popup.location.href);
-
-          // Then check for success/error parameters
           const params = new URLSearchParams(popup.location.search);
           const oauthStatus = params.get("oauth");
-          const redirectTo = params.get("redirectTo") || "chat";
 
           if (oauthStatus === "success" || oauthStatus === "error") {
-            isHandled = true;
-            clearInterval(checkInterval);
+            // Only process if not already handled by the message listener
+            if (!isHandled) {
+              isHandled = true;
+              window.removeEventListener("message", messageHandler);
+              clearInterval(checkInterval);
 
-            // Get error message if present
-            const errorMsg = params.get("error");
+              // Get error message if present
+              const errorMsg = params.get("error");
 
-            // Close the popup
-            popup.close();
+              // Close the popup
+              popup.close();
 
-            if (oauthStatus === "success") {
-              console.log("OAuth completed successfully");
-              if (callbacks?.onSuccess) callbacks.onSuccess();
-
-              // Redirect to the appropriate page
-              window.location.href = `${window.location.origin}/${redirectTo}`;
-              resolve();
-            } else {
-              console.log("OAuth failed with error:", errorMsg);
-              const error = new Error(errorMsg || "OAuth error");
-              if (callbacks?.onError) callbacks.onError(error);
-              reject(error);
+              if (oauthStatus === "success") {
+                console.log("OAuth completed successfully (fallback)");
+                if (callbacks?.onSuccess) callbacks.onSuccess();
+                resolve();
+              } else {
+                console.log("OAuth failed with error:", errorMsg);
+                const error = new Error(errorMsg || "OAuth error");
+                if (callbacks?.onError) callbacks.onError(error);
+                reject(error);
+              }
             }
           }
         }
       } catch (e) {
         // Cross-origin error, popup is still on the OAuth provider's domain
+        // This is normal and expected during the OAuth flow
       }
     }, 100);
 
     // Set a timeout to prevent hanging
     setTimeout(() => {
       if (!isHandled) {
+        window.removeEventListener("message", messageHandler);
         clearInterval(checkInterval);
         popup.close();
         const error = new Error("Authentication timed out after 5 minutes");

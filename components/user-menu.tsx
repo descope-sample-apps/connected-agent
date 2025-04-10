@@ -112,8 +112,8 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
     try {
       setIsConnecting(connectionId);
 
-      // Get redirect URL
-      const redirectUrl = `${window.location.origin}/api/oauth/callback?redirectTo=currentPage`;
+      // Get redirect URL - keep the popup on same origin for postMessage to work
+      const redirectUrl = `${window.location.origin}/api/oauth/callback`;
 
       // Get authorization URL
       const authUrl = await connectToOAuthProvider({
@@ -127,12 +127,14 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
       // Handle the OAuth popup
       await handleOAuthPopup(authUrl, {
         onSuccess: () => {
-          fetchConnections();
-          toast({
-            title: "Connected successfully",
-            description: `Successfully connected to ${
-              connections.find((c) => c.id === connectionId)?.name
-            }`,
+          // Refresh connections list immediately
+          fetchConnections().then(() => {
+            toast({
+              title: "Connected successfully",
+              description: `Successfully connected to ${
+                connections.find((c) => c.id === connectionId)?.name
+              }`,
+            });
           });
         },
         onError: (error) => {

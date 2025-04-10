@@ -48,10 +48,6 @@ export async function getOAuthToken(
   operation: string = "check_connection",
   options: TokenOptions = { withRefreshToken: false, forceRefresh: true }
 ): Promise<TokenResponse | null> {
-  console.log(
-    `getOAuthToken called for userId: ${userId}, appId: ${appId}, operation: ${operation}`
-  );
-
   const managementKey = process.env.DESCOPE_MANAGEMENT_KEY;
   const projectId = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID;
 
@@ -100,13 +96,6 @@ export async function getOAuthToken(
     // Clone the response to read the body without consuming it
     const clonedResponse = response.clone();
     const responseText = await clonedResponse.text();
-    console.log(`Descope raw response for ${appId}:`, {
-      status: response.status,
-      headers: Object.fromEntries([...response.headers.entries()]),
-      body:
-        responseText.substring(0, 500) +
-        (responseText.length > 500 ? "..." : ""),
-    });
 
     if (response.status === 404) {
       // Token not found - needs to be reconnected with new scopes

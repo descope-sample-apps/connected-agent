@@ -59,20 +59,14 @@ export default function InChatConnectionPrompt({
       // Extract the provider ID
       const providerId = getProviderId();
 
-      // Use OAuth popup mechanism instead of direct redirect
-      // We want to stay on the same page when connecting from the chat
-
-      // Construct redirect URL back to the chat
-      const redirectUrl = `${
-        window.location.origin
-      }/api/oauth/callback?redirectTo=chat${chatId ? `&chatId=${chatId}` : ""}`;
+      // Simple redirect URL without query parameters
+      const redirectUrl = `${window.location.origin}/api/oauth/callback`;
 
       // Get the authorization URL
       const url = await connectToOAuthProvider({
         appId: providerId,
         redirectUrl,
         state: {
-          redirectTo: "chat",
           chatId,
           originalUrl: window.location.href,
         },
@@ -87,9 +81,13 @@ export default function InChatConnectionPrompt({
             description: `Successfully connected to ${service}`,
           });
 
-          // Reload the page to retry the conversation with the new connection
-          if (chatId) {
-            window.location.reload();
+          // Don't reload, instead update the UI to indicate connection is successful
+          if (typeof window !== "undefined") {
+            // Dispatch a custom event that the chat component can listen for
+            const event = new CustomEvent("connection-success", {
+              detail: { service: providerId },
+            });
+            window.dispatchEvent(event);
           }
         },
         onError: (error) => {

@@ -26,26 +26,38 @@ import PromptTrigger from "@/components/prompt-trigger";
 import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import {
+  ArrowLeft,
+  ArrowRight,
   Briefcase,
   Calendar,
+  CalendarDays,
+  Code2,
+  ExternalLink,
   FileText,
-  Video,
-  Send,
-  Settings,
+  Globe,
   HelpCircle,
+  MessageSquare,
   PanelRightClose,
   PanelRightOpen,
   Save,
+  Send,
+  Settings,
   Share2,
-  MessageSquare,
-  ExternalLink,
   Sparkles,
+  Video,
 } from "lucide-react";
 import SaveChatDialog from "@/components/save-chat-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { useToast } from "@/components/ui/use-toast";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { convertToUIMessages } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 type PromptType =
   | "crm-lookup"
@@ -802,40 +814,69 @@ export default function Home() {
               </div>
             )}
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-gray-700 dark:text-gray-300"
-                  >
-                    <HelpCircle className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[280px] p-4">
-                  <div className="space-y-2">
-                    <p className="font-medium">About this demo</p>
-                    <p className="text-sm text-muted-foreground">
-                      This sample app showcases OpenAI function calling with
-                      Descope outbound OAuth apps. AI functions can securely
-                      access your connected services using OAuth.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      For more information, visit{" "}
-                      <a
-                        href="https://docs.descope.com/outbound/"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary underline hover:no-underline"
-                      >
-                        Descope docs
-                      </a>
-                    </p>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-700 dark:text-gray-300"
+                >
+                  <HelpCircle className="h-5 w-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-medium text-primary">
+                    About this demo
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    This sample app showcases OpenAI function calling with
+                    Descope outbound OAuth apps. AI functions can securely
+                    access your connected services using OAuth.
+                  </p>
+                  <div className="pt-2 space-y-2 border-t border-gray-100 dark:border-gray-800">
+                    <p className="font-medium text-sm">Useful Resources:</p>
+                    <ul className="space-y-2 text-sm">
+                      <li className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-indigo-500" />
+                        <a
+                          href="https://docs.descope.com/outbound/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline hover:no-underline transition-all"
+                        >
+                          Documentation
+                        </a>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-purple-500" />
+                        <a
+                          href="https://www.descope.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline hover:no-underline transition-all"
+                        >
+                          Website
+                        </a>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Code2 className="h-4 w-4 text-emerald-500" />
+                        <a
+                          href="https://www.postman.com/descope/workspace/crm-assistant-api/overview"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline hover:no-underline transition-all"
+                        >
+                          API Collection
+                        </a>
+                      </li>
+                    </ul>
                   </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                </div>
+              </DialogContent>
+            </Dialog>
             {isAuthenticated ? (
               <UserMenu onProfileClick={() => setShowProfileScreen(true)} />
             ) : (
