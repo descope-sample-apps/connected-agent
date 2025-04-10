@@ -1,0 +1,195 @@
+:root {
+  /* Border radius system */
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Color palette from AI microsite */
+  --grey-0: #ffffff;
+  --grey-25: #f9fafb;
+  --grey-50: #f0f0f1;
+  --grey-100: #dadee5;
+  --grey-200: #c3c5c9;
+  --grey-300: #a4a8ae;
+  --grey-400: #868b93;
+  --grey-500: #686e78;
+  --grey-800: #2a2d33;
+  --grey-950: #0a101a;
+
+  /* Accent colors */
+  --accents-blue-100: #eaf9f6;
+  --accents-blue-500: #0085ff;
+  --accents-blue-600: #0074e0;
+  --accents-blue-700: #334665;
+  --accents-blue-800: #253754;
+  --accents-blue-900: #111e32;
+
+  --accents-cyan-100: #cae3e2;
+  --accents-cyan-200: #ddf1f1;
+  --accents-cyan-300: #40c3f3;
+  --accents-cyan-500: #7deded;
+  --accents-cyan-600: #00b5ad;
+  --accents-cyan-900: #007a77;
+
+  /* Gradient colors */
+  --gradient-green-rgb: 74, 210, 172;
+  --main-gradient-cyan-100: #40c3f3;
+  --main-gradient-cyan-200: #69eaea;
+  --main-gradient-cyan-300: #89e6b5;
+
+  /* Pattern colors */
+  --pattern-gray: rgba(226, 232, 240, 0.8);
+  --hero-border-color: rgba(0, 0, 0, 0.1);
+  --accent-cyan-translucent: rgba(66, 207, 165, 0.1);
+
+  /* Animation timings */
+  --reveal-animation-speed: 4s;
+
+  /* Borders */
+  --border: #ebebeb;
+  --border-nav: #f3f3f3;
+  --border-card: #d6eceb;
+  --border-card-header: #ebf0f0;
+  --border-text-box: #e2eeeb;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 2px 4px -1px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-nav: 0px 1px 0px 1px #e9e9e9;
+  --shadow-card: 0px 0px 0px 6px rgba(216, 225, 225, 0.25);
+  --shadow-select-panel: 0px 1px 1px -0.5px rgba(42, 51, 69, 0.04),
+    0px 3px 3px -1.5px rgba(42, 51, 69, 0.04),
+    0px 6px 6px -3px rgba(42, 51, 69, 0.04),
+    0px 0px 0px 1px rgba(14, 63, 126, 0.04),
+    0px 12px 12px -6px rgba(14, 63, 126, 0.04);
+
+  /* Text settings */
+  --leading-tighter: 1.1;
+}
+
+/* Border radius utilities */
+.rounded-xs {
+  border-radius: var(--radius-xs);
+}
+
+.rounded-sm {
+  border-radius: var(--radius-sm);
+}
+
+.rounded-md {
+  border-radius: var(--radius-md);
+}
+
+.rounded-lg {
+  border-radius: var(--radius-lg);
+}
+
+.rounded-xl {
+  border-radius: var(--radius-xl);
+}
+
+/* Primary gradient from AI microsite */
+.primary-gradient {
+  background: linear-gradient(
+    90deg,
+    var(--main-gradient-cyan-100) -0.58%,
+    var(--main-gradient-cyan-200) 17.09%,
+    var(--main-gradient-cyan-300) 100%
+  );
+}
+
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--accents-blue-500) 0%,
+    var(--main-gradient-cyan-100) 31%,
+    var(--main-gradient-cyan-200) 61.22%,
+    var(--main-gradient-cyan-300) 100%
+  );
+}
+
+/* Button gradients */
+.btn-gradient {
+  background: linear-gradient(
+    90deg,
+    var(--main-gradient-cyan-100) -0.58%,
+    var(--main-gradient-cyan-200) 17.09%,
+    var(--main-gradient-cyan-300) 100%
+  );
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-gradient:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  filter: brightness(1.05);
+}
+
+/* Card styling */
+.card {
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.card-header {
+  border-bottom: 1px solid var(--border-card-header);
+}
+
+/* Glass morphism for modern UI elements, aligned with microsite aesthetic */
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.glass-morphism-dark {
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Custom animation for text reveal */
+@keyframes textReveal {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animate-text-reveal {
+  animation: textReveal 0.5s ease-out forwards;
+}
+
+/* Gradient underline effect from AI microsite */
+.gradient-underline {
+  position: relative;
+}
+
+.gradient-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--main-gradient-cyan-100) -0.58%,
+    var(--main-gradient-cyan-200) 17.09%,
+    var(--main-gradient-cyan-300) 100%
+  );
+}

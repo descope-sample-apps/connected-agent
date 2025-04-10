@@ -163,7 +163,7 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
         userId,
         "crm",
         {
-          appId: "crm",
+          appId: "custom-crm",
           userId,
           scopes: crmScopes,
           operation: "tool_calling",

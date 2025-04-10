@@ -27,7 +27,7 @@ const providers = {
     id: "zoom",
     name: "Zoom",
     icon: "/logos/zoom-logo.png",
-    scopes: ["meeting:write", "meeting:read"],
+    scopes: ["meeting:write:meeting"],
     keywords: [
       "zoom",
       "video",

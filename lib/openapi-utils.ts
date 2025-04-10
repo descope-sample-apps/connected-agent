@@ -72,9 +72,9 @@ export async function getRequiredScopes(
       connect: ["https://www.googleapis.com/auth/documents"], // Full access for connection
     },
     zoom: {
-      "meetings.list": ["meeting:read"],
-      "meetings.create": ["meeting:write"],
-      connect: ["meeting:read", "meeting:write"], // Both read and write for connection
+      "meetings.list": ["meeting:read:meeting"],
+      "meetings.create": ["meeting:write:meeting"],
+      connect: ["meeting:write:meeting"],
     },
     "custom-crm": {
       "contacts.list": ["contacts.read"],

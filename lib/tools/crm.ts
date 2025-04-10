@@ -155,7 +155,7 @@ export class CRMDealsTool extends Tool<CRMDealsArgs> {
       // Get OAuth token
       const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
-        "crm",
+        "custom-crm",
         {
           appId: "custom-crm",
           userId,
