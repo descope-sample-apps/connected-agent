@@ -59,6 +59,14 @@ export function scheduleMeeting({
       description = "",
       location = "",
       useZoom = false,
+    }: {
+      contacts: string[];
+      startDateTime: string;
+      endDateTime: string;
+      title: string;
+      description?: string;
+      location?: string;
+      useZoom?: boolean;
     }) => {
       dataStream.append({
         toolActivity: {
@@ -154,7 +162,15 @@ export function checkAvailability({
         .optional()
         .describe("The timezone for the availability check"),
     }),
-    execute: async ({ startDateTime, endDateTime, timezone = "UTC" }) => {
+    execute: async ({
+      startDateTime,
+      endDateTime,
+      timezone = "UTC",
+    }: {
+      startDateTime: string;
+      endDateTime: string;
+      timezone?: string;
+    }) => {
       dataStream.append({
         toolActivity: {
           step: "starting",
@@ -255,7 +271,13 @@ export function getUpcomingEvents({
         .default(5)
         .describe("Maximum number of events to return"),
     }),
-    execute: async ({ days = 7, maxEvents = 5 }) => {
+    execute: async ({
+      days = 7,
+      maxEvents = 5,
+    }: {
+      days?: number;
+      maxEvents?: number;
+    }) => {
       dataStream.append({
         toolActivity: {
           step: "starting",
