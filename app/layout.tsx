@@ -15,9 +15,9 @@ const inter = Inter({ subsets: ["latin"] });
 initPostHog();
 
 export const metadata: Metadata = {
-  title: "CRM Assistant",
+  title: "ConnectedAgent",
   description:
-    "AI-powered sales assistant with CRM, calendar, and document integrations",
+    "AI-powered assistant with CRM, calendar, and document integrations with Descope Outbound Apps",
 };
 
 export default function RootLayout({

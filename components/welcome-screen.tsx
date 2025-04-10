@@ -2,18 +2,17 @@
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
-import { Bot, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import LogoConnections from "./logo-connections";
+import Logo from "./logo";
 
 export default function WelcomeScreen() {
   const { setShowAuthModal } = useAuth();
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-4">
-      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-lg">
-        <Bot className="h-10 w-10 text-white" />
-      </div>
-      <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+      <Logo size="xl" showText={false} />
+      <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent mt-6">
         ConnectedAgent
       </h1>
       <p className="text-muted-foreground mb-8 max-w-md">

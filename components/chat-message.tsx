@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import {
+  RefreshCw,
+  Calendar,
+  FileText,
+  Video,
+  Database,
+  ExternalLink,
+} from "lucide-react";
 import { useOAuth } from "@/context/oauth-context";
 import Image from "next/image";
 import { connectToOAuthProvider } from "@/lib/oauth-utils";
@@ -227,37 +234,61 @@ export default function ChatMessage({
       parts.push(
         <div
           key="connection-ui"
-          className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded-md shadow-sm"
+          className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm"
         >
-          <p className="mb-3 text-gray-700 font-medium">
-            {connectionUI.message}
-          </p>
-          <Button
-            onClick={() =>
-              handleConnectionClick(
-                connectionUI.service,
-                connectionUI.connectButton.action
-              )
-            }
-            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 shadow-sm transition-all hover:shadow-md py-5 px-4 w-full justify-center rounded-lg"
-          >
-            {logoPath && (
-              <div className="h-5 w-5 relative mr-1">
+          <div className="flex items-center mb-3">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center mr-2">
+              {logoPath && (
                 <Image
                   src={logoPath}
                   alt={`${serviceName} logo`}
                   fill
                   style={{ objectFit: "contain" }}
                 />
-              </div>
-            )}
-            <span className="font-medium">Connect to {serviceName}</span>
-          </Button>
+              )}
+            </div>
+            <p className="text-gray-700 dark:text-gray-200 font-medium">
+              {connectionUI.message}
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              handleConnectionClick(
+                connectionUI.service,
+                connectionUI.connectButton.action
+              )
+            }
+            className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-sm shadow-sm transition-colors"
+          >
+            {connectionUI.connectButton.text || "Connect"}
+          </button>
         </div>
       );
     }
 
     return parts.length > 0 ? parts : cleanedContent;
+  };
+
+  // Get icon for a service
+  const getIcon = (service: string) => {
+    const serviceLower = service.toLowerCase();
+    if (
+      serviceLower === "google-calendar" ||
+      serviceLower.includes("calendar")
+    ) {
+      return <Calendar className="h-4 w-4 text-indigo-500" />;
+    } else if (
+      serviceLower === "google-docs" ||
+      serviceLower.includes("docs")
+    ) {
+      return <FileText className="h-4 w-4 text-purple-500" />;
+    } else if (serviceLower === "zoom" || serviceLower.includes("zoom")) {
+      return <Video className="h-4 w-4 text-indigo-500" />;
+    } else if (serviceLower === "crm" || serviceLower.includes("crm")) {
+      return <Database className="h-4 w-4 text-purple-500" />;
+    } else {
+      return <ExternalLink className="h-4 w-4 text-indigo-500" />;
+    }
   };
 
   return (

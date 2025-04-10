@@ -785,7 +785,7 @@ export default function Home() {
       <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
         <header className="border-b bg-white dark:bg-gray-900 px-6 py-4 flex items-center justify-between shadow-sm">
           <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
-            CRM Assistant
+            ConnectedAgent
           </h1>
 
           <div className="flex items-center gap-3">
@@ -863,7 +863,7 @@ export default function Home() {
                         <Briefcase className="h-10 w-10 text-primary" />
                       </div>
                       <h2 className="text-2xl font-bold mb-2">
-                        Welcome to CRM Assistant
+                        Welcome to ConnectedAgent
                       </h2>
                       <p className="text-muted-foreground mb-6 max-w-md">
                         I can help you manage customer relationships, schedule
@@ -1029,11 +1029,6 @@ export default function Home() {
                       </div>
 
                       <div className="mt-8 pt-6 border-t border-primary/10 dark:border-primary/5">
-                        <div className="mb-3 text-xs text-muted-foreground">
-                          <span className="font-medium">Pro tip:</span> Connect
-                          your CRM to automatically find contact emails when
-                          scheduling meetings.
-                        </div>
                         <a
                           href="https://descope.ai"
                           target="_blank"

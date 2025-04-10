@@ -4,7 +4,8 @@ import { useState } from "react";
 import { SidebarHistory } from "@/components/sidebar-history";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Menu, Bot } from "lucide-react";
+import { Menu } from "lucide-react";
+import Logo from "@/components/logo";
 
 interface AppSidebarProps {
   currentChatId: string;
@@ -54,20 +55,10 @@ export function AppSidebar({
             isCollapsed ? "justify-center" : "justify-start"
           )}
         >
-          {!isCollapsed && (
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                <Bot className="h-3.5 w-3.5 text-white" />
-              </div>
-              <span className="font-semibold text-base bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-                ConnectedAgent
-              </span>
-            </div>
-          )}
-          {isCollapsed && (
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
+          {!isCollapsed ? (
+            <Logo size="sm" />
+          ) : (
+            <Logo size="sm" showText={false} />
           )}
         </div>
         <SidebarHistory

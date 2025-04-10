@@ -258,15 +258,6 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
               ))
             )}
           </div>
-          <div className="text-center mt-2">
-            <Button
-              variant="link"
-              className="text-xs text-muted-foreground hover:text-indigo-500 p-0 h-auto"
-              onClick={onProfileClick}
-            >
-              View all in Profile
-            </Button>
-          </div>
         </div>
 
         <DropdownMenuSeparator />

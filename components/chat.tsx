@@ -196,8 +196,8 @@ export default function Chat({
         <div
           className={`max-w-[85%] md:max-w-[75%] rounded-2xl p-4 ${
             message.role === "user"
-              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
-              : "bg-white border border-gray-200 text-gray-800 shadow-sm"
+              ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md"
+              : "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 shadow-sm"
           }`}
         >
           <div className="prose prose-sm">{message.content}</div>
@@ -219,8 +219,8 @@ export default function Chat({
 
           {/* Render UI element if present */}
           {message.ui && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100 shadow-inner">
-              <p className="text-gray-700 mb-3 font-medium">
+            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 shadow-inner">
+              <p className="text-gray-700 dark:text-gray-200 mb-3 font-medium">
                 {message.ui.message}
               </p>
               <button
@@ -235,12 +235,12 @@ export default function Chat({
                     console.log(`Connecting to ${service}...`);
                   }
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg shadow-sm transition-colors"
               >
                 {message.ui.connectButton.text}
               </button>
               {message.ui.alternativeMessage && (
-                <p className="text-gray-500 text-sm mt-3">
+                <p className="text-gray-500 dark:text-gray-400 text-sm mt-3">
                   {message.ui.alternativeMessage}
                 </p>
               )}
@@ -264,10 +264,10 @@ export default function Chat({
       <ScrollArea className="flex-1 p-4 md:p-6">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 py-12">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/40">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-blue-600"
+                className="h-8 w-8 text-indigo-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -280,12 +280,12 @@ export default function Chat({
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">
-              Start a new conversation
+            <h3 className="text-xl font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent mb-2">
+              Start a New Conversation
             </h3>
-            <p className="text-gray-500 max-w-md mb-6">
-              Ask a question or type a message to begin chatting with the AI
-              assistant.
+            <p className="text-muted-foreground max-w-md mb-6">
+              Ask a question or type a message to begin chatting with
+              ConnectedAgent.
             </p>
           </div>
         ) : (
@@ -299,16 +299,20 @@ export default function Chat({
       </ScrollArea>
 
       {!isReadonly && (
-        <div className="border-t bg-white p-4">
+        <div className="border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <Input
               value={input}
               onChange={handleInputChange}
               placeholder="Type your message..."
-              className="flex-1"
+              className="flex-1 border-gray-200 dark:border-gray-700 focus-visible:ring-indigo-500"
               disabled={isLoading}
             />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
+            <Button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+            >
               <Send className="h-4 w-4" />
             </Button>
           </form>

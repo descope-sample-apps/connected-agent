@@ -107,15 +107,17 @@ export function SidebarHistory({
         isCollapsed ? "w-12" : "w-64"
       )}
     >
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
         {!isCollapsed && (
-          <h2 className="text-lg font-semibold">Chat History</h2>
+          <h2 className="text-lg font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+            Chat History
+          </h2>
         )}
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggleCollapse}
-          className="ml-auto"
+          className="ml-auto hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           {isCollapsed ? (
             <ChevronRight className="h-4 w-4" />
@@ -127,13 +129,17 @@ export function SidebarHistory({
 
       <div className="p-2">
         {!isCollapsed && (
-          <Button variant="outline" className="w-full mb-2" onClick={onNewChat}>
+          <Button
+            variant="outline"
+            className="w-full mb-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-500"
+            onClick={onNewChat}
+          >
             New Chat
           </Button>
         )}
       </div>
 
-      <Separator />
+      <Separator className="bg-gray-100 dark:bg-gray-800" />
 
       <ScrollArea className="flex-1 p-2">
         {isLoading ? (
@@ -142,10 +148,14 @@ export function SidebarHistory({
           </div>
         ) : chatHistory.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-center p-4">
-            <MessageSquare className="h-8 w-8 text-muted-foreground mb-2" />
+            <MessageSquare className="h-8 w-8 text-indigo-400 dark:text-indigo-500 mb-2" />
             <p className="text-sm text-muted-foreground">No chat history yet</p>
             {!isCollapsed && (
-              <Button variant="link" className="mt-2" onClick={onNewChat}>
+              <Button
+                variant="link"
+                className="mt-2 text-indigo-500 hover:text-indigo-600"
+                onClick={onNewChat}
+              >
                 Start a new chat
               </Button>
             )}
@@ -156,17 +166,29 @@ export function SidebarHistory({
               <div
                 key={chat.id}
                 className={cn(
-                  "flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-accent",
-                  chat.id === currentChatId && "bg-accent"
+                  "flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group transition-colors",
+                  chat.id === currentChatId
+                    ? "bg-gray-100 dark:bg-gray-800 border-l-2 border-indigo-500"
+                    : ""
                 )}
                 onClick={() => onChatSelect(chat.id)}
               >
                 {isCollapsed ? (
-                  <MessageSquare className="h-4 w-4" />
+                  <MessageSquare
+                    className={cn(
+                      "h-4 w-4",
+                      chat.id === currentChatId ? "text-indigo-500" : ""
+                    )}
+                  />
                 ) : (
                   <>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
+                      <p
+                        className={cn(
+                          "text-sm font-medium truncate",
+                          chat.id === currentChatId ? "text-indigo-500" : ""
+                        )}
+                      >
                         {chat.title || "Untitled Chat"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
@@ -178,10 +200,10 @@ export function SidebarHistory({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700"
                       onClick={(e) => handleDeleteChat(chat.id, e)}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-3 w-3 text-gray-500 hover:text-red-500" />
                     </Button>
                   </>
                 )}
