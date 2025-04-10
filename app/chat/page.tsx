@@ -6,12 +6,15 @@ import ChatHeader from "@/app/components/ChatHeader";
 
 async function getChatHistory() {
   try {
-    // Use absolute URL with origin
+    // Determine the base URL
     const origin = process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      : process.env.NEXT_PUBLIC_BASE_URL
+      ? process.env.NEXT_PUBLIC_BASE_URL
+      : "http://localhost:3000";
 
-    const response = await fetch(`${origin}/api/chat/history`, {
+    // Fetch the user's recent chats
+    const response = await fetch(`${origin}/api/chats`, {
       cache: "no-store",
     });
 

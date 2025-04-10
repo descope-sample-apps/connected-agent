@@ -12,7 +12,9 @@ interface OAuthContextType {
   setReconnectInfo: (info: { appId: string; scopes: string[] } | null) => void;
 }
 
-const OAuthContext = createContext<OAuthContextType | undefined>(undefined);
+export const OAuthContext = createContext<OAuthContextType | undefined>(
+  undefined
+);
 
 export function OAuthProvider({ children }: { children: React.ReactNode }) {
   const [showReconnectDialog, setShowReconnectDialog] = useState(false);

@@ -40,10 +40,17 @@ export async function GET() {
     });
 
     // Get the status of all OAuth connections using default operations from lib/descope.ts
+    console.log("Starting OAuth provider token fetch");
     const [googleCalendar, googleDocs, zoom, customCrm] = await Promise.all([
       getGoogleCalendarToken(userId).catch((e) => {
         console.error("Error fetching Google Calendar token:", e);
-        return { error: e.message, connected: false };
+        console.error("Google Calendar error details:", {
+          name: e.name,
+          message: e.message,
+          status: e.status,
+          stack: e.stack,
+        });
+        return { error: e.message, connected: false, originalError: e };
       }),
       getGoogleDocsToken(userId).catch((e) => {
         console.error("Error fetching Google Docs token:", e);
@@ -59,11 +66,11 @@ export async function GET() {
       }),
     ]);
 
-    console.log("OAuth connection results:", {
-      googleCalendar: googleCalendar ? "received" : "not found",
-      googleDocs: googleDocs ? "received" : "not found",
-      zoom: zoom ? "received" : "not found",
-      customCrm: customCrm ? "received" : "not found",
+    console.log("OAuth connection raw results:", {
+      googleCalendar: JSON.stringify(googleCalendar).substring(0, 200) + "...",
+      googleDocs: JSON.stringify(googleDocs).substring(0, 200) + "...",
+      zoom: JSON.stringify(zoom).substring(0, 200) + "...",
+      customCrm: JSON.stringify(customCrm).substring(0, 200) + "...",
     });
 
     // Process token responses

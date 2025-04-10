@@ -246,7 +246,24 @@ export default function ProfileScreen({
 
   const fetchConnections = async () => {
     try {
-      const response = await fetch("/api/oauth/connections");
+      const response = await fetch("/api/oauth/connections", {
+        // Add cache-busting parameter
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+        // Generate a unique timestamp to prevent caching
+        cache: "no-store",
+      });
+
+      // Log the full response details
+      console.log("Response status:", response.status);
+      console.log(
+        "Response headers:",
+        Object.fromEntries([...response.headers.entries()])
+      );
+      console.log("Response type:", response.type);
+
       if (!response.ok) {
         throw new Error("Failed to fetch connections");
       }

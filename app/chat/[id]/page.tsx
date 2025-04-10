@@ -1,21 +1,30 @@
 import React from "react";
 import { notFound } from "next/navigation";
-import Chat from "@/app/components/Chat";
+import { Metadata } from "next";
+import Chat from "@/components/chat";
 import ChatHeader from "@/app/components/ChatHeader";
-import { chats, messages } from "@/lib/db/schema";
+import { headers } from "next/headers";
 
 // Define types based on schema
-type ChatType = typeof chats.$inferSelect;
-type MessageType = typeof messages.$inferSelect;
-
-// Define the format expected by the Chat component
-interface ChatMessage {
+interface ChatType {
   id: string;
-  role: "user" | "assistant";
-  content: string;
+  userId: string;
+  title: string;
+  createdAt: Date;
+  lastMessageAt: Date;
 }
 
-async function getChatById(id: string) {
+interface MessageType {
+  id: string;
+  createdAt: Date;
+  chatId: string;
+  role: string;
+  parts: any;
+  attachments: any;
+  metadata: any;
+}
+
+async function getChatData(id: string) {
   // Determine the base URL
   const origin = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
@@ -23,73 +32,69 @@ async function getChatById(id: string) {
     ? process.env.NEXT_PUBLIC_BASE_URL
     : "http://localhost:3000";
 
-  const res = await fetch(`${origin}/api/chat/history?id=${id}`, {
+  // Get the chat data without cookie header since it's server-to-server communication
+  const res = await fetch(`${origin}/api/chats/${id}`, {
     cache: "no-store",
   });
 
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.chat as ChatType;
-}
-
-async function getMessagesForChat(id: string) {
-  // Determine the base URL
-  const origin = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : process.env.NEXT_PUBLIC_BASE_URL
-    ? process.env.NEXT_PUBLIC_BASE_URL
-    : "http://localhost:3000";
-
-  const res = await fetch(`${origin}/api/chat/messages?id=${id}`, {
-    cache: "no-store",
-  });
-
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.messages as MessageType[];
-}
-
-// Transform database messages to the format expected by the Chat component
-function transformMessages(dbMessages: MessageType[]): ChatMessage[] {
-  return dbMessages.map((msg) => {
-    // Extract content from parts
-    let content = "";
-    if (Array.isArray(msg.parts)) {
-      content = msg.parts
-        .map((part: any) => {
-          if (typeof part === "string") return part;
-          if (part.text) return part.text;
-          return JSON.stringify(part);
-        })
-        .join("");
-    } else if (typeof msg.parts === "string") {
-      content = msg.parts;
-    } else if (msg.parts && typeof msg.parts === "object") {
-      content = JSON.stringify(msg.parts);
+  if (!res.ok) {
+    if (res.status === 404) {
+      notFound();
     }
+    throw new Error("Failed to fetch chat");
+  }
 
-    return {
-      id: msg.id,
-      role: msg.role as "user" | "assistant",
-      content,
-    };
+  const chatData = (await res.json()) as ChatType;
+
+  // Get the chat messages
+  const res2 = await fetch(`${origin}/api/chats/${id}/messages`, {
+    cache: "no-store",
   });
+
+  if (!res2.ok) return null;
+  const messagesData = await res2.json();
+
+  return {
+    chat: chatData,
+    messages: messagesData.messages as MessageType[],
+  };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  const data = await getChatData(params.id);
+
+  return {
+    title: data?.chat?.title || "Chat",
+  };
 }
 
 export default async function ChatPage({ params }: { params: { id: string } }) {
-  const chat = await getChatById(params.id);
-  if (!chat) {
+  const data = await getChatData(params.id);
+  if (!data) {
     notFound();
   }
 
-  const messages = await getMessagesForChat(params.id);
-
   // Transform the messages for the Chat component
-  const transformedMessages = transformMessages(messages);
+  const transformedMessages = data.messages.map((message) => {
+    return {
+      id: message.id,
+      role: message.role as "user" | "assistant",
+      content:
+        typeof message.parts === "string"
+          ? message.parts
+          : Array.isArray(message.parts) && message.parts[0]?.text
+          ? message.parts[0].text
+          : JSON.stringify(message.parts),
+    };
+  });
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-white to-gray-50">
-      <ChatHeader title={chat.title || "Chat"} showBackButton={true} />
+      <ChatHeader title={data.chat.title || "Chat"} showBackButton={true} />
       <div className="flex-1 overflow-hidden">
         <Chat id={params.id} initialMessages={transformedMessages} />
       </div>

@@ -97,6 +97,17 @@ export async function getOAuthToken(
       `Descope OAuth token response status: ${response.status} ${response.statusText}`
     );
 
+    // Clone the response to read the body without consuming it
+    const clonedResponse = response.clone();
+    const responseText = await clonedResponse.text();
+    console.log(`Descope raw response for ${appId}:`, {
+      status: response.status,
+      headers: Object.fromEntries([...response.headers.entries()]),
+      body:
+        responseText.substring(0, 500) +
+        (responseText.length > 500 ? "..." : ""),
+    });
+
     if (response.status === 404) {
       // Token not found - needs to be reconnected with new scopes
       trackToolAction(
@@ -145,7 +156,10 @@ export async function getOAuthToken(
       return null;
     }
 
-    const tokenData = await response.json();
+    // Parse the token data from the response text we already have
+    const tokenData = responseText
+      ? JSON.parse(responseText)
+      : await response.json();
 
     trackToolAction(
       userId,

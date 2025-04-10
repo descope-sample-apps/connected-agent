@@ -95,12 +95,32 @@ export function ConnectionNotification({
         onSuccess: async () => {
           try {
             // Verify the connection was successful
-            const response = await fetch("/api/oauth/connections");
+            const response = await fetch("/api/oauth/connections", {
+              headers: {
+                "Cache-Control": "no-cache",
+                Pragma: "no-cache",
+              },
+              cache: "no-store",
+            });
+
+            console.log(
+              "Connection verification response status:",
+              response.status
+            );
+            console.log(
+              "Connection verification headers:",
+              Object.fromEntries([...response.headers.entries()])
+            );
+
             if (!response.ok) {
               throw new Error("Failed to verify connection status");
             }
 
             const data = await response.json();
+            console.log(
+              "Connection verification data:",
+              JSON.stringify(data).substring(0, 500) + "..."
+            );
             const connectionData = data.connections[provider.id];
 
             if (
