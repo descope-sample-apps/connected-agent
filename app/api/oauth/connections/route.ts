@@ -467,33 +467,3 @@ export async function fetchWithRetry<T>(
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-export async function getEmbedding(text: string): Promise<number[]> {
-  try {
-    const response = await openai.embeddings.create({
-      model: "text-embedding-ada-002",
-      input: text.replace(/\n/g, " "),
-    });
-
-    return response.data[0].embedding;
-  } catch (error) {
-    console.error("Error generating embedding:", error);
-    throw error;
-  }
-}
-
-export function cosineSimilarity(a: number[], b: number[]): number {
-  // Calculate dot product
-  const dotProduct = a.reduce((sum, value, i) => sum + value * b[i], 0);
-
-  // Calculate magnitudes
-  const magnitudeA = Math.sqrt(
-    a.reduce((sum, value) => sum + value * value, 0)
-  );
-  const magnitudeB = Math.sqrt(
-    b.reduce((sum, value) => sum + value * value, 0)
-  );
-
-  // Calculate cosine similarity
-  return dotProduct / (magnitudeA * magnitudeB);
-}

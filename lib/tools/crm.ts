@@ -49,7 +49,7 @@ class CRMContactsTool extends Tool<{ id?: string }> {
       const token = await getOAuthTokenWithScopeValidation(userId, "crm", {
         appId: "custom-crm",
         userId,
-        scopes: [],
+        scopes: ["openid", "contacts:read", "deals:read"],
         operation: "tool_calling",
       });
       if (!token) {

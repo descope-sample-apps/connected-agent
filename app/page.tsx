@@ -609,9 +609,11 @@ export default function Home() {
       description: "Summarize deal status and save to Google Docs",
       logo: "/logos/google-docs.png",
       action: () =>
-        usePredefinedPrompt(
-          "Summarize the current deal status and save it to Google Docs",
-          "summarize-deal"
+        checkOAuthAndPrompt(() =>
+          usePredefinedPrompt(
+            "Summarize the current deal status and save it to Google Docs",
+            "summarize-deal"
+          )
         ),
     },
   ];
@@ -745,7 +747,7 @@ export default function Home() {
   }
 
   return (
-    <>
+    <div className="app-container">
       <AuthModal />
       {showZoomPrompt && lastScheduledMeeting && (
         <ZoomMeetingPrompt
@@ -878,23 +880,12 @@ export default function Home() {
                           }}
                           className="px-6"
                         >
-                          Start a conversation
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            chatHandleSubmit(new Event("submit") as any, {
-                              data: { fromQuickAction: true },
-                            });
-                          }}
-                          className="px-6"
-                        >
-                          See examples
+                          Get Started
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-6 pb-4">
+                    <div className="md:max-w-4xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto">
                       {messages.map((message, index) => (
                         <ChatMessage
                           key={index}
@@ -904,86 +895,80 @@ export default function Home() {
                               typeof message.content === "string"
                                 ? message.content
                                 : "",
-                            parts: message.parts?.map((part) => ({
-                              type: part.type,
-                              text: "text" in part ? part.text || "" : "",
-                              reasoning:
-                                "reasoning" in part ? part.reasoning || "" : "",
-                              toolInvocation:
-                                "toolInvocation" in part
-                                  ? part.toolInvocation
-                                  : undefined,
-                              source:
-                                "source" in part ? part.source : undefined,
-                            })),
+                            parts: message.parts
+                              ?.map((part) => {
+                                if (
+                                  typeof part === "object" &&
+                                  part.type === "text"
+                                ) {
+                                  return {
+                                    type: "text",
+                                    text: part.text || "",
+                                  };
+                                }
+                                return null;
+                              })
+                              .filter(Boolean) as any,
                           }}
                           onReconnectComplete={handleReconnectComplete}
                         />
                       ))}
+                      {isChatLoading && (
+                        <ChatMessage
+                          message={{
+                            role: "assistant",
+                            content: "...",
+                          }}
+                          onReconnectComplete={handleReconnectComplete}
+                        />
+                      )}
                       <div ref={messagesEndRef} />
                     </div>
                   )}
                 </ScrollArea>
-
-                <div className="p-4 border-t bg-white dark:bg-gray-900">
-                  <form
-                    id="chat-form"
-                    onSubmit={handleSubmit}
-                    className="flex gap-2 items-center relative"
-                  >
-                    <div className="flex-1 relative">
+                <div className="fixed bottom-0 w-full md:w-[calc(100%-320px)] bg-gradient-to-t from-background via-background to-transparent py-6">
+                  <div className="mx-auto max-w-4xl w-full px-4">
+                    <form onSubmit={handleSubmit} className="relative">
                       <Input
                         value={input}
                         onChange={handleInputChange}
-                        placeholder="Type your message..."
-                        className="rounded-full border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-6 pr-12"
+                        placeholder="Ask anything..."
+                        className="pr-20 py-6 resize-none border-muted/30 focus-visible:ring-primary/70 shadow-sm rounded-xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
                         disabled={isChatLoading}
                       />
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="absolute top-0 right-0 h-full flex items-center justify-center pr-4">
                         <Button
-                          type="submit"
-                          disabled={isChatLoading || !input.trim()}
                           size="icon"
-                          className="rounded-full h-10 w-10 bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600"
+                          type="submit"
+                          className="rounded-full shadow-sm hover:shadow-md transition-all duration-200 bg-primary hover:bg-primary/90"
+                          disabled={isChatLoading || !input.trim()}
                         >
-                          <Send className="h-4 w-4" />
+                          <Send className="size-4" />
                         </Button>
                       </div>
-                    </div>
-                  </form>
-
-                  {messages.length > 0 && (
-                    <div className="flex items-center justify-center mt-3">
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <MessageSquare className="h-3 w-3 mr-1" />
-                        <span>{messages.length} messages</span>
-                        {currentChatId && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                            Saved
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    </form>
+                  </div>
                 </div>
+              </div>
 
+              <div className="border-l p-4 hover:bg-accent/50 transition-colors backdrop-blur-sm">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="outline"
                         size="icon"
-                        className="absolute right-4 top-4 rounded-full shadow-md border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                         onClick={toggleSidebar}
+                        className="text-muted-foreground hover:text-foreground transition-colors rounded-full shadow-sm border-muted/30 hover:shadow-md hover:border-primary/20"
                       >
                         {sidebarOpen ? (
-                          <PanelRightClose className="h-4 w-4" />
+                          <PanelRightClose className="size-5" />
                         ) : (
-                          <PanelRightOpen className="h-4 w-4" />
+                          <PanelRightOpen className="size-5" />
                         )}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>
+                    <TooltipContent className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border-primary/10 shadow-lg">
                       {sidebarOpen
                         ? "Hide quick actions"
                         : "Show quick actions"}
@@ -998,7 +983,7 @@ export default function Home() {
                     showPromptExplanation && hasActivePrompt
                       ? "w-[32rem]"
                       : "w-80"
-                  } border-l bg-white dark:bg-gray-900 shadow-sm overflow-hidden transition-all duration-300 ease-in-out`}
+                  } border-l bg-white/95 dark:bg-gray-900/95 shadow-lg overflow-hidden transition-all duration-300 ease-in-out backdrop-blur-sm`}
                 >
                   {showPromptExplanation && hasActivePrompt ? (
                     <div className="animate-in slide-in-from-right duration-300 h-full">
@@ -1025,34 +1010,37 @@ export default function Home() {
                       />
                     </div>
                   ) : (
-                    <div className="p-4 animate-in fade-in duration-300">
-                      <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold">Quick Actions</h2>
+                    <div className="p-6 animate-in fade-in duration-300">
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                          Quick Actions
+                        </h2>
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {actionOptions.map((option) => (
                           <ActionCard
                             key={option.id}
                             title={option.title}
                             description={option.description}
                             logo={option.logo}
-                            onClick={
-                              option.id === "summarize-deal"
-                                ? () => handleCreateDealSummary()
-                                : option.action
-                            }
+                            onClick={option.action}
                           />
                         ))}
                       </div>
 
-                      <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+                      <div className="mt-8 pt-6 border-t border-primary/10 dark:border-primary/5">
+                        <div className="mb-3 text-xs text-muted-foreground">
+                          <span className="font-medium">Pro tip:</span> Connect
+                          your CRM to automatically find contact emails when
+                          scheduling meetings.
+                        </div>
                         <a
                           href="https://descope.ai"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="block"
                         >
-                          <Button className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white hover:text-white border-0 group transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] font-medium">
+                          <Button className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white hover:text-white border-0 group transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] font-medium rounded-xl">
                             <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
                             Learn More About Descope AI
                             <ExternalLink className="w-3 h-3 ml-2 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-300" />
@@ -1067,6 +1055,6 @@ export default function Home() {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
