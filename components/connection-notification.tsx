@@ -192,10 +192,10 @@ export function ConnectionNotification({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md border-gray-100 dark:border-gray-800 shadow-lg">
         <DialogHeader>
           <div className="flex items-center mb-2">
-            <div className="mr-2 p-2 rounded-full bg-blue-50">
+            <div className="mr-2 p-2 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 border border-indigo-100 dark:border-indigo-900">
               {provider.icon && (
                 <Image
                   src={provider.icon}
@@ -205,11 +205,16 @@ export function ConnectionNotification({
                 />
               )}
             </div>
-            <DialogTitle>Connect to {provider.name}</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">
+              Connect to{" "}
+              <span className="bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                {provider.name}
+              </span>
+            </DialogTitle>
           </div>
           <DialogDescription>
-            Connect your {provider.name} account to enable integration with this
-            app.
+            Connect your {provider.name} account to enable integration with
+            tools and services.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
@@ -217,17 +222,25 @@ export function ConnectionNotification({
             You'll be redirected to {provider.name} to authorize access to your
             account. This gives the assistant the ability to:
           </p>
-          <ul className="list-disc pl-6 text-sm text-gray-500 space-y-1">
+          <ul className="list-disc pl-6 text-sm text-gray-500 space-y-2">
             <li>View and manage your calendar events</li>
             <li>Access your contacts</li>
             <li>Create and modify documents on your behalf</li>
           </ul>
         </div>
         <DialogFooter className="flex space-x-2">
-          <Button variant="outline" onClick={handleClose}>
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            className="border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
+          >
             Cancel
           </Button>
-          <Button onClick={handleConnect} disabled={isConnecting}>
+          <Button
+            onClick={handleConnect}
+            disabled={isConnecting}
+            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+          >
             {isConnecting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

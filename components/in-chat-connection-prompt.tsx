@@ -9,7 +9,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Calendar, Database, Lock, Zap } from "lucide-react";
+import {
+  ExternalLink,
+  Calendar,
+  Database,
+  Lock,
+  Zap,
+  Video,
+  FileText,
+} from "lucide-react";
 import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 import { useToast } from "./ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -110,19 +118,23 @@ export default function InChatConnectionPrompt({
   const getIcon = () => {
     switch (service.toLowerCase()) {
       case "google calendar":
-        return <Calendar className="h-7 w-7 text-blue-500" />;
+        return <Calendar className="h-6 w-6 text-indigo-500" />;
       case "crm":
-        return <Database className="h-7 w-7 text-emerald-500" />;
+        return <Database className="h-6 w-6 text-purple-500" />;
+      case "zoom":
+        return <Video className="h-6 w-6 text-indigo-500" />;
+      case "google docs":
+        return <FileText className="h-6 w-6 text-purple-500" />;
       default:
-        return <ExternalLink className="h-7 w-7 text-primary" />;
+        return <ExternalLink className="h-6 w-6 text-indigo-500" />;
     }
   };
 
   return (
-    <Card className="border-primary/20 bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-all">
+    <Card className="border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-all">
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-3 flex-1 mr-4">
-          <div className="h-10 w-10 rounded-full bg-primary/10 dark:bg-primary/15 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center">
             {getIcon()}
           </div>
           <div className="flex-1">
@@ -140,7 +152,7 @@ export default function InChatConnectionPrompt({
           size="sm"
           onClick={handleConnect}
           disabled={isLoading}
-          className="bg-primary hover:bg-primary/90 shadow-sm whitespace-nowrap"
+          className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm whitespace-nowrap"
         >
           {isLoading ? (
             <span className="flex items-center">

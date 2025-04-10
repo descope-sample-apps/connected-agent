@@ -676,11 +676,14 @@ export default function ProfileScreen({
             <LoadingSpinner />
           ) : (
             <>
-              <Card>
+              <Card className="border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
                 <CardHeader>
-                  <CardTitle>Connected Services</CardTitle>
+                  <CardTitle className="text-xl font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                    Connected Services
+                  </CardTitle>
                   <CardDescription>
-                    Manage your connected OAuth providers and permissions
+                    Manage your connected services and Descope outbound app
+                    permissions
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -690,7 +693,7 @@ export default function ProfileScreen({
                       className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-gray-800 last:border-0"
                     >
                       <div className="flex items-center">
-                        <div className="w-8 h-8 mr-3 flex-shrink-0">
+                        <div className="w-10 h-10 mr-3 flex-shrink-0 bg-gray-50 dark:bg-gray-900 p-1.5 rounded-full ring-1 ring-gray-200 dark:ring-gray-800">
                           <img
                             src={provider.icon}
                             alt={provider.name}
