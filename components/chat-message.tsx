@@ -15,7 +15,7 @@ import ReactMarkdown from "react-markdown";
 
 // Service logo mapping
 const SERVICE_LOGOS = {
-  "google-meet": "/logos/google-meet-logo.png",
+  "google-meet": "/logos/google-meet-logo.svg",
   "google-calendar": "/logos/google-calendar.png",
   crm: "/logos/crm-logo.png",
 };
@@ -306,22 +306,37 @@ export default function ChatMessage({
       } mb-4`}
     >
       <div
-        className={`max-w-[80%] rounded-lg p-4 ${
+        className={`max-w-[85%] md:max-w-[75%] rounded-2xl p-4 ${
           message.role === "user"
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted"
+            ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg"
+            : "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 shadow-md"
         }`}
       >
         {message.parts ? (
           message.parts.map((part, index) => (
-            <div key={index}>
+            <div
+              key={index}
+              className={`prose prose-sm max-w-none ${
+                message.role === "user"
+                  ? "prose-invert prose-p:text-white prose-strong:text-white prose-a:text-white/90"
+                  : "dark:prose-invert"
+              }`}
+            >
               {typeof part.text === "string"
                 ? renderMessageContent(part.text)
                 : part.text}
             </div>
           ))
         ) : (
-          <div>{renderMessageContent(message.content)}</div>
+          <div
+            className={`prose prose-sm max-w-none ${
+              message.role === "user"
+                ? "prose-invert prose-p:text-white prose-strong:text-white prose-a:text-white/90"
+                : "dark:prose-invert"
+            }`}
+          >
+            {renderMessageContent(message.content)}
+          </div>
         )}
       </div>
     </div>

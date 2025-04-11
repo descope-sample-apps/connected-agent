@@ -1,56 +1,76 @@
-import React from "react";
 import Link from "next/link";
 
 interface ChatHeaderProps {
-  title?: string;
+  title: string;
   showBackButton?: boolean;
 }
 
 export default function ChatHeader({
-  title = "AI Chatbot",
+  title,
   showBackButton = false,
 }: ChatHeaderProps) {
   return (
-    <div className="bg-white border-b border-gray-100 p-4 md:p-6 flex items-center shadow-sm sticky top-0 z-10">
-      <div className="flex items-center">
-        {showBackButton && (
-          <Link
-            href="/chat"
-            className="mr-4 text-gray-500 hover:text-gray-700 transition-colors duration-200 flex items-center"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </Link>
-        )}
-        <h1 className="text-xl font-semibold truncate bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-          {title}
-        </h1>
+    <header className="border-b border-gray-200 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center">
+            {showBackButton && (
+              <Link
+                href="/chat"
+                className="mr-3 p-2 rounded-full text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-all duration-200"
+                aria-label="Back to chat history"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </Link>
+            )}
+            <h1 className="text-xl font-semibold text-gray-800 truncate max-w-xs sm:max-w-sm md:max-w-md">
+              {title}
+            </h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <button
+                className="p-2 rounded-full text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-all duration-200"
+                aria-label="Settings"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <div className="ml-auto flex items-center gap-4">
-        <Link
-          href="/chat"
-          className="text-gray-700 hover:text-blue-600 transition-colors duration-200 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-gray-50"
-        >
-          History
-        </Link>
-        <Link
-          href="/"
-          className="text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium px-3 py-1.5 rounded-md shadow-sm hover:shadow"
-        >
-          New Chat
-        </Link>
-      </div>
-    </div>
+    </header>
   );
 }

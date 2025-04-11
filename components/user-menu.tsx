@@ -55,9 +55,9 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
       connected: false,
     },
     {
-      id: "zoom",
-      name: "Zoom",
-      icon: "/logos/zoom-logo.png",
+      id: "google-meet",
+      name: "Google Meet",
+      icon: "/logos/google-meet-logo.png",
       connected: false,
     },
     {
@@ -165,7 +165,7 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
         return <Calendar className="h-4 w-4 text-indigo-500" />;
       case "google-docs":
         return <FileText className="h-4 w-4 text-purple-500" />;
-      case "zoom":
+      case "google-meet":
         return <Video className="h-4 w-4 text-indigo-500" />;
       case "custom-crm":
         return <Database className="h-4 w-4 text-purple-500" />;

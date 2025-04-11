@@ -202,24 +202,24 @@ export function ConnectionNotification({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-md border-gray-100 dark:border-gray-800 shadow-lg">
         <DialogHeader>
-          <div className="flex items-center mb-2">
-            <div className="mr-2 p-2 rounded-full bg-white dark:bg-gray-900 border border-border w-10 h-10 flex items-center justify-center overflow-hidden">
-              {provider.icon && (
-                <Image
-                  src={provider.icon}
-                  width={20}
-                  height={20}
-                  alt={provider.name}
-                  className="object-contain"
-                />
-              )}
+          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 flex items-center justify-center p-2">
+              <Image
+                src={provider.icon}
+                alt={`${provider.name} logo`}
+                width={24}
+                height={24}
+                className="object-contain w-full h-full"
+              />
             </div>
-            <DialogTitle className="text-lg font-semibold">
-              Connect to{" "}
-              <span className="bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-                {provider.name}
-              </span>
-            </DialogTitle>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-lg font-semibold">
+                Connect to{" "}
+                <span className="bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                  {provider.name}
+                </span>
+              </DialogTitle>
+            </div>
           </div>
         </DialogHeader>
         <div className="py-4">
@@ -240,6 +240,12 @@ export function ConnectionNotification({
             className="border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
           >
             Cancel
+          </Button>
+          <Button
+            onClick={handleConnect}
+            className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm"
+          >
+            Connect
           </Button>
         </DialogFooter>
       </DialogContent>

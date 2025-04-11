@@ -32,8 +32,13 @@ export const OAUTH_PROVIDERS = {
   },
   "google-meet": {
     name: "Google Meet",
-    icon: "/logos/google-meet-logo.png",
-    scopes: ["https://www.googleapis.com/auth/calendar"],
+    icon: "/logos/google-meet-logo.svg",
+    scopes: [
+      "https://www.googleapis.com/auth/meetings.space.created",
+      "https://www.googleapis.com/auth/meetings.space.readonly",
+      "https://www.googleapis.com/auth/meetings.registration",
+      "https://www.googleapis.com/auth/meetings.write",
+    ],
   },
   "custom-crm": {
     name: "CRM",

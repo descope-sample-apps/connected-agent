@@ -15,9 +15,9 @@ const services = [
     icon: "/logos/google-docs.png",
   },
   {
-    id: "zoom",
-    name: "Zoom",
-    icon: "/logos/zoom-logo.png",
+    id: "google-meet",
+    name: "Google Meet",
+    icon: "/logos/google-meet-logo.svg",
   },
   {
     id: "custom-crm",

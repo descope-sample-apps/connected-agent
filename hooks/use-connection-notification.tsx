@@ -26,8 +26,13 @@ const providers = {
   "google-meet": {
     id: "google-meet",
     name: "Google Meet",
-    icon: "/logos/google-meet-logo.png",
-    scopes: ["https://www.googleapis.com/auth/calendar"],
+    icon: "/logos/google-meet-logo.svg",
+    scopes: [
+      "https://www.googleapis.com/auth/meetings.space.created",
+      "https://www.googleapis.com/auth/meetings.space.readonly",
+      "https://www.googleapis.com/auth/meetings.registration",
+      "https://www.googleapis.com/auth/meetings.write",
+    ],
     keywords: [
       "google meet",
       "video",

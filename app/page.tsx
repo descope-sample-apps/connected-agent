@@ -154,7 +154,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     title: "Create Google Meet",
     description:
       "Generate Google Meet video conference links for scheduled calendar events",
-    logo: "/logos/google-meet-logo.png",
+    logo: "/logos/google-meet-logo.svg",
     examples: [
       "Create a Google Meet for tomorrow's call",
       "Add video conferencing to the team meeting",
@@ -597,7 +597,7 @@ export default function Home() {
       id: "create-google-meet",
       title: "Create Google Meet",
       description: "Create a Google Meet for a scheduled event",
-      logo: "/logos/google-meet-logo.png",
+      logo: "/logos/google-meet-logo.svg",
       action: () =>
         usePredefinedPrompt(
           "Create a Google Meet for my next scheduled meeting",
@@ -857,7 +857,7 @@ export default function Home() {
           <div className="flex flex-1 overflow-hidden">
             <div className="flex flex-1 overflow-hidden">
               <div className="flex-1 flex flex-col overflow-hidden relative">
-                <ScrollArea className="flex-1 p-6">
+                <ScrollArea className="flex-1 p-6 pb-24">
                   {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-8">
                       <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
@@ -914,40 +914,33 @@ export default function Home() {
                           onReconnectComplete={handleReconnectComplete}
                         />
                       ))}
-                      {isChatLoading && (
-                        <ChatMessage
-                          message={{
-                            role: "assistant",
-                            content: "...",
-                          }}
-                          onReconnectComplete={handleReconnectComplete}
-                        />
-                      )}
                       <div ref={messagesEndRef} />
                     </div>
                   )}
                 </ScrollArea>
-                <div className="fixed bottom-0 w-full md:w-[calc(100%-320px)] bg-gradient-to-t from-background via-background to-transparent py-6">
-                  <div className="mx-auto max-w-4xl w-full px-4">
-                    <form onSubmit={handleSubmit} className="relative">
-                      <Input
-                        value={input}
-                        onChange={handleInputChange}
-                        placeholder="Ask anything..."
-                        className="pr-20 py-6 resize-none border-muted/30 focus-visible:ring-primary/70 shadow-sm rounded-xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
-                        disabled={isChatLoading}
-                      />
-                      <div className="absolute top-0 right-0 h-full flex items-center justify-center pr-4">
-                        <Button
-                          size="icon"
-                          type="submit"
-                          className="rounded-full shadow-sm hover:shadow-md transition-all duration-200 bg-primary hover:bg-primary/90"
-                          disabled={isChatLoading || !input.trim()}
-                        >
-                          <Send className="size-4" />
-                        </Button>
-                      </div>
-                    </form>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-6 px-4">
+                  <div className="mx-auto max-w-4xl w-full">
+                    <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                      <form onSubmit={handleSubmit} className="relative">
+                        <Input
+                          value={input}
+                          onChange={handleInputChange}
+                          placeholder="Ask anything..."
+                          className="pr-20 py-6 resize-none border-muted/30 focus-visible:ring-primary/70 shadow-lg rounded-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm transition-all duration-200 hover:shadow-xl"
+                          disabled={isChatLoading}
+                        />
+                        <div className="absolute top-0 right-0 h-full flex items-center justify-center pr-4">
+                          <Button
+                            size="icon"
+                            type="submit"
+                            className="rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+                            disabled={isChatLoading || !input.trim()}
+                          >
+                            <Send className="size-4" />
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
                 </div>
               </div>
