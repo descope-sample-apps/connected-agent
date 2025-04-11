@@ -85,15 +85,15 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
       if (!tokenResponse || "error" in tokenResponse) {
         return {
           success: false,
-          error: "Google Calendar access required",
+          error: "Google Meet access required",
           ui: {
             type: "connection_required",
-            service: "google-calendar",
+            service: "google-meet",
             message:
-              "Please connect your Google Calendar to create Meet meetings",
+              "Please connect your Google Meet to create video conferences",
             connectButton: {
-              text: "Connect Google Calendar",
-              action: "connection://google-calendar",
+              text: "Connect Google Meet",
+              action: "connection://google-meet",
             },
           },
         };

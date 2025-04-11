@@ -102,7 +102,7 @@ interface CalendarEvent {
 
 interface ScheduleMeetingResponse {
   calendarEventId: string;
-  zoomMeetingId?: string;
+  googleMeetId?: string;
   message?: string;
   needsInput?: {
     field: string;
@@ -147,9 +147,9 @@ export default function ProfileScreen({
       connected: false,
     },
     {
-      id: "zoom",
-      name: "Zoom",
-      icon: "/logos/zoom-logo.png",
+      id: "google-meet",
+      name: "Google Meet",
+      icon: "/logos/google-meet-logo.svg",
       connected: false,
     },
     {
@@ -740,7 +740,7 @@ export default function ProfileScreen({
       disabled={isLoading}
     >
       {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-      Reset Connections
+      Refresh Connections
     </Button>
   );
 

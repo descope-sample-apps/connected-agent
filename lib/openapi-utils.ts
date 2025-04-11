@@ -71,10 +71,12 @@ export async function getRequiredScopes(
       "documents.create": ["https://www.googleapis.com/auth/documents"],
       connect: ["https://www.googleapis.com/auth/documents"], // Full access for connection
     },
-    zoom: {
-      "meetings.list": ["meeting:read:meeting"],
-      "meetings.create": ["meeting:write:meeting"],
-      connect: ["meeting:write:meeting"],
+    "google-meet": {
+      "meetings.space": [
+        "https://www.googleapis.com/auth/meetings.space.created",
+      ],
+      "meetings.write": ["https://www.googleapis.com/auth/meetings.write"],
+      connect: ["https://www.googleapis.com/auth/meetings.space.created"],
     },
     "custom-crm": {
       "contacts.list": ["contacts.read"],

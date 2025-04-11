@@ -648,12 +648,12 @@ export async function POST(request: Request) {
                   "Unable to create Google Meet meetings. Please connect your Google Calendar.",
                 ui: {
                   type: "connection_required",
-                  service: "google-calendar",
+                  service: "google-meet",
                   message:
-                    "Please connect your Google Calendar to create Meet meetings",
+                    "Please connect your Google Meet to create video conferences",
                   connectButton: {
-                    text: "Connect Google Calendar",
-                    action: "connection://google-calendar",
+                    text: "Connect Google Meet",
+                    action: "connection://google-meet",
                   },
                 },
               };
@@ -913,12 +913,12 @@ export async function POST(request: Request) {
                             ) || messageText.includes("connect to Google Meet")
                               ? `\n\n<connection:${JSON.stringify({
                                   type: "connection_required",
-                                  service: "google-calendar",
+                                  service: "google-meet",
                                   message:
-                                    "Please connect your Google Calendar to create Google Meet meetings",
+                                    "Please connect your Google Meet to create video conferences",
                                   connectButton: {
-                                    text: "Connect Google Calendar",
-                                    action: "connection://google-calendar",
+                                    text: "Connect Google Meet",
+                                    action: "connection://google-meet",
                                   },
                                 })}>`
                               : // Or check for other needed connections
@@ -1042,8 +1042,7 @@ function extractUIElementsFromToolResponses(message: any): any {
       if (match) {
         // Determine the service type from the content
         let service = "unknown";
-        if (match[1].toLowerCase().includes("meet"))
-          service = "google-calendar";
+        if (match[1].toLowerCase().includes("meet")) service = "google-meet";
         else if (match[1].toLowerCase().includes("calendar"))
           service = "google-calendar";
         else if (match[1].toLowerCase().includes("crm")) service = "crm";

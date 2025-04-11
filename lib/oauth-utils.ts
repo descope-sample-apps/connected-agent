@@ -57,7 +57,7 @@ interface OAuthOptions {
 export const DEFAULT_SCOPES: Record<string, string[]> = {
   "google-calendar": ["https://www.googleapis.com/auth/calendar"],
   "google-docs": ["https://www.googleapis.com/auth/documents"],
-  zoom: ["meeting:read"],
+  "google-meet": ["https://www.googleapis.com/auth/meetings.space.created"],
   "custom-crm": ["contacts:read", "openid", "deals:read"],
 };
 
