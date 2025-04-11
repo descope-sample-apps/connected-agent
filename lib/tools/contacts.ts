@@ -17,8 +17,8 @@ export class ContactsTool extends Tool<Contact> {
     name: "CRM Contacts",
     description: "Create and manage contacts in your CRM system",
     scopes: [], // Will be populated dynamically
-    requiredFields: ["name", "email"],
-    optionalFields: ["phone", "company", "title", "notes"],
+    requiredFields: ["name"],
+    optionalFields: ["email", "phone", "company", "title", "notes"],
     capabilities: [
       "Create and manage contact profiles",
       "Store contact information and details",
@@ -42,29 +42,21 @@ export class ContactsTool extends Tool<Contact> {
       };
     }
 
-    if (!data.email) {
-      return {
-        success: false,
-        error: "Missing email",
-        needsInput: {
-          field: "email",
-          message: "Please provide a contact email",
-        },
-      };
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) {
-      return {
-        success: false,
-        error: "Invalid email",
-        needsInput: {
-          field: "email",
-          message: "Please provide a valid email address",
-          currentValue: data.email,
-        },
-      };
+    // Only validate email if it's provided
+    if (data.email) {
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(data.email)) {
+        return {
+          success: false,
+          error: "Invalid email",
+          needsInput: {
+            field: "email",
+            message: "Please provide a valid email address",
+            currentValue: data.email,
+          },
+        };
+      }
     }
 
     return null;
@@ -121,7 +113,119 @@ export class ContactsTool extends Tool<Contact> {
         };
       }
 
-      console.log("[ContactsTool] Making API request");
+      // If no email is provided, first search for the contact by name in CRM
+      if (!data.email) {
+        console.log(
+          "[ContactsTool] No email provided, searching for contact by name in CRM"
+        );
+        try {
+          const searchResponse = await fetch(
+            `${
+              process.env.CRM_API_URL
+            }/api/contacts/search?name=${encodeURIComponent(data.name)}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${crmTokenResponse.token.accessToken}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (searchResponse.ok) {
+            const searchResults = await searchResponse.json();
+            if (searchResults && searchResults.length > 0) {
+              // Found a match, use the first result
+              const existingContact = searchResults[0];
+              console.log("[ContactsTool] Found existing contact:", {
+                id: existingContact.id,
+                name: existingContact.name,
+                email: existingContact.email,
+              });
+
+              return {
+                success: true,
+                data: {
+                  id: existingContact.id,
+                  name: existingContact.name,
+                  email: existingContact.email,
+                  found: true,
+                },
+              };
+            } else {
+              console.log(
+                "[ContactsTool] No contacts found with name:",
+                data.name
+              );
+              return {
+                success: true,
+                data: {
+                  notFound: true,
+                  searchedName: data.name,
+                  message: `No contact found in CRM with name "${data.name}".`,
+                },
+              };
+            }
+          } else if (searchResponse.status === 404) {
+            // The search endpoint returned 404, likely meaning no contacts found
+            console.log(
+              "[ContactsTool] CRM search returned 404 for:",
+              data.name
+            );
+            return {
+              success: true,
+              data: {
+                notFound: true,
+                searchedName: data.name,
+                message: `I checked the CRM system, but no contact was found with the name "${data.name}".`,
+              },
+            };
+          } else {
+            console.error(
+              "[ContactsTool] Error searching for contact:",
+              searchResponse.statusText
+            );
+            return {
+              success: false,
+              error: `Error searching CRM: ${searchResponse.statusText}`,
+              data: {
+                searchError: true,
+                message: `I encountered a problem searching for "${data.name}" in the CRM system.`,
+              },
+            };
+          }
+        } catch (searchError) {
+          console.error(
+            "[ContactsTool] Error searching for contact:",
+            searchError
+          );
+          return {
+            success: false,
+            error: `CRM search error: ${
+              searchError instanceof Error
+                ? searchError.message
+                : "Unknown error"
+            }`,
+            data: {
+              searchError: true,
+              message: `I encountered an error while trying to search for "${data.name}" in the CRM system.`,
+            },
+          };
+        }
+
+        // If we get here, we couldn't find the contact and need an email
+        return {
+          success: false,
+          error: "Email required for new contact",
+          needsInput: {
+            field: "email",
+            message: `I searched the CRM but couldn't find any contact named "${data.name}". Please provide an email address if you'd like to create this contact.`,
+          },
+        };
+      }
+
+      // If we have an email or found no matches, create a new contact
+      console.log("[ContactsTool] Making API request to create contact");
       const response = await fetch(`${process.env.CRM_API_URL}/api/contacts`, {
         method: "POST",
         headers: {

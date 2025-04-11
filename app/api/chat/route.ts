@@ -35,10 +35,16 @@ import { isProductionEnvironment } from "@/lib/constants";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { CRMDealsTool } from "@/lib/tools/crm";
+import {
+  CRMDealsTool,
+  fetchCRMContacts,
+  fetchCRMDeals,
+  fetchDealStakeholders,
+} from "@/lib/tools/crm";
 import { toolRegistry } from "@/lib/tools/base";
 import { CalendarTool } from "@/lib/tools/calendar";
 import { CalendarListTool } from "@/lib/tools/calendar-list";
+import { searchContact } from "@/lib/api/crm-utils";
 
 // Add this interface definition
 interface DataStreamWithAppend {
@@ -137,6 +143,98 @@ function formatLinksForDisplay(content: string): string {
 
   return formattedContent;
 }
+
+// Define the new CRM tool schemas
+const crmContactsSchema = {
+  type: "function",
+  function: {
+    name: "get_crm_contacts",
+    description: "Get contact information from the CRM system",
+    parameters: {
+      type: "object",
+      properties: {
+        search: {
+          type: "string",
+          description:
+            "Optional search term to filter contacts by name, email, or company",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
+const crmContactSearchSchema = {
+  type: "function",
+  function: {
+    name: "search_crm_contact_by_name",
+    description: "Search for a specific contact by name in the CRM system",
+    parameters: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description:
+            "The name of the contact to search for (e.g., 'John Doe')",
+        },
+      },
+      required: ["name"],
+    },
+  },
+};
+
+const crmDealsSchema = {
+  type: "function",
+  function: {
+    name: "get_crm_deals",
+    description: "Get deal information from the CRM system",
+    parameters: {
+      type: "object",
+      properties: {
+        dealId: {
+          type: "string",
+          description: "Optional specific deal ID to retrieve",
+        },
+        contactId: {
+          type: "string",
+          description: "Optional contact ID to filter deals by contact",
+        },
+        stage: {
+          type: "string",
+          description:
+            "Optional deal stage to filter by (discovery, proposal, negotiation, closed_won, closed_lost)",
+          enum: [
+            "discovery",
+            "proposal",
+            "negotiation",
+            "closed_won",
+            "closed_lost",
+          ],
+        },
+      },
+      required: [],
+    },
+  },
+};
+
+const dealStakeholdersSchema = {
+  type: "function",
+  function: {
+    name: "get_deal_stakeholders",
+    description:
+      "Get all stakeholders (contacts) associated with a specific deal",
+    parameters: {
+      type: "object",
+      properties: {
+        dealId: {
+          type: "string",
+          description: "The deal ID to get stakeholders for",
+        },
+      },
+      required: ["dealId"],
+    },
+  },
+};
 
 export async function POST(request: Request) {
   try {
@@ -340,6 +438,111 @@ export async function POST(request: Request) {
               };
             }
 
+            // If only a name is provided, let's first search for the contact
+            if (name && !email && !id) {
+              console.log(
+                "[getCRMContacts] Searching for contact by name:",
+                name
+              );
+
+              // Get CRM access token
+              const tokenResponse = await getCRMToken(userId, "tool_calling");
+
+              if (!tokenResponse) {
+                return {
+                  success: false,
+                  error: "Failed to get CRM access token",
+                  message: "CRM connection is required to look up contacts.",
+                  ui: {
+                    type: "connection_required",
+                    service: "custom-crm",
+                    message: "Please connect your CRM to access contacts",
+                    connectButton: {
+                      text: "Connect CRM",
+                      action: "connection://custom-crm",
+                    },
+                  },
+                };
+              }
+
+              // Use type guard to safely access token
+              if (
+                "token" in tokenResponse &&
+                tokenResponse.token &&
+                tokenResponse.token.accessToken
+              ) {
+                try {
+                  const result = await searchContact(
+                    tokenResponse.token.accessToken,
+                    name
+                  );
+
+                  if (result.success) {
+                    // Check if contact was found
+                    if (result.data.contact) {
+                      console.log(
+                        "[getCRMContacts] Found contact:",
+                        result.data.contact.name
+                      );
+                      return {
+                        success: true,
+                        data: result.data.contact,
+                        message: `Found contact information for ${result.data.contact.name}: ${result.data.contact.email}`,
+                      };
+                    } else if (result.data.notFound) {
+                      console.log(
+                        "[getCRMContacts] No contact found with name:",
+                        name
+                      );
+                      return {
+                        success: false,
+                        error: "Contact not found",
+                        message: `I searched the CRM but couldn't find any contact named "${name}". Would you like to provide an email to create this contact?`,
+                      };
+                    }
+                  }
+
+                  // If there was an error or unexpected result
+                  console.log(
+                    "[getCRMContacts] Search error or unexpected result:",
+                    result
+                  );
+                  return {
+                    success: false,
+                    error: "Contact lookup error",
+                    message: `I tried searching for "${name}" in the CRM but encountered an issue. Please check your CRM connection or try again later.`,
+                  };
+                } catch (error) {
+                  console.error(
+                    "[getCRMContacts] Error searching contact:",
+                    error
+                  );
+                  return {
+                    success: false,
+                    error: "Contact search error",
+                    message: `There was an error searching for "${name}" in the CRM.`,
+                  };
+                }
+              } else {
+                return {
+                  success: false,
+                  error: "CRM authentication required",
+                  message:
+                    "Unable to authenticate with the CRM service. Please reconnect your CRM in settings.",
+                  ui: {
+                    type: "connection_required",
+                    service: "custom-crm",
+                    message: "Please connect your CRM to access contacts",
+                    connectButton: {
+                      text: "Connect CRM",
+                      action: "connection://custom-crm",
+                    },
+                  },
+                };
+              }
+            }
+
+            // If we have an email or ID, use the regular tool execution
             // Search by whatever parameter was provided
             const result = await crmContactsTool.execute(userId, {
               name,
@@ -658,6 +861,16 @@ export async function POST(request: Request) {
       };
     }
 
+    // Add them to your existing tools array
+    // Note: You should place this where your existing tools array is defined
+    const tools = [
+      // ... your existing tools ...
+      crmContactsSchema,
+      crmContactSearchSchema,
+      crmDealsSchema,
+      dealStakeholdersSchema,
+    ];
+
     // Return a streaming response
     return createDataStreamResponse({
       execute: (dataStream) => {
@@ -926,4 +1139,171 @@ function extractUIElementsFromToolResponses(message: any): any {
     console.error("Error extracting UI elements:", error);
     return null;
   }
+}
+
+// In the handleFunctionCall function, add handlers for our CRM tools
+async function handleFunctionCall(
+  functionCall: any,
+  userId: string
+): Promise<string> {
+  const { name, arguments: args } = functionCall;
+
+  // ... existing function handlers ...
+
+  // Handle CRM contact lookups
+  if (name === "get_crm_contacts") {
+    const { search } = JSON.parse(args);
+    try {
+      // Get CRM access token
+      const tokenResponse = await getCRMToken(userId, "tool_calling");
+      if (!tokenResponse || !tokenResponse.token) {
+        return JSON.stringify({
+          error: "Failed to get CRM access token",
+          ui: {
+            type: "connection_required",
+            service: "custom-crm",
+            message: "CRM access is required to view contacts.",
+            connectButton: {
+              text: "Connect CRM",
+              action: "connection://custom-crm",
+            },
+          },
+        });
+      }
+
+      // Use our utility function
+      const contacts = await fetchCRMContacts(
+        tokenResponse.token.accessToken,
+        search
+      );
+      return JSON.stringify(contacts);
+    } catch (error) {
+      console.error("Error in get_crm_contacts:", error);
+      return JSON.stringify({ error: "Failed to retrieve contacts" });
+    }
+  }
+
+  // Handle CRM contact lookup by name
+  if (name === "search_crm_contact_by_name") {
+    const { name: contactName } = JSON.parse(args);
+    try {
+      console.log(
+        `[handleFunctionCall] Searching for contact by name: ${contactName}`
+      );
+
+      // Get CRM access token
+      const tokenResponse = await getCRMToken(userId, "tool_calling");
+      if (!tokenResponse || !tokenResponse.token) {
+        return JSON.stringify({
+          error: "Failed to get CRM access token",
+          ui: {
+            type: "connection_required",
+            service: "custom-crm",
+            message: "CRM access is required to search for contacts.",
+            connectButton: {
+              text: "Connect CRM",
+              action: "connection://custom-crm",
+            },
+          },
+        });
+      }
+
+      // Import the searchContact function
+      const { searchContact } = await import("@/lib/api/crm-utils");
+
+      // Search for the contact
+      const result = await searchContact(
+        tokenResponse.token.accessToken,
+        contactName
+      );
+      console.log(
+        `[handleFunctionCall] Contact search result:`,
+        result.success ? "success" : "error"
+      );
+
+      return JSON.stringify(result);
+    } catch (error) {
+      console.error("Error in search_crm_contact_by_name:", error);
+      return JSON.stringify({
+        success: false,
+        error: "Failed to search for contact",
+        data: {
+          message: `I encountered an error while searching for "${contactName}" in the CRM.`,
+        },
+      });
+    }
+  }
+
+  // Handle CRM deal lookups
+  if (name === "get_crm_deals") {
+    const { dealId, contactId, stage } = JSON.parse(args);
+    try {
+      // Get CRM access token
+      const tokenResponse = await getCRMToken(userId, "tool_calling");
+      if (!tokenResponse || !tokenResponse.token) {
+        return JSON.stringify({
+          error: "Failed to get CRM access token",
+          ui: {
+            type: "connection_required",
+            service: "custom-crm",
+            message: "CRM access is required to view deals.",
+            connectButton: {
+              text: "Connect CRM",
+              action: "connection://custom-crm",
+            },
+          },
+        });
+      }
+
+      // Use our utility function
+      const deals = await fetchCRMDeals(
+        tokenResponse.token.accessToken,
+        dealId,
+        contactId,
+        stage
+      );
+      return JSON.stringify(deals);
+    } catch (error) {
+      console.error("Error in get_crm_deals:", error);
+      return JSON.stringify({ error: "Failed to retrieve deals" });
+    }
+  }
+
+  // Handle CRM deal stakeholders
+  if (name === "get_deal_stakeholders") {
+    const { dealId } = JSON.parse(args);
+    try {
+      // Get CRM access token
+      const tokenResponse = await getCRMToken(userId, "tool_calling");
+      if (!tokenResponse || !tokenResponse.token) {
+        return JSON.stringify({
+          error: "Failed to get CRM access token",
+          ui: {
+            type: "connection_required",
+            service: "custom-crm",
+            message: "CRM access is required to view deal stakeholders.",
+            connectButton: {
+              text: "Connect CRM",
+              action: "connection://custom-crm",
+            },
+          },
+        });
+      }
+
+      // Use our utility function
+      const stakeholders = await fetchDealStakeholders(
+        tokenResponse.token.accessToken,
+        dealId
+      );
+      return JSON.stringify(stakeholders);
+    } catch (error) {
+      console.error("Error in get_deal_stakeholders:", error);
+      return JSON.stringify({ error: "Failed to retrieve deal stakeholders" });
+    }
+  }
+
+  // Default response for unhandled functions
+  return JSON.stringify({
+    error: `Function ${name} not implemented or not authorized`,
+  });
 }
