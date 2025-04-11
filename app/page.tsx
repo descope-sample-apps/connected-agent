@@ -616,10 +616,7 @@ export default function Home() {
       logo: "/logos/crm-logo.png",
       action: () =>
         checkOAuthAndPrompt(() =>
-          usePredefinedPrompt(
-            "Find John Doe's contact information and current deals in the CRM",
-            "crm-lookup"
-          )
+          usePredefinedPrompt("Find John's contact information", "crm-lookup")
         ),
     },
     {
@@ -629,7 +626,7 @@ export default function Home() {
       logo: "/logos/google-calendar.png",
       action: () =>
         usePredefinedPrompt(
-          "Schedule a product demo meeting with John Doe from Acme Inc next Tuesday at 2pm",
+          "Schedule a meeting with John next Tuesday",
           "schedule-meeting"
         ),
     },
@@ -640,7 +637,7 @@ export default function Home() {
       logo: "/logos/google-meet-logo.svg",
       action: () =>
         usePredefinedPrompt(
-          "Create a Google Meet link for my upcoming meeting with Jane Lane from Globex Corp",
+          "Create a Google Meet for my meeting with Jane",
           "create-google-meet"
         ),
     },
@@ -652,7 +649,7 @@ export default function Home() {
       action: () =>
         checkOAuthAndPrompt(() =>
           usePredefinedPrompt(
-            "Summarize the Enterprise Software License deal with John Doe and save it to Google Docs",
+            "Summarize the Enterprise Software License deal",
             "summarize-deal"
           )
         ),

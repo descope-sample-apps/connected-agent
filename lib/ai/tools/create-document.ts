@@ -80,12 +80,79 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
           },
         });
 
-        // This is where you'd make the actual API call to Google Docs
-        // For this example, we'll simulate it with a delay
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Actually create the document using Google Docs API
+        // First, create an empty document
+        const createResponse = await fetch(
+          "https://www.googleapis.com/drive/v3/files",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${tokenData.token.accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: title,
+              mimeType: "application/vnd.google-apps.document",
+            }),
+          }
+        );
 
-        // Simulate a document ID and link
-        const documentId = `doc-${Math.random().toString(36).substring(2, 10)}`;
+        if (!createResponse.ok) {
+          const error = await createResponse.json();
+          throw new Error(
+            `Failed to create document: ${
+              error.error?.message || createResponse.statusText
+            }`
+          );
+        }
+
+        const doc = await createResponse.json();
+        const documentId = doc.id;
+
+        // Update progress
+        dataStream.append({
+          toolActivity: {
+            step: "processing",
+            tool: "createDocument",
+            title: "Populating Document",
+            description: "Adding content to your document...",
+          },
+        });
+
+        // Then, update the document content
+        const updateResponse = await fetch(
+          `https://www.googleapis.com/docs/v1/documents/${documentId}:batchUpdate`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${tokenData.token.accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              requests: [
+                {
+                  insertText: {
+                    location: {
+                      index: 1,
+                    },
+                    text: content || "",
+                  },
+                },
+              ],
+            }),
+          }
+        );
+
+        if (!updateResponse.ok) {
+          const error = await updateResponse.json();
+          throw new Error(
+            `Failed to update document content: ${
+              error.error?.message || updateResponse.statusText
+            }`
+          );
+        }
+
+        // Create a proper Google Docs link
         const documentLink = `https://docs.google.com/document/d/${documentId}/edit`;
 
         // Final update showing success
@@ -94,10 +161,11 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
             step: "complete",
             tool: "createDocument",
             title: "Document Created",
-            description: "Your document has been created successfully!",
+            description:
+              "Your document has been created and populated successfully!",
             fields: {
               Title: title,
-              "Document Link": documentLink,
+              "Document Link": `<a href="${documentLink}" target="_blank">${documentLink}</a>`,
             },
           },
         });
@@ -107,6 +175,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
           documentId,
           title,
           link: documentLink,
+          formattedMessage: `I've created a Google Doc titled "${title}" with the content you requested. You can <a href="${documentLink}" target="_blank">access it here</a>.`,
         };
       } catch (error) {
         console.error("Error creating document:", error);
