@@ -4,6 +4,7 @@ import "./deals";
 import "./contacts";
 import "./calendar";
 import "./calendar-list";
+import "./google-meet";
 
 // Export the tool registry for direct access
 export { toolRegistry } from "./base";

@@ -190,8 +190,8 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
       // Determine if we're fetching or creating
       const isFetching = "id" in data && data.id !== undefined;
       const url = isFetching
-        ? `${process.env.CRM_API_URL}/deals/${data.id}`
-        : `${process.env.CRM_API_URL}/deals`;
+        ? `${process.env.CRM_API_URL}/api/deals/${data.id}`
+        : `${process.env.CRM_API_URL}/api/deals`;
 
       const response = await fetch(url, {
         method: isFetching ? "GET" : "POST",

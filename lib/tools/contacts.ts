@@ -26,6 +26,7 @@ export class ContactsTool extends Tool<Contact> {
       "Add contact notes and history",
       "Manage contact relationships",
       "Update contact information",
+      "Get contact details",
     ],
   };
 
@@ -121,7 +122,7 @@ export class ContactsTool extends Tool<Contact> {
       }
 
       console.log("[ContactsTool] Making API request");
-      const response = await fetch(`${process.env.CRM_API_URL}/contacts`, {
+      const response = await fetch(`${process.env.CRM_API_URL}/api/contacts`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${crmTokenResponse.token.accessToken}`,

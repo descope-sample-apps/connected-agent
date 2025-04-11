@@ -159,6 +159,14 @@ export function ConnectionNotification({
           }
         },
         onError: (error: Error) => {
+          // Check if this is a user cancellation
+          if (error.name === "AuthCanceled") {
+            console.log("User canceled the authentication flow");
+            setIsConnecting(false);
+            // Don't show error toast for user cancellations
+            return;
+          }
+
           console.error("Error connecting provider:", error);
           setIsConnecting(false);
           toast({
@@ -195,13 +203,14 @@ export function ConnectionNotification({
       <DialogContent className="sm:max-w-md border-gray-100 dark:border-gray-800 shadow-lg">
         <DialogHeader>
           <div className="flex items-center mb-2">
-            <div className="mr-2 p-2 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 border border-indigo-100 dark:border-indigo-900">
+            <div className="mr-2 p-2 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 border border-indigo-100 dark:border-indigo-900 w-10 h-10 flex items-center justify-center overflow-hidden">
               {provider.icon && (
                 <Image
                   src={provider.icon}
                   width={24}
                   height={24}
                   alt={provider.name}
+                  className="object-contain"
                 />
               )}
             </div>

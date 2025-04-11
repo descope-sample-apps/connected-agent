@@ -196,6 +196,7 @@ export async function POST(request: Request) {
     const calendarTool = toolRegistry.getTool("google-calendar");
     const calendarListTool = toolRegistry.getTool("google-calendar-list");
     const crmContactsTool = toolRegistry.getTool("crm-contacts");
+    const googleMeetTool = toolRegistry.getTool("google-meet");
 
     // Define the tools object
     const toolsObject: any = {
@@ -479,6 +480,77 @@ export async function POST(request: Request) {
                   : "Unknown error creating Zoom meeting",
               message:
                 "There was an error creating your Zoom meeting. Please try again later.",
+            };
+          }
+        },
+      },
+      // Add a dedicated Google Meet creation tool
+      createGoogleMeet: {
+        description: "Create a Google Meet meeting and get the meeting link",
+        parameters: z.object({
+          title: z.string().describe("Meeting title"),
+          description: z.string().describe("Meeting description/agenda"),
+          startTime: z
+            .string()
+            .describe("Start time in ISO format (e.g., 2023-05-01T09:00:00)"),
+          duration: z.number().describe("Meeting duration in minutes"),
+          attendees: z
+            .array(z.string())
+            .optional()
+            .describe("Optional list of attendee emails"),
+          timeZone: z
+            .string()
+            .optional()
+            .describe("Time zone (optional, defaults to UTC)"),
+          settings: z
+            .object({
+              muteUponEntry: z.boolean().optional(),
+              joinBeforeHost: z.boolean().optional(),
+            })
+            .optional(),
+        }),
+        execute: async (data: any) => {
+          try {
+            if (!googleMeetTool) {
+              return {
+                success: false,
+                error: "Google Meet tool not available",
+                message:
+                  "Unable to create Google Meet meetings. Please connect your Google Calendar.",
+                ui: {
+                  type: "connection_required",
+                  service: "google-calendar",
+                  message:
+                    "Please connect your Google Calendar to create Meet meetings",
+                  connectButton: {
+                    text: "Connect Google Calendar",
+                    action: "connection://google-calendar",
+                  },
+                },
+              };
+            }
+
+            const result = await googleMeetTool.execute(userId, {
+              title: data.title,
+              description: data.description,
+              startTime: data.startTime,
+              duration: data.duration,
+              attendees: data.attendees,
+              timeZone: data.timeZone,
+              settings: data.settings,
+            });
+
+            return result;
+          } catch (error) {
+            console.error("Error creating Google Meet:", error);
+            return {
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Unknown error creating Google Meet",
+              message:
+                "There was an error creating your Google Meet. Please try again later.",
             };
           }
         },

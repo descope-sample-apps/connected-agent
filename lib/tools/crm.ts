@@ -24,14 +24,19 @@ export interface Deal {
   notes?: string;
 }
 
-class CRMContactsTool extends Tool<{ id?: string }> {
+class CRMContactsTool extends Tool<{
+  id?: string;
+  name?: string;
+  email?: string;
+}> {
   config: ToolConfig = {
     id: "crm-contacts",
     name: "CRM Contacts",
-    description: "Get all contacts or a specific contact by ID",
+    description:
+      "Get all contacts or search for contacts by name, email, or ID",
     scopes: [],
     requiredFields: [],
-    optionalFields: ["id"],
+    optionalFields: ["id", "name", "email"],
     capabilities: [
       "Search and retrieve contact information",
       "View contact details including name, email, and company",
@@ -40,11 +45,18 @@ class CRMContactsTool extends Tool<{ id?: string }> {
     ],
   };
 
-  validate(data: { id?: string }): ToolResponse | null {
+  validate(data: {
+    id?: string;
+    name?: string;
+    email?: string;
+  }): ToolResponse | null {
     return null;
   }
 
-  async execute(userId: string, data: { id?: string }): Promise<ToolResponse> {
+  async execute(
+    userId: string,
+    data: { id?: string; name?: string; email?: string }
+  ): Promise<ToolResponse> {
     try {
       const token = await getOAuthTokenWithScopeValidation(userId, "crm", {
         appId: "custom-crm",
@@ -68,11 +80,95 @@ class CRMContactsTool extends Tool<{ id?: string }> {
         };
       }
 
-      const url = data.id
-        ? `${process.env.CRM_API_URL}/contacts/${data.id}`
-        : `${process.env.CRM_API_URL}/contacts`;
+      // If we have an ID, fetch the specific contact
+      if (data.id) {
+        const response = await fetch(
+          `${process.env.CRM_API_URL}/contacts/${data.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      const response = await fetch(url, {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            `Failed to fetch contact: ${
+              errorData.message || response.statusText
+            }`
+          );
+        }
+
+        const contact = await response.json();
+        return {
+          success: true,
+          data: contact,
+        };
+      }
+
+      // If we have an email, fetch the specific contact
+      if (data.email) {
+        const response = await fetch(
+          `${process.env.CRM_API_URL}/contacts/${encodeURIComponent(
+            data.email
+          )}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            `Failed to fetch contact: ${
+              errorData.message || response.statusText
+            }`
+          );
+        }
+
+        const contact = await response.json();
+        return {
+          success: true,
+          data: contact,
+        };
+      }
+
+      // If we have a name, first fetch all contacts and filter
+      if (data.name) {
+        // First, get all contacts
+        const response = await fetch(`${process.env.CRM_API_URL}/contacts`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            `Failed to fetch contacts: ${
+              errorData.message || response.statusText
+            }`
+          );
+        }
+
+        const allContacts = await response.json();
+
+        // Filter contacts by name (case-insensitive partial match)
+        const matchingContacts = allContacts.filter((contact: Contact) =>
+          contact.name.toLowerCase().includes(data.name!.toLowerCase())
+        );
+
+        return {
+          success: true,
+          data: matchingContacts,
+        };
+      }
+
+      // If no search parameters, return all contacts
+      const response = await fetch(`${process.env.CRM_API_URL}/contacts`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

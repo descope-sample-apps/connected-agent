@@ -10,6 +10,7 @@ interface OAuthContextType {
     scopes: string[];
   } | null;
   setReconnectInfo: (info: { appId: string; scopes: string[] } | null) => void;
+  handleAuthError: (error: Error) => boolean; // Returns true if error was handled
 }
 
 export const OAuthContext = createContext<OAuthContextType | undefined>(
@@ -30,6 +31,7 @@ export function OAuthProvider({ children }: { children: React.ReactNode }) {
         setShowReconnectDialog,
         reconnectInfo,
         setReconnectInfo,
+        handleAuthError: () => false,
       }}
     >
       {children}

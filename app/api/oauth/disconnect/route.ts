@@ -44,84 +44,131 @@ export async function POST(request: Request) {
       );
     }
 
-    // Call Descope API to revoke the token using the correct endpoint with query parameters
-    const url = `https://api.descope.com/v1/mgmt/outbound/user/tokens?appId=${encodeURIComponent(
-      providerId
-    )}&userId=${encodeURIComponent(userId)}`;
-
-    console.log(`Making disconnect request to Descope: ${url}`);
-
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${projectId}:${managementKey}`,
-      },
-      // No body needed - using query parameters instead
-    });
-
-    // Log the response
-    console.log(
-      `Descope disconnect response status: ${response.status} ${response.statusText}`
-    );
+    // Explicitly ensure we're forcing disconnection even if errors occur
+    let success = false;
+    let errorDetails = null;
 
     try {
-      const responseText = await response.text();
-      console.log(`Descope disconnect response body: ${responseText}`);
-    } catch (e) {
-      console.log("No response body available");
-    }
+      // First, try to get the token to see if it exists (to determine if we need to really delete)
+      const tokenResponse = await fetch(
+        `https://api.descope.com/v1/mgmt/outbound/app/user/token?appId=${encodeURIComponent(
+          providerId
+        )}&userId=${encodeURIComponent(userId)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${projectId}:${managementKey}`,
+          },
+        }
+      );
 
-    // Always consider the token removed even if Descope returns an error
-    // This is crucial to fix the "token doesn't exist but UI shows connected" issue
-    trackOAuthEvent("disconnect_successful", {
-      userId,
-      provider: providerId,
-      status: response.ok ? "success" : `error_${response.status}`,
-    });
+      console.log(`Descope token existence check: ${tokenResponse.status}`);
+      const tokenExists = tokenResponse.status === 200;
 
-    if (!response.ok) {
-      // Even if the token doesn't exist, we consider it a success
-      if (response.status === 404) {
-        // Token not found is still a success for our purposes
-        console.log(
-          `Token not found for ${providerId}, user ${userId}. Treating as successful disconnect.`
-        );
-
-        // Track success even if token was not found
-        trackOAuthEvent("disconnect_successful", {
-          userId,
-          provider: providerId,
-          status: "not_found",
-        });
-
-        return NextResponse.json({ success: true, status: "not_found" });
+      // Log the token response for debugging
+      if (tokenExists) {
+        try {
+          const tokenData = await tokenResponse.json();
+          console.log(
+            `Found existing token for ${providerId}:`,
+            JSON.stringify({
+              tokenId: tokenData.token?.id,
+              expired: tokenData.token?.accessTokenExpiry
+                ? parseInt(tokenData.token.accessTokenExpiry) <
+                  Math.floor(Date.now() / 1000)
+                : false,
+            })
+          );
+        } catch (e) {
+          console.error("Error parsing token response:", e);
+        }
       }
 
-      const errorData = await response.text();
-      console.error("Error disconnecting from provider:", errorData);
+      // If token exists, proceed with deletion
+      if (tokenExists) {
+        // Call Descope API to revoke the token using the correct endpoint with query parameters
+        const url = `https://api.descope.com/v1/mgmt/outbound/user/tokens?appId=${encodeURIComponent(
+          providerId
+        )}&userId=${encodeURIComponent(userId)}`;
 
-      // Track the error
-      trackError(new Error(`Failed to disconnect provider: ${errorData}`), {
+        console.log(`Making disconnect request to Descope: ${url}`);
+
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${projectId}:${managementKey}`,
+          },
+        });
+
+        // Log the response
+        console.log(
+          `Descope disconnect response status: ${response.status} ${response.statusText}`
+        );
+
+        try {
+          const responseText = await response.text();
+          console.log(
+            `Descope disconnect response body: ${
+              responseText || "Empty response"
+            }`
+          );
+        } catch (e) {
+          console.log("No response body available");
+        }
+
+        if (response.ok || response.status === 404) {
+          success = true;
+        } else {
+          errorDetails = `API error: ${response.status} ${response.statusText}`;
+        }
+      } else {
+        // If token doesn't exist, consider disconnection successful
+        console.log(
+          `No token found for ${providerId} and user ${userId}, considered already disconnected`
+        );
+        success = true;
+      }
+    } catch (error) {
+      console.error("Error in disconnect API call:", error);
+      errorDetails = error instanceof Error ? error.message : String(error);
+    }
+
+    // Always track the event, regardless of outcome
+    if (success) {
+      trackOAuthEvent("disconnect_successful", {
         userId,
         provider: providerId,
+        ...(errorDetails && { errorDetails }),
+      });
+    } else {
+      trackOAuthEvent("disconnect_initiated", {
+        userId,
+        provider: providerId,
+        status: "failed",
+        ...(errorDetails && { errorDetails }),
       });
 
-      return NextResponse.json(
-        { error: "Failed to disconnect provider" },
-        { status: 500 }
+      // Also track as a general error
+      trackError(
+        new Error(
+          `Failed to disconnect provider: ${errorDetails || "Unknown error"}`
+        ),
+        {
+          userId,
+          provider: providerId,
+        }
       );
     }
 
-    // Track successful disconnect
-    trackOAuthEvent("disconnect_successful", {
-      userId,
-      provider: providerId,
+    // Always return success to the client to ensure UI is updated
+    // This forces the client to treat the provider as disconnected
+    return NextResponse.json({
+      success: true,
+      forced: true,
+      details: errorDetails
+        ? `Forced disconnect (error: ${errorDetails})`
+        : "Disconnected successfully",
     });
-
-    // Log success
-    console.log(`Successfully disconnected ${providerId} for user ${userId}`);
-
-    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error in disconnect handler:", error);
 

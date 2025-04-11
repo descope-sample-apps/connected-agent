@@ -162,12 +162,8 @@ export async function connectToOAuthProvider({
       throw new Error("Redirect URL is required");
     }
 
-    // Extract redirectTo from the redirectUrl if present
-    const redirectUrlObj = new URL(redirectUrl);
-    const redirectTo = redirectUrlObj.searchParams.get("redirectTo") || "chat";
-
     // Create a state parameter that includes the redirectTo and any other state
-    let stateObject = { redirectTo };
+    let stateObject = { redirectTo: "chat" };
 
     // Add any additional state parameters if provided
     if (state) {
@@ -247,7 +243,13 @@ export async function handleOAuthPopup(
     const appOrigin = window.location.origin;
     console.log("Opening OAuth popup with URL:", authUrl);
 
-    const popup = window.open(authUrl, "oauth-popup", "width=600,height=600");
+    // Open the popup with specific features to ensure it's a proper popup
+    const popup = window.open(
+      authUrl,
+      "oauth-popup",
+      "width=600,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+    );
+
     if (!popup) {
       const error = new Error("Failed to open popup window");
       if (callbacks?.onError) callbacks.onError(error);
@@ -260,8 +262,22 @@ export async function handleOAuthPopup(
 
     // Setup message listener for the postMessage from the popup
     const messageHandler = (event: MessageEvent) => {
+      console.log(
+        "Received message from popup:",
+        event.origin,
+        event.data?.type
+      );
+
       // Verify origin for security
-      if (event.origin !== appOrigin) return;
+      // Use looser check for localhost development (sometimes origin can differ by port)
+      const originIsValid =
+        event.origin === appOrigin ||
+        (event.origin.includes("localhost") && appOrigin.includes("localhost"));
+
+      if (!originIsValid) {
+        console.log("Origin mismatch:", event.origin, appOrigin);
+        return;
+      }
 
       // Check if this is our OAuth success message
       if (event.data?.type === "oauth-success") {
@@ -270,8 +286,35 @@ export async function handleOAuthPopup(
         window.removeEventListener("message", messageHandler);
         clearInterval(checkInterval);
 
+        // Close the popup if it's still open
+        if (popup && !popup.closed) {
+          popup.close();
+        }
+
         if (callbacks?.onSuccess) callbacks.onSuccess();
         resolve();
+        return;
+      }
+
+      // Check for error message
+      if (event.data?.type === "oauth-error") {
+        console.log(
+          "Received oauth-error message from popup:",
+          event.data.error
+        );
+        isHandled = true;
+        window.removeEventListener("message", messageHandler);
+        clearInterval(checkInterval);
+
+        // Close the popup if it's still open
+        if (popup && !popup.closed) {
+          popup.close();
+        }
+
+        const error = new Error(event.data.error || "Authentication failed");
+        if (callbacks?.onError) callbacks.onError(error);
+        reject(error);
+        return;
       }
     };
 
@@ -280,10 +323,15 @@ export async function handleOAuthPopup(
     const checkInterval = setInterval(() => {
       if (!popup || popup.closed) {
         if (!isHandled) {
-          console.log("Popup was closed manually");
+          console.log("Popup was closed manually without receiving a message");
           window.removeEventListener("message", messageHandler);
           clearInterval(checkInterval);
-          reject(new Error("Authentication window was closed"));
+          isHandled = true;
+
+          // Simply resolve without error or callbacks
+          // This prevents the error from bubbling up to UI
+          resolve();
+          return;
         }
         return;
       }
@@ -306,7 +354,9 @@ export async function handleOAuthPopup(
               const errorMsg = params.get("error");
 
               // Close the popup
-              popup.close();
+              if (popup && !popup.closed) {
+                popup.close();
+              }
 
               if (oauthStatus === "success") {
                 console.log("OAuth completed successfully (fallback)");
@@ -332,7 +382,12 @@ export async function handleOAuthPopup(
       if (!isHandled) {
         window.removeEventListener("message", messageHandler);
         clearInterval(checkInterval);
-        popup.close();
+
+        // Close the popup if it's still open
+        if (popup && !popup.closed) {
+          popup.close();
+        }
+
         const error = new Error("Authentication timed out after 5 minutes");
         if (callbacks?.onError) callbacks.onError(error);
         reject(error);

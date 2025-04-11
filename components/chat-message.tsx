@@ -11,6 +11,7 @@ import {
 import { useOAuth } from "@/context/oauth-context";
 import Image from "next/image";
 import { connectToOAuthProvider } from "@/lib/oauth-utils";
+import ReactMarkdown from "react-markdown";
 
 // Service logo mapping
 const SERVICE_LOGOS = {
@@ -266,7 +267,14 @@ export default function ChatMessage({
       );
     }
 
-    return parts.length > 0 ? parts : cleanedContent;
+    // If we have parts, return them, otherwise use ReactMarkdown for the cleaned content
+    return parts.length > 0 ? (
+      parts
+    ) : (
+      <div className="prose dark:prose-invert max-w-none">
+        <ReactMarkdown>{cleanedContent}</ReactMarkdown>
+      </div>
+    );
   };
 
   // Get icon for a service

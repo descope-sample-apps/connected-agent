@@ -7,6 +7,8 @@ export const getCRMData = {
     customerName: z
       .string()
       .describe("The name of the customer or company to look up"),
+    email: z.string().describe("The email of the customer to look up"),
+    deals: z.boolean().describe("Whether to include deals in the response"),
   }),
   execute: async ({
     customerName,

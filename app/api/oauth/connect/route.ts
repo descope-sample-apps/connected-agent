@@ -52,12 +52,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Prepare request body with only redirectUrl if no scopes provided
+    // Use the provided redirectUrl directly
     const requestBody = {
       appId,
       options: {
-        redirectUrl: `${baseUrl}/api/oauth/callback`,
+        redirectUrl: options.redirectUrl,
         ...(options.scopes && { scopes: options.scopes }),
+        ...(options.state && { state: options.state }),
       },
     };
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
       body: requestBody,
     });
 
-    // Call Descope's outbound app endpoint
+    // Call Descope API to get the authorization URL
     const response = await fetch(
       "https://api.descope.com/v1/outbound/oauth/connect",
       {
@@ -87,18 +88,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const { url } = await response.json();
-    console.log("Received authorization URL from Descope: ", url);
-    return NextResponse.json({ url });
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Error connecting to OAuth provider:", error);
+    console.error("Error in OAuth connect:", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to initiate OAuth connection",
-      },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

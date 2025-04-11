@@ -36,6 +36,7 @@ import {
   AlertCircle,
   Share,
   Trash,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -405,21 +406,54 @@ export default function ProfileScreen({
             });
           },
           onError: (error) => {
-            throw new Error(error.message || "Failed to connect");
+            // Don't show errors for user cancellation
+            if (
+              error instanceof Error &&
+              (error.name === "AuthCanceled" ||
+                error.message === "Authentication window was closed")
+            ) {
+              console.log("User canceled authentication, not showing error");
+            } else {
+              setError(
+                error instanceof Error
+                  ? error.message
+                  : "Failed to connect service"
+              );
+              toast({
+                title: "Error",
+                description:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to connect service",
+                variant: "destructive",
+              });
+            }
           },
         });
       }
     } catch (error) {
       console.error("Error connecting:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to connect service"
-      );
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to connect service",
-        variant: "destructive",
-      });
+
+      // Don't show errors for user cancellation
+      if (
+        error instanceof Error &&
+        (error.name === "AuthCanceled" ||
+          error.message === "Authentication window was closed")
+      ) {
+        console.log("User canceled authentication, not showing error");
+      } else {
+        setError(
+          error instanceof Error ? error.message : "Failed to connect service"
+        );
+        toast({
+          title: "Error",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to connect service",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -658,6 +692,58 @@ export default function ProfileScreen({
     }
   };
 
+  const resetAllConnections = () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Force reset all providers to disconnected state
+      setOauthProviders((providers) =>
+        providers.map((provider) => ({
+          ...provider,
+          connected: false,
+          tokenData: undefined,
+          lastSync: null,
+        }))
+      );
+
+      // Show success message
+      toast({
+        title: "Reset Complete",
+        description:
+          "All connection states have been reset. Please reconnect any services you need.",
+      });
+
+      // After a short delay, refresh connections from the server
+      setTimeout(async () => {
+        await fetchConnections();
+        setIsLoading(false);
+      }, 500);
+    } catch (error) {
+      console.error("Error resetting connections:", error);
+      setIsLoading(false);
+      toast({
+        title: "Error",
+        description: "Failed to reset connections. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Add this button in the profile header section
+  const ConnectionResetButton = () => (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={resetAllConnections}
+      className="ml-auto"
+      disabled={isLoading}
+    >
+      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+      Reset Connections
+    </Button>
+  );
+
   return (
     <div className="container max-w-4xl py-6">
       <Button variant="ghost" className="mb-6" onClick={onBack}>
@@ -721,14 +807,17 @@ export default function ProfileScreen({
           ) : (
             <>
               <Card className="border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-                    Connected Services
-                  </CardTitle>
-                  <CardDescription>
-                    Manage your connected services and Descope outbound app
-                    permissions
-                  </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                      Connected Services
+                    </CardTitle>
+                    <CardDescription>
+                      Manage your connected services and Descope outbound app
+                      permissions
+                    </CardDescription>
+                  </div>
+                  <ConnectionResetButton />
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {oauthProviders.map((provider) => (

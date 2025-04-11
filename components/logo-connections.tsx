@@ -36,7 +36,7 @@ export default function LogoConnections() {
         {services.map((service, index) => (
           <div
             key={service.id}
-            className="relative w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-900 p-1.5 
+            className="relative w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-900 p-1.5 
               shadow-sm ring-1 ring-gray-200 dark:ring-gray-800 hover:scale-110 transition-transform duration-200"
             style={{ animationDelay: `${index * 100}ms` }}
           >
@@ -46,6 +46,7 @@ export default function LogoConnections() {
               fill
               className="object-contain p-0.5"
               title={service.name}
+              sizes="(max-width: 32px) 100vw, 32px"
             />
           </div>
         ))}
