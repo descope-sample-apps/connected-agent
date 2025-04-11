@@ -2,7 +2,7 @@ import { session } from "@descope/nextjs-sdk/server";
 import {
   getGoogleCalendarToken,
   getGoogleDocsToken,
-  getZoomToken,
+  getGoogleMeetToken,
   getCRMToken,
 } from "@/lib/descope";
 import { trackOAuthEvent, trackError } from "@/lib/analytics";
@@ -41,30 +41,31 @@ export async function GET() {
 
     // Get the status of all OAuth connections using default operations from lib/descope.ts
     console.log("Starting OAuth provider token fetch");
-    const [googleCalendar, googleDocs, zoom, customCrm] = await Promise.all([
-      getGoogleCalendarToken(userId).catch((e) => {
-        console.error("Error fetching Google Calendar token:", e);
-        console.error("Google Calendar error details:", {
-          name: e.name,
-          message: e.message,
-          status: e.status,
-          stack: e.stack,
-        });
-        return { error: e.message, connected: false, originalError: e };
-      }),
-      getGoogleDocsToken(userId).catch((e) => {
-        console.error("Error fetching Google Docs token:", e);
-        return { error: e.message, connected: false };
-      }),
-      getZoomToken(userId).catch((e) => {
-        console.error("Error fetching Zoom token:", e);
-        return { error: e.message, connected: false };
-      }),
-      getCRMToken(userId).catch((e) => {
-        console.error("Error fetching CRM token:", e);
-        return { error: e.message, connected: false };
-      }),
-    ]);
+    const [googleCalendar, googleDocs, googleMeet, customCrm] =
+      await Promise.all([
+        getGoogleCalendarToken(userId).catch((e) => {
+          console.error("Error fetching Google Calendar token:", e);
+          console.error("Google Calendar error details:", {
+            name: e.name,
+            message: e.message,
+            status: e.status,
+            stack: e.stack,
+          });
+          return { error: e.message, connected: false, originalError: e };
+        }),
+        getGoogleDocsToken(userId).catch((e) => {
+          console.error("Error fetching Google Docs token:", e);
+          return { error: e.message, connected: false };
+        }),
+        getGoogleMeetToken(userId).catch((e) => {
+          console.error("Error fetching Google Meet token:", e);
+          return { error: e.message, connected: false };
+        }),
+        getCRMToken(userId).catch((e) => {
+          console.error("Error fetching CRM token:", e);
+          return { error: e.message, connected: false };
+        }),
+      ]);
 
     // Process token responses
     const processConnection = (response: any) => {
@@ -157,7 +158,7 @@ export async function GET() {
     const connections = {
       "google-calendar": processConnection(googleCalendar),
       "google-docs": processConnection(googleDocs),
-      zoom: processConnection(zoom),
+      "google-meet": processConnection(googleMeet),
       "custom-crm": processConnection(customCrm),
     };
 
@@ -166,7 +167,7 @@ export async function GET() {
       action: "check_all_connections",
       googleCalendarConnected: connections["google-calendar"].connected,
       googleDocsConnected: connections["google-docs"].connected,
-      zoomConnected: connections.zoom.connected,
+      googleMeetConnected: connections["google-meet"].connected,
       crmConnected: connections["custom-crm"].connected,
     });
 

@@ -25,11 +25,7 @@ import {
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { myProvider } from "@/lib/ai/providers";
-import {
-  getGoogleCalendarToken,
-  getCRMToken,
-  getZoomToken,
-} from "@/lib/descope";
+import { getGoogleCalendarToken, getCRMToken } from "@/lib/descope";
 import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
 import { isProductionEnvironment } from "@/lib/constants";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
@@ -617,128 +613,6 @@ export async function POST(request: Request) {
           }
         },
       },
-      // Add a dedicated Zoom meeting creation tool
-      createZoomMeeting: {
-        description: "Create a Zoom meeting and get the meeting link",
-        parameters: z.object({
-          title: z.string().describe("Meeting title"),
-          description: z.string().describe("Meeting description/agenda"),
-          startTime: z
-            .string()
-            .describe("Start time in ISO format (e.g., 2023-05-01T09:00:00)"),
-          duration: z.number().describe("Meeting duration in minutes"),
-          attendees: z
-            .array(z.string())
-            .optional()
-            .describe("Optional list of attendee emails"),
-          settings: z
-            .object({
-              joinBeforeHost: z.boolean().optional(),
-              muteUponEntry: z.boolean().optional(),
-              waitingRoom: z.boolean().optional(),
-            })
-            .optional(),
-        }),
-        execute: async (data: any) => {
-          try {
-            // Get Zoom OAuth token
-            const zoomTokenResponse = await getZoomToken(userId);
-            if (!zoomTokenResponse || "error" in zoomTokenResponse) {
-              return {
-                success: false,
-                error: "Zoom access required",
-                message:
-                  "You need to connect your Zoom account to create meetings.",
-                ui: {
-                  type: "connection_required",
-                  service: "zoom",
-                  message:
-                    "Please connect your Zoom account to create meetings",
-                  connectButton: {
-                    text: "Connect Zoom",
-                    action: "connection://zoom",
-                  },
-                },
-              };
-            }
-
-            // Calculate end time from duration
-            const startTime = new Date(data.startTime);
-            const endTime = new Date(
-              startTime.getTime() + data.duration * 60000
-            );
-
-            // Create Zoom meeting
-            const response = await fetch(
-              "https://api.zoom.us/v2/users/me/meetings",
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${zoomTokenResponse.token.accessToken}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  topic: data.title,
-                  type: 2, // Scheduled meeting
-                  start_time: startTime.toISOString(),
-                  duration: data.duration,
-                  timezone: "UTC",
-                  agenda: data.description,
-                  settings: {
-                    host_video: true,
-                    participant_video: true,
-                    join_before_host: data.settings?.joinBeforeHost ?? false,
-                    mute_upon_entry: data.settings?.muteUponEntry ?? true,
-                    waiting_room: data.settings?.waitingRoom ?? true,
-                  },
-                }),
-              }
-            );
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              return {
-                success: false,
-                error: `Failed to create Zoom meeting: ${
-                  errorData.message || response.statusText
-                }`,
-                message:
-                  "There was a problem creating your Zoom meeting. Please try again later.",
-              };
-            }
-
-            const zoomMeeting = await response.json();
-
-            return {
-              success: true,
-              meetingId: zoomMeeting.id,
-              joinUrl: zoomMeeting.join_url,
-              startUrl: zoomMeeting.start_url,
-              password: zoomMeeting.password,
-              message: "Zoom meeting created successfully!",
-              formattedMessage: `Zoom meeting "${zoomMeeting.topic}" created successfully! Join here: [Join Zoom Meeting](${zoomMeeting.join_url})`,
-              meetingInfo: {
-                topic: zoomMeeting.topic,
-                startTime: zoomMeeting.start_time,
-                duration: zoomMeeting.duration,
-                timezone: zoomMeeting.timezone,
-                joinUrl: zoomMeeting.join_url,
-              },
-            };
-          } catch (error) {
-            console.error("Error creating Zoom meeting:", error);
-            return {
-              success: false,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Unknown error creating Zoom meeting",
-              message:
-                "There was an error creating your Zoom meeting. Please try again later.",
-            };
-          }
-        },
-      },
       // Add a dedicated Google Meet creation tool
       createGoogleMeet: {
         description: "Create a Google Meet meeting and get the meeting link",
@@ -989,7 +863,7 @@ export async function POST(request: Request) {
                         );
                         // For links generated by our tools, we want to make sure they're preserved and properly formatted
                         messageText = messageText.replace(
-                          /Calendar event created successfully!|Zoom meeting created successfully!|I've created a Google Doc|Document created successfully/g,
+                          /Calendar event created successfully!|Google Meet created successfully!|I've created a Google Doc|Document created successfully/g,
                           toolResponse.output.formattedMessage
                         );
                         console.log(
@@ -1033,18 +907,18 @@ export async function POST(request: Request) {
                         {
                           text:
                             messageText +
-                            // Check for direct reference to Zoom connection in the message text
+                            // Check for direct reference to Google Meet connection in the message text
                             (messageText.includes(
-                              "connect your Zoom account"
-                            ) || messageText.includes("connect to Zoom")
+                              "connect your Google Meet account"
+                            ) || messageText.includes("connect to Google Meet")
                               ? `\n\n<connection:${JSON.stringify({
                                   type: "connection_required",
-                                  service: "zoom",
+                                  service: "google-calendar",
                                   message:
-                                    "Please connect your Zoom account to create meetings",
+                                    "Please connect your Google Calendar to create Google Meet meetings",
                                   connectButton: {
-                                    text: "Connect Zoom",
-                                    action: "connection://zoom",
+                                    text: "Connect Google Calendar",
+                                    action: "connection://google-calendar",
                                   },
                                 })}>`
                               : // Or check for other needed connections
@@ -1162,13 +1036,14 @@ function extractUIElementsFromToolResponses(message: any): any {
     // Also check if the message content contains any connection text markers
     if (message.content && typeof message.content === "string") {
       const connectionRegex =
-        /connect your (Zoom|Google Calendar|CRM) account/i;
+        /connect your (Google Meet|Google Calendar|CRM) account/i;
       const match = message.content.match(connectionRegex);
 
       if (match) {
         // Determine the service type from the content
         let service = "unknown";
-        if (match[1].toLowerCase().includes("zoom")) service = "zoom";
+        if (match[1].toLowerCase().includes("meet"))
+          service = "google-calendar";
         else if (match[1].toLowerCase().includes("calendar"))
           service = "google-calendar";
         else if (match[1].toLowerCase().includes("crm")) service = "crm";
@@ -1177,9 +1052,11 @@ function extractUIElementsFromToolResponses(message: any): any {
         return {
           type: "connection_required",
           service,
-          message: `Please connect your ${service} account to continue`,
+          message: `Please connect your ${match[1]} account to continue`,
           connectButton: {
-            text: `Connect ${service}`,
+            text: `Connect ${
+              service === "google-calendar" ? "Google Calendar" : service
+            }`,
             action: `connection://${service}`,
           },
         };

@@ -237,11 +237,11 @@ export async function getCRMToken(
   });
 }
 
-export async function getZoomToken(
+export async function getGoogleMeetToken(
   userId: string,
   operation: string = "check_connection"
 ) {
-  return getOAuthToken(userId, "zoom", operation, {
+  return getOAuthToken(userId, "google-meet", operation, {
     withRefreshToken: false,
   });
 }
