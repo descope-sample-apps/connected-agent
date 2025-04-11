@@ -18,7 +18,7 @@ import ActionCard from "@/components/action-card";
 import AuthModal from "@/components/auth-modal";
 import UserMenu from "@/components/user-menu";
 import WelcomeScreen from "@/components/welcome-screen";
-import ZoomMeetingPrompt from "@/components/zoom-meeting-prompt";
+import GoogleMeetPrompt from "@/components/google-meet-prompt";
 import ProfileScreen from "@/components/profile-screen";
 import ShareChatDialog from "@/components/share-chat-dialog";
 import PromptExplanation from "@/components/prompt-explanation";
@@ -50,7 +50,7 @@ import { convertToUIMessages } from "@/lib/utils";
 type PromptType =
   | "crm-lookup"
   | "schedule-meeting"
-  | "create-zoom"
+  | "create-google-meet"
   | "summarize-deal";
 
 interface PromptExplanation {
@@ -150,44 +150,44 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     ],
     apis: ["Google Calendar API", "Custom CRM API"],
   },
-  "create-zoom": {
-    title: "Create Zoom Meeting",
+  "create-google-meet": {
+    title: "Create Google Meet",
     description:
-      "Generate Zoom video conference links for scheduled calendar events",
-    logo: "/logos/zoom-logo.png",
+      "Generate Google Meet video conference links for scheduled calendar events",
+    logo: "/logos/google-meet-logo.png",
     examples: [
-      "Create a Zoom meeting for tomorrow's call",
+      "Create a Google Meet for tomorrow's call",
       "Add video conferencing to the team meeting",
-      "Set up a Zoom link for the client presentation",
+      "Set up a Google Meet link for the client presentation",
     ],
     steps: [
       {
         title: "Meeting Enhancement Request",
         description:
-          "After scheduling a calendar event, the user requests to add a Zoom meeting link to the event.",
+          "After scheduling a calendar event, the user requests to add a Google Meet link to the event.",
       },
       {
         title: "Calendar Event Identification",
         description:
-          "The assistant identifies the relevant calendar event that needs a Zoom meeting link.",
+          "The assistant identifies the relevant calendar event that needs a Google Meet link.",
       },
       {
-        title: "Zoom API Authorization",
+        title: "Google Calendar Integration",
         description:
-          "Using the Zoom OAuth token stored securely in your profile, the assistant connects to your Zoom account.",
+          "Using the Google Calendar API, the assistant adds a Google Meet link to the existing calendar event.",
       },
       {
-        title: "Zoom Meeting Creation",
+        title: "Meet Link Generation",
         description:
-          "A new Zoom meeting is created with appropriate settings, generating a meeting URL, ID, and password.",
+          "A Google Meet link is automatically generated and added to the calendar event.",
       },
       {
         title: "Calendar Event Update",
         description:
-          "The calendar event is updated to include the Zoom meeting details, making them available to all attendees.",
+          "The calendar event is updated to include the Google Meet details, making them available to all attendees.",
       },
     ],
-    apis: ["Zoom API", "Google Calendar API"],
+    apis: ["Google Calendar API"],
   },
   "summarize-deal": {
     title: "Summarize Deal to Google Docs",
@@ -230,7 +230,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
   },
 } as const;
 
-interface ZoomMeetingPromptProps {
+interface GoogleMeetPromptProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -282,6 +282,7 @@ export default function Home() {
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] =
     useState<string>(DEFAULT_CHAT_MODEL);
+  const [showGoogleMeetPrompt, setShowGoogleMeetPrompt] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
@@ -367,7 +368,7 @@ export default function Home() {
 
         console.log("Detected meeting:", meetingDetails);
         setLastScheduledMeeting(meetingDetails);
-        setShowZoomPrompt(true);
+        setShowGoogleMeetPrompt(true);
       }
     },
   });
@@ -464,7 +465,7 @@ export default function Home() {
     }
   }, [isAuthenticated, toast]);
 
-  const handleCreateZoomMeeting = () => {
+  const handleCreateGoogleMeet = () => {
     chatHandleSubmit(new Event("submit") as any, {
       data: { fromQuickAction: true },
     });
@@ -593,14 +594,14 @@ export default function Home() {
         ),
     },
     {
-      id: "create-zoom",
-      title: "Create Zoom Meeting",
-      description: "Create a Zoom meeting for a scheduled event",
-      logo: "/logos/zoom-logo.png",
+      id: "create-google-meet",
+      title: "Create Google Meet",
+      description: "Create a Google Meet for a scheduled event",
+      logo: "/logos/google-meet-logo.png",
       action: () =>
         usePredefinedPrompt(
-          "Create a Zoom meeting for my next scheduled meeting",
-          "create-zoom"
+          "Create a Google Meet for my next scheduled meeting",
+          "create-google-meet"
         ),
     },
     {
@@ -749,11 +750,11 @@ export default function Home() {
   return (
     <div className="app-container">
       <AuthModal />
-      {showZoomPrompt && lastScheduledMeeting && (
-        <ZoomMeetingPrompt
-          isOpen={showZoomPrompt}
-          onClose={() => setShowZoomPrompt(false)}
-          onConfirm={handleCreateZoomMeeting}
+      {showGoogleMeetPrompt && lastScheduledMeeting && (
+        <GoogleMeetPrompt
+          isOpen={showGoogleMeetPrompt}
+          onClose={() => setShowGoogleMeetPrompt(false)}
+          onConfirm={handleCreateGoogleMeet}
           meetingDetails={{
             title: lastScheduledMeeting.title,
             date: lastScheduledMeeting.date,
@@ -1029,11 +1030,6 @@ export default function Home() {
                       </div>
 
                       <div className="mt-8 pt-6 border-t border-primary/10 dark:border-primary/5">
-                        <div className="mb-3 text-xs text-muted-foreground">
-                          <span className="font-medium">Pro tip:</span> Connect
-                          your CRM to automatically find contact emails when
-                          scheduling meetings.
-                        </div>
                         <a
                           href="https://descope.ai"
                           target="_blank"

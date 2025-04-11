@@ -15,14 +15,14 @@ import ReactMarkdown from "react-markdown";
 
 // Service logo mapping
 const SERVICE_LOGOS = {
-  zoom: "/logos/zoom-logo.png",
+  "google-meet": "/logos/google-meet-logo.png",
   "google-calendar": "/logos/google-calendar.png",
   crm: "/logos/crm-logo.png",
 };
 
 // Service display names
 const SERVICE_NAMES = {
-  zoom: "Zoom",
+  "google-meet": "Google Meet",
   "google-calendar": "Google Calendar",
   crm: "CRM System",
 };

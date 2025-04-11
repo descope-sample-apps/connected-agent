@@ -203,12 +203,12 @@ export function ConnectionNotification({
       <DialogContent className="sm:max-w-md border-gray-100 dark:border-gray-800 shadow-lg">
         <DialogHeader>
           <div className="flex items-center mb-2">
-            <div className="mr-2 p-2 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 border border-indigo-100 dark:border-indigo-900 w-10 h-10 flex items-center justify-center overflow-hidden">
+            <div className="mr-2 p-2 rounded-full bg-white dark:bg-gray-900 border border-border w-10 h-10 flex items-center justify-center overflow-hidden">
               {provider.icon && (
                 <Image
                   src={provider.icon}
-                  width={24}
-                  height={24}
+                  width={20}
+                  height={20}
                   alt={provider.name}
                   className="object-contain"
                 />
@@ -221,10 +221,6 @@ export function ConnectionNotification({
               </span>
             </DialogTitle>
           </div>
-          <DialogDescription>
-            Connect your {provider.name} account to enable integration with
-            tools and services.
-          </DialogDescription>
         </DialogHeader>
         <div className="py-4">
           <p className="text-sm text-gray-500 mb-4">
@@ -244,20 +240,6 @@ export function ConnectionNotification({
             className="border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
           >
             Cancel
-          </Button>
-          <Button
-            onClick={handleConnect}
-            disabled={isConnecting}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-          >
-            {isConnecting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              "Connect"
-            )}
           </Button>
         </DialogFooter>
       </DialogContent>

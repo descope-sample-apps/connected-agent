@@ -30,10 +30,10 @@ export const OAUTH_PROVIDERS = {
     icon: "/logos/google-docs.png",
     scopes: ["https://www.googleapis.com/auth/documents"],
   },
-  zoom: {
-    name: "Zoom",
-    icon: "/logos/zoom-logo.png",
-    scopes: ["meeting:write:meeting"],
+  "google-meet": {
+    name: "Google Meet",
+    icon: "/logos/google-meet-logo.png",
+    scopes: ["https://www.googleapis.com/auth/calendar"],
   },
   "custom-crm": {
     name: "CRM",

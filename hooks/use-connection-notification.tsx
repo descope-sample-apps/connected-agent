@@ -23,13 +23,13 @@ const providers = {
       "minutes",
     ],
   },
-  zoom: {
-    id: "zoom",
-    name: "Zoom",
-    icon: "/logos/zoom-logo.png",
-    scopes: ["meeting:write:meeting"],
+  "google-meet": {
+    id: "google-meet",
+    name: "Google Meet",
+    icon: "/logos/google-meet-logo.png",
+    scopes: ["https://www.googleapis.com/auth/calendar"],
     keywords: [
-      "zoom",
+      "google meet",
       "video",
       "call",
       "conference",

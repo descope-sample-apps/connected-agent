@@ -13,7 +13,7 @@ import { Calendar, FileText, Search, Video } from "lucide-react";
 const icons = {
   "crm-lookup": Search,
   "schedule-meeting": Calendar,
-  "create-zoom": Video,
+  "create-google-meet": Video,
   "summarize-deal": FileText,
 };
 
