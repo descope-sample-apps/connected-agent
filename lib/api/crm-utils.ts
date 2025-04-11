@@ -243,7 +243,7 @@ export async function getDealStakeholders(token: string, dealId: string) {
  * Search for a contact by name in the CRM
  * @param token OAuth token for CRM access
  * @param name Name to search for
- * @returns Contact information if found, or a clear not-found message
+ * @returns Contact information if found, or suggestions for partial matches
  */
 export async function searchContact(token: string, name: string) {
   try {
@@ -280,14 +280,8 @@ export async function searchContact(token: string, name: string) {
       `[CRM Utils] Got ${responseData.data.length} contacts, filtering for "${name}"`
     );
 
-    // Filter contacts to find matches
-    // Case-insensitive search that looks for the search string anywhere in the name
-    const matchingContacts = responseData.data.filter((contact: CRMContact) =>
-      contact.name.toLowerCase().includes(name.toLowerCase())
-    );
-
     // Check for exact matches first (case-insensitive)
-    const exactMatch = matchingContacts.find(
+    const exactMatch = responseData.data.find(
       (contact: CRMContact) => contact.name.toLowerCase() === name.toLowerCase()
     );
 
@@ -306,17 +300,60 @@ export async function searchContact(token: string, name: string) {
       };
     }
 
-    // If we have any partial matches, return the first one
-    if (matchingContacts.length > 0) {
-      console.log(
-        `[CRM Utils] Found partial match for "${name}":`,
-        matchingContacts[0].name
+    // Check for partial name matches - first name, last name, etc.
+    const nameParts = name.toLowerCase().split(" ");
+    const partialMatches = responseData.data.filter((contact: CRMContact) => {
+      const contactNameLower = contact.name.toLowerCase();
+
+      // Check if any part of the search name is contained in the contact name
+      return nameParts.some(
+        (part) =>
+          // Only consider parts with 2+ characters to avoid false matches
+          part.length >= 2 && contactNameLower.includes(part)
       );
+    });
+
+    // If we have partial matches, return them as suggestions
+    if (partialMatches.length > 0) {
+      console.log(
+        `[CRM Utils] Found ${partialMatches.length} partial matches for "${name}"`
+      );
+
+      // Get the best match (first one)
+      const bestMatch = partialMatches[0];
+
+      // For a single partial match, suggest confirmation
+      if (partialMatches.length === 1) {
+        return {
+          success: true,
+          data: {
+            partialMatch: true,
+            contact: bestMatch,
+            message: `I found ${bestMatch.name} (${bestMatch.email}) from ${
+              bestMatch.company || "unknown company"
+            }. Is this the correct person?`,
+            needsConfirmation: true,
+          },
+        };
+      }
+
+      // For multiple matches, return the list with details for confirmation
       return {
         success: true,
         data: {
-          contact: matchingContacts[0],
-          message: `Found contact information for ${matchingContacts[0].name}.`,
+          partialMatches: true,
+          contacts: partialMatches.slice(0, 3), // Limit to top 3 matches
+          message: `I found multiple people that might match "${name}":
+${partialMatches
+  .slice(0, 3)
+  .map(
+    (c: CRMContact, i: number) =>
+      `${i + 1}. ${c.name} (${c.email}) from ${c.company || "unknown company"}`
+  )
+  .join("\n")}
+
+Which one did you mean?`,
+          needsConfirmation: true,
         },
       };
     }

@@ -478,10 +478,14 @@ export async function POST(request: Request) {
                   );
 
                   if (result.success) {
-                    // Check if contact was found
-                    if (result.data.contact) {
+                    // Exact match found
+                    if (
+                      result.data.contact &&
+                      !result.data.partialMatch &&
+                      !result.data.partialMatches
+                    ) {
                       console.log(
-                        "[getCRMContacts] Found contact:",
+                        "[getCRMContacts] Found exact contact match:",
                         result.data.contact.name
                       );
                       return {
@@ -489,7 +493,55 @@ export async function POST(request: Request) {
                         data: result.data.contact,
                         message: `Found contact information for ${result.data.contact.name}: ${result.data.contact.email}`,
                       };
-                    } else if (result.data.notFound) {
+                    }
+                    // Single partial match found - ask for confirmation
+                    else if (
+                      result.data.partialMatch &&
+                      result.data.contact &&
+                      result.data.needsConfirmation
+                    ) {
+                      console.log(
+                        "[getCRMContacts] Found partial match, asking for confirmation:",
+                        result.data.contact.name
+                      );
+                      const contact = result.data.contact;
+                      return {
+                        success: true,
+                        data: {
+                          partialMatch: true,
+                          contact: contact,
+                          needsConfirmation: true,
+                        },
+                        message: `I found ${contact.name} (${
+                          contact.email
+                        }) from ${
+                          contact.company || "unknown company"
+                        } in the CRM. Is this the person you're looking for?`,
+                      };
+                    }
+                    // Multiple matches found - present options
+                    else if (
+                      result.data.partialMatches &&
+                      result.data.contacts &&
+                      result.data.needsConfirmation
+                    ) {
+                      console.log(
+                        "[getCRMContacts] Found multiple partial matches, presenting options"
+                      );
+                      return {
+                        success: true,
+                        data: {
+                          partialMatches: true,
+                          contacts: result.data.contacts,
+                          needsConfirmation: true,
+                        },
+                        message:
+                          result.data.message ||
+                          `I found multiple people that might match "${name}". Which one did you mean?`,
+                      };
+                    }
+                    // No contact found
+                    else if (result.data.notFound) {
                       console.log(
                         "[getCRMContacts] No contact found with name:",
                         name

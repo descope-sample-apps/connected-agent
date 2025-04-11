@@ -392,27 +392,77 @@ export async function fetchCRMContacts(token: string, search?: string) {
     // If we have a search term, filter the contacts
     if (responseData.data && Array.isArray(responseData.data)) {
       const lowerSearch = search.toLowerCase();
-      const filteredContacts = responseData.data.filter(
-        (contact: CRMContact) => {
-          // Check various fields for the search term
-          return (
-            (contact.name &&
-              contact.name.toLowerCase().includes(lowerSearch)) ||
-            (contact.email &&
-              contact.email.toLowerCase().includes(lowerSearch)) ||
-            (contact.company &&
-              contact.company.toLowerCase().includes(lowerSearch))
+
+      // First look for exact matches (full name, email, company)
+      const exactMatches = responseData.data.filter((contact: CRMContact) => {
+        return (
+          (contact.name && contact.name.toLowerCase() === lowerSearch) ||
+          (contact.email && contact.email.toLowerCase() === lowerSearch) ||
+          (contact.company && contact.company.toLowerCase() === lowerSearch)
+        );
+      });
+
+      if (exactMatches.length > 0) {
+        console.log(
+          `[fetchCRMContacts] Found ${exactMatches.length} exact matches for "${search}"`
+        );
+        return {
+          data: exactMatches,
+          pagination: responseData.pagination,
+        };
+      }
+
+      // If no exact matches, try partial name matching
+      // Check for first name/last name partial matches
+      const nameParts = lowerSearch.split(" ");
+      const partialMatches = responseData.data.filter((contact: CRMContact) => {
+        if (!contact.name) return false;
+
+        const contactNameLower = contact.name.toLowerCase();
+        const contactNameParts = contactNameLower.split(" ");
+
+        // Check if any part of the search matches any part of the contact name
+        return nameParts.some((searchPart) => {
+          // Only consider parts with 2+ characters to avoid false matches
+          if (searchPart.length < 2) return false;
+
+          // Check if the search part is found in any part of the contact name
+          return contactNameParts.some(
+            (namePart) =>
+              namePart.includes(searchPart) || searchPart.includes(namePart)
           );
-        }
-      );
+        });
+      });
+
+      if (partialMatches.length > 0) {
+        console.log(
+          `[fetchCRMContacts] Found ${partialMatches.length} partial name matches for "${search}"`
+        );
+        return {
+          data: partialMatches,
+          pagination: responseData.pagination,
+          partialMatches: true,
+        };
+      }
+
+      // If still no matches, try broader search across all fields
+      const broadMatches = responseData.data.filter((contact: CRMContact) => {
+        return (
+          (contact.name && contact.name.toLowerCase().includes(lowerSearch)) ||
+          (contact.email &&
+            contact.email.toLowerCase().includes(lowerSearch)) ||
+          (contact.company &&
+            contact.company.toLowerCase().includes(lowerSearch))
+        );
+      });
 
       console.log(
-        `[fetchCRMContacts] Found ${filteredContacts.length} contacts matching "${search}"`
+        `[fetchCRMContacts] Found ${broadMatches.length} broad matches for "${search}"`
       );
 
       // Return the filtered data with the same structure
       return {
-        data: filteredContacts,
+        data: broadMatches,
         pagination: responseData.pagination,
       };
     }

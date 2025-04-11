@@ -88,9 +88,10 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       "Access customer information and deal history from your CRM system using secure OAuth connections",
     logo: "/logos/crm-logo.png",
     examples: [
-      "Find customer information for John Smith",
-      "Show me recent deals with Acme Corp",
-      "Get contact details for Sarah from Marketing",
+      "Find contact information for John Doe",
+      "Show me recent deals with Acme Inc",
+      "Get contact details for Jane Lane from Globex Corp",
+      "What deals is Michael Chen working on?",
     ],
     steps: [
       {
@@ -122,9 +123,9 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       "Create calendar events with contacts from your CRM using your Google Calendar",
     logo: "/logos/google-calendar.png",
     examples: [
-      "Schedule a meeting with John tomorrow at 2 PM",
-      "Set up a team sync for next week",
-      "Book a client review for Friday afternoon",
+      "Schedule a product demo with John Doe from Acme Inc tomorrow at 2 PM",
+      "Set up a cloud migration discussion with Jane Lane next week",
+      "Book a site visit with Michael Chen from TechCorp for Friday afternoon",
     ],
     steps: [
       {
@@ -156,9 +157,9 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       "Generate Google Meet video conference links for scheduled calendar events",
     logo: "/logos/google-meet-logo.svg",
     examples: [
-      "Create a Google Meet for tomorrow's call",
-      "Add video conferencing to the team meeting",
-      "Set up a Google Meet link for the client presentation",
+      "Create a Google Meet for my meeting with John Doe",
+      "Add video conferencing to my call with Jane Lane from Globex Corp",
+      "Set up a Google Meet link for the IT infrastructure meeting with Michael Chen",
     ],
     steps: [
       {
@@ -195,9 +196,9 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       "Create comprehensive deal summaries and save them directly to Google Docs for sharing and collaboration",
     logo: "/logos/google-docs.png",
     examples: [
-      "Summarize the Acme Corp deal",
-      "Create a deal report for Project Phoenix",
-      "Generate a summary of Q1 deals",
+      "Summarize the Enterprise Software License deal with John Doe",
+      "Create a deal report for the Cloud Migration Project with Jane Lane",
+      "Generate a summary of the IT Infrastructure Upgrade deal with Michael Chen",
     ],
     steps: [
       {
@@ -524,7 +525,46 @@ export default function Home() {
       setShowPromptExplanation(true);
       setCurrentPromptType(promptType as PromptType);
 
-      const enhancedPrompt = `${promptText} (Please use tools to respond to this query)`;
+      // For testing the CRM contacts search by name feature
+      let enhancedPrompt = promptText;
+
+      // Test cases for exact and partial name matching
+      if (promptText.includes("John Doe") && promptType === "crm-lookup") {
+        enhancedPrompt = "What is John Doe's email address and company?";
+      } else if (
+        promptText.includes("just John") &&
+        promptType === "crm-lookup"
+      ) {
+        // Test partial name matching
+        enhancedPrompt = "What is John's email address?";
+      } else if (
+        promptText.includes("schedule with John") &&
+        promptType === "schedule-meeting"
+      ) {
+        // Test scheduling with partial name
+        enhancedPrompt = "Schedule a meeting with John next Tuesday at 2pm";
+      } else if (
+        promptText.includes("Jane Lane") &&
+        promptType === "crm-lookup"
+      ) {
+        enhancedPrompt =
+          "What is Jane Lane's email address? What deals is she working on?";
+      } else if (
+        promptText.includes("just Jane") &&
+        promptType === "crm-lookup"
+      ) {
+        // Test partial name matching for Jane
+        enhancedPrompt = "Find Jane's contact information in the CRM";
+      } else if (
+        promptText.includes("Michael") &&
+        promptType === "crm-lookup"
+      ) {
+        // Test partial name matching for Michael
+        enhancedPrompt = "What's Michael's email address?";
+      } else {
+        enhancedPrompt = `${promptText} (Please use tools to respond to this query)`;
+      }
+
       console.log("Submitting predefined prompt:", enhancedPrompt);
 
       chatHandleSubmit(new Event("submit") as any, {
@@ -577,7 +617,7 @@ export default function Home() {
       action: () =>
         checkOAuthAndPrompt(() =>
           usePredefinedPrompt(
-            "I need to look up customer information in the CRM",
+            "Find John Doe's contact information and current deals in the CRM",
             "crm-lookup"
           )
         ),
@@ -589,7 +629,7 @@ export default function Home() {
       logo: "/logos/google-calendar.png",
       action: () =>
         usePredefinedPrompt(
-          "I need to schedule a meeting with the contacts from my last CRM lookup",
+          "Schedule a product demo meeting with John Doe from Acme Inc next Tuesday at 2pm",
           "schedule-meeting"
         ),
     },
@@ -600,7 +640,7 @@ export default function Home() {
       logo: "/logos/google-meet-logo.svg",
       action: () =>
         usePredefinedPrompt(
-          "Create a Google Meet for my next scheduled meeting",
+          "Create a Google Meet link for my upcoming meeting with Jane Lane from Globex Corp",
           "create-google-meet"
         ),
     },
@@ -612,7 +652,7 @@ export default function Home() {
       action: () =>
         checkOAuthAndPrompt(() =>
           usePredefinedPrompt(
-            "Summarize the current deal status and save it to Google Docs",
+            "Summarize the Enterprise Software License deal with John Doe and save it to Google Docs",
             "summarize-deal"
           )
         ),
@@ -621,7 +661,7 @@ export default function Home() {
 
   const handleQuickActionSchedule = () => {
     const prompt =
-      "Schedule a follow-up meeting with the Acme Corp team for next Tuesday at 2pm for 60 minutes.";
+      "Schedule a follow-up meeting with John Doe from Acme Inc about the Enterprise Software License deal for next Tuesday at 2pm for 60 minutes.";
     chatHandleSubmit(new Event("submit") as any, {
       data: { fromQuickAction: true },
     });
