@@ -123,6 +123,124 @@ export default function ChatMessage({
     }
   }, [message]);
 
+  // This function checks for calendar/meeting links that may not be properly parsed
+  const hasCalendarLinks = (content: string) => {
+    // First check for markdown links [text](url)
+    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    let match;
+
+    while ((match = markdownLinkRegex.exec(content)) !== null) {
+      const url = match[2];
+      if (
+        url.includes("google.com/calendar") ||
+        url.includes("calendar/event") ||
+        url.includes("calendar.google.com") ||
+        url.includes("eid=") ||
+        url.includes("meet.google.com")
+      ) {
+        return true;
+      }
+    }
+
+    // Then check for raw URLs
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    while ((match = urlRegex.exec(content)) !== null) {
+      const url = match[1];
+      if (
+        url.includes("google.com/calendar") ||
+        url.includes("calendar/event") ||
+        url.includes("calendar.google.com") ||
+        url.includes("eid=") ||
+        url.includes("meet.google.com")
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Extract calendar links from content
+  const extractCalendarLinks = (content: string) => {
+    const links = [];
+
+    // First check for markdown links [text](url)
+    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    let match;
+
+    while ((match = markdownLinkRegex.exec(content)) !== null) {
+      const text = match[1];
+      const url = match[2];
+      if (
+        url.includes("google.com/calendar") ||
+        url.includes("calendar/event") ||
+        url.includes("calendar.google.com") ||
+        url.includes("eid=") ||
+        url.includes("meet.google.com")
+      ) {
+        links.push({ text, url });
+      }
+    }
+
+    // Then check for raw URLs
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    while ((match = urlRegex.exec(content)) !== null) {
+      const url = match[1];
+      if (
+        url.includes("google.com/calendar") ||
+        url.includes("calendar/event") ||
+        url.includes("calendar.google.com") ||
+        url.includes("eid=") ||
+        url.includes("meet.google.com")
+      ) {
+        links.push({ text: url, url });
+      }
+    }
+
+    return links;
+  };
+
+  // Render calendar link button
+  const CalendarLinkButton = ({
+    url,
+    text,
+  }: {
+    url: string;
+    text?: string;
+  }) => {
+    const isCalendarLink =
+      url.includes("google.com/calendar") ||
+      url.includes("calendar/event") ||
+      url.includes("calendar.google.com") ||
+      url.includes("eid=");
+
+    const isMeetLink = url.includes("meet.google.com");
+
+    return (
+      <div className="mt-3">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-sm shadow-sm transition-colors"
+        >
+          {isCalendarLink ? (
+            <>
+              <Calendar className="h-4 w-4" />
+              View Calendar Event
+            </>
+          ) : (
+            <>
+              <Video className="h-4 w-4" />
+              Join Meeting
+            </>
+          )}
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+    );
+  };
+
   // Parse link syntax in message content
   const renderMessageContent = (content: string) => {
     // Debug logging
@@ -131,10 +249,17 @@ export default function ChatMessage({
       content.length > 100 ? content.substring(0, 100) + "..." : content
     );
 
+    // Check for calendar links
+    const calendarLinks = extractCalendarLinks(content);
+    const hasCalLinks = calendarLinks.length > 0;
+    console.log("Found calendar links:", hasCalLinks, calendarLinks);
+
+    // Don't use link pre-processing since we'll handle it in the ReactMarkdown components
+    let cleanedContent = content;
+
     // First, extract any connection UI marker
     const connectionMarkerRegex = /<connection:([\s\S]+?)>/;
     let connectionUI = null;
-    let cleanedContent = content;
 
     // Check for connection marker
     const connectionMatch = content.match(connectionMarkerRegex);
@@ -180,71 +305,32 @@ export default function ChatMessage({
       }
     }
 
-    // Check for special link format: <link:URL:TEXT>
-    const linkRegex = /<link:(https?:\/\/[^:]+):([^>]+)>/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    // Find all links and split the content
-    while ((match = linkRegex.exec(cleanedContent)) !== null) {
-      if (match.index > lastIndex) {
-        // Add the text before the link
-        parts.push(
-          <span key={`text-${lastIndex}`}>
-            {cleanedContent.substring(lastIndex, match.index)}
-          </span>
-        );
-      }
-
-      // Add the link
-      const [, url, text] = match;
-      parts.push(
-        <a
-          key={`link-${match.index}`}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
-        >
-          {text}
-        </a>
-      );
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    // Add any remaining text
-    if (lastIndex < cleanedContent.length) {
-      parts.push(
-        <span key={`text-${lastIndex}`}>
-          {cleanedContent.substring(lastIndex)}
-        </span>
-      );
-    }
-
     // Add connection UI if found
-    if (connectionUI && connectionUI.type === "connection_required") {
-      console.log("Adding connection UI to rendered message:", connectionUI);
-      const serviceName =
-        SERVICE_NAMES[connectionUI.service as keyof typeof SERVICE_NAMES] ||
-        connectionUI.service;
-      const logoPath =
-        SERVICE_LOGOS[connectionUI.service as keyof typeof SERVICE_LOGOS];
-
-      parts.push(
+    const connectionUIElement = connectionUI &&
+      connectionUI.type === "connection_required" && (
         <div
           key="connection-ui"
           className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm"
         >
           <div className="flex items-center mb-3">
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center mr-2">
-              {logoPath && (
+              {SERVICE_LOGOS[
+                connectionUI.service as keyof typeof SERVICE_LOGOS
+              ] && (
                 <Image
-                  src={logoPath}
-                  alt={`${serviceName} logo`}
-                  fill
-                  style={{ objectFit: "contain" }}
+                  src={
+                    SERVICE_LOGOS[
+                      connectionUI.service as keyof typeof SERVICE_LOGOS
+                    ]
+                  }
+                  alt={`${
+                    SERVICE_NAMES[
+                      connectionUI.service as keyof typeof SERVICE_NAMES
+                    ] || connectionUI.service
+                  } logo`}
+                  width={24}
+                  height={24}
+                  className="object-contain"
                 />
               )}
             </div>
@@ -265,14 +351,127 @@ export default function ChatMessage({
           </button>
         </div>
       );
-    }
 
-    // If we have parts, return them, otherwise use ReactMarkdown for the cleaned content
-    return parts.length > 0 ? (
-      parts
-    ) : (
-      <div className="prose dark:prose-invert max-w-none">
-        <ReactMarkdown>{cleanedContent}</ReactMarkdown>
+    // Render the message content with enhanced markdown support
+    return (
+      <div
+        className={`prose dark:prose-invert max-w-none ${
+          message.role === "user"
+            ? "prose-p:text-white prose-a:text-white/90 prose-code:text-white/90"
+            : ""
+        }`}
+      >
+        <ReactMarkdown
+          components={{
+            // Handle code blocks and inline code
+            code: ({ children, className }) => {
+              const language = className?.replace("language-", "");
+              const isBlock = className?.includes("language-");
+
+              if (isBlock) {
+                return (
+                  <pre className="bg-gray-900/90 p-4 rounded-lg overflow-x-auto my-4">
+                    <code className={`${className} text-sm`}>{children}</code>
+                  </pre>
+                );
+              }
+
+              return (
+                <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm">
+                  {children}
+                </code>
+              );
+            },
+            // Handle links with improved debugging and more aggressive detection
+            a: ({ href, children }) => {
+              if (!href) {
+                console.warn("No href provided for link:", children);
+                return <span>{children}</span>;
+              }
+
+              // Log full information about the link
+              console.log("ReactMarkdown link processing:", {
+                href,
+                children:
+                  typeof children === "string"
+                    ? children
+                    : JSON.stringify(children),
+              });
+
+              // Check for calendar or meeting links with very broad patterns
+              const isCalendarLink =
+                href.includes("google.com/calendar") ||
+                href.includes("calendar/event") ||
+                href.includes("calendar.google.com") ||
+                href.includes(".ics") ||
+                href.includes("eid=");
+
+              const isMeetLink =
+                href.includes("meet.google.com") ||
+                href.includes("google.com/meet");
+
+              console.log("Enhanced link detection:", {
+                isCalendarLink,
+                isMeetLink,
+                href,
+              });
+
+              if (isCalendarLink || isMeetLink) {
+                console.log("Rendering calendar/meet button");
+                // Use a span instead of div to avoid hydration error (div inside p)
+                return (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-sm shadow-sm transition-colors mt-3 no-underline"
+                  >
+                    {isCalendarLink ? (
+                      <>
+                        <Calendar className="h-4 w-4" />
+                        View Calendar Event
+                      </>
+                    ) : (
+                      <>
+                        <Video className="h-4 w-4" />
+                        Join Meeting
+                      </>
+                    )}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                );
+              }
+
+              // Regular links
+              return (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-primary/90 underline underline-offset-4 transition-colors"
+                >
+                  {children}
+                </a>
+              );
+            },
+            // Handle paragraphs
+            p: ({ children }) => (
+              <p className="leading-7 [&:not(:first-child)]:mt-4">{children}</p>
+            ),
+            // Handle unordered lists
+            ul: ({ children }) => (
+              <ul className="my-4 ml-6 list-disc [&>li]:mt-2">{children}</ul>
+            ),
+            // Handle ordered lists
+            ol: ({ children }) => (
+              <ol className="my-4 ml-6 list-decimal [&>li]:mt-2">{children}</ol>
+            ),
+          }}
+        >
+          {cleanedContent}
+        </ReactMarkdown>
+
+        {connectionUIElement}
       </div>
     );
   };
@@ -301,43 +500,18 @@ export default function ChatMessage({
 
   return (
     <div
-      className={`flex ${
-        message.role === "user" ? "justify-end" : "justify-start"
-      } mb-4`}
+      className={`flex gap-3 ${
+        message.role === "user" ? "flex-row-reverse" : "flex-row"
+      } mb-6 last:mb-0`}
     >
       <div
-        className={`max-w-[85%] md:max-w-[75%] rounded-2xl p-4 ${
+        className={`w-fit max-w-[80%] px-4 py-3 rounded-2xl ${
           message.role === "user"
-            ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg"
-            : "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 shadow-md"
+            ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
+            : "bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800"
         }`}
       >
-        {message.parts ? (
-          message.parts.map((part, index) => (
-            <div
-              key={index}
-              className={`prose prose-sm max-w-none ${
-                message.role === "user"
-                  ? "prose-invert prose-p:text-white prose-strong:text-white prose-a:text-white/90"
-                  : "dark:prose-invert"
-              }`}
-            >
-              {typeof part.text === "string"
-                ? renderMessageContent(part.text)
-                : part.text}
-            </div>
-          ))
-        ) : (
-          <div
-            className={`prose prose-sm max-w-none ${
-              message.role === "user"
-                ? "prose-invert prose-p:text-white prose-strong:text-white prose-a:text-white/90"
-                : "dark:prose-invert"
-            }`}
-          >
-            {renderMessageContent(message.content)}
-          </div>
-        )}
+        {renderMessageContent(message.content)}
       </div>
     </div>
   );
