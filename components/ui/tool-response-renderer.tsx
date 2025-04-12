@@ -12,10 +12,12 @@ import {
 
 interface ToolResponseRendererProps {
   toolInvocation: any;
+  onReconnectComplete?: () => void;
 }
 
 export function ToolResponseRenderer({
   toolInvocation,
+  onReconnectComplete,
 }: ToolResponseRendererProps) {
   // Handle OAuth connection required responses
   if (
@@ -57,11 +59,40 @@ export function ToolResponseRenderer({
             onClick={() => {
               // Handle connection action
               if (toolInvocation.ui.connectButton?.action) {
-                window.location.href =
-                  toolInvocation.ui.connectButton.action.replace(
-                    "connection://",
-                    "/api/oauth/connect/"
-                  );
+                // Construct the base connection URL
+                let connectUrl = toolInvocation.ui.connectButton.action.replace(
+                  "connection://",
+                  "/api/oauth/connect/"
+                );
+                // Append scopes if they exist in the UI object
+                if (
+                  toolInvocation.ui.requiredScopes &&
+                  Array.isArray(toolInvocation.ui.requiredScopes) &&
+                  toolInvocation.ui.requiredScopes.length > 0
+                ) {
+                  const scopeString =
+                    toolInvocation.ui.requiredScopes.join(",");
+                  // Ensure we handle URL parameters correctly (add ? or &)
+                  connectUrl += `${
+                    connectUrl.includes("?") ? "&" : "?"
+                  }scopes=${encodeURIComponent(scopeString)}`;
+                }
+
+                // Add the current chat ID to the URL as state to return to
+                const currentChatId = localStorage.getItem("currentChatId");
+                if (currentChatId) {
+                  connectUrl += `${
+                    connectUrl.includes("?") ? "&" : "?"
+                  }chatId=${currentChatId}`;
+                }
+
+                // Store callback intention for when user returns from OAuth
+                if (onReconnectComplete) {
+                  localStorage.setItem("pendingReconnectComplete", "true");
+                }
+
+                // Redirect the user to initiate the OAuth flow
+                window.location.href = connectUrl;
               }
             }}
           >

@@ -9,91 +9,125 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    // Parse the request body
-    const { appId, options } = await request.json();
-    console.log("Received OAuth connect request:", { appId, options });
+    // Log the request start
+    console.log("===== OAUTH CONNECT REQUEST =====");
 
-    if (!options?.redirectUrl) {
+    // Parse the request
+    const { appId, options } = await request.json();
+
+    console.log(`OAuth Connect Request for app: ${appId}`);
+    console.log(`Options:`, JSON.stringify(options, null, 2));
+
+    // Validate required parameters
+    if (!appId) {
+      console.error("OAuth Connect Error: Missing appId");
       return NextResponse.json(
-        { error: "Redirect URL is required" },
+        { message: "Missing required parameter: appId" },
         { status: 400 }
       );
     }
 
-    // Get the DSR from cookies
-    const cookieStore = await cookies();
-    const refreshJwt = cookieStore.get("DSR")?.value;
-
-    // Get refresh token from request headers if not in cookies
-    const headers = request.headers;
-    const headerRefreshToken = headers.get("x-refresh-token");
-
-    // Prepare headers with DSR if available
-    const requestHeaders: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-
-    // Use refresh token from header if available, otherwise use cookie
-    const refreshToken = headerRefreshToken || refreshJwt;
-    if (refreshToken) {
-      requestHeaders[
-        "Authorization"
-      ] = `Bearer ${process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID}:${refreshToken}`;
-    }
-
-    // Ensure we have a base URL
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      console.error("NEXT_PUBLIC_APP_URL environment variable is not set");
+    if (!options || !options.redirectUrl) {
+      console.error("OAuth Connect Error: Missing redirectUrl in options");
       return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
+        { message: "Missing required parameter: options.redirectUrl" },
+        { status: 400 }
       );
     }
 
-    // Use the provided redirectUrl directly
-    const requestBody = {
-      appId,
-      options: {
-        redirectUrl: options.redirectUrl,
-        ...(options.scopes && { scopes: options.scopes }),
-        ...(options.state && { state: options.state }),
-      },
-    };
+    // Get the user's refresh token from cookie or header
+    const cookieStore = cookies();
+    const refreshTokenCookie = cookieStore.get("DSR");
+    const refreshTokenHeader = request.headers.get("X-Refresh-Token");
+    const refreshToken = refreshTokenCookie?.value || refreshTokenHeader;
 
-    console.log("Sending request to Descope:", {
-      url: "https://api.descope.com/v1/outbound/oauth/connect",
-      method: "POST",
-      headers: requestHeaders,
-      body: requestBody,
+    if (!refreshToken) {
+      console.error("OAuth Connect Error: No refresh token found");
+      return NextResponse.json(
+        { message: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    console.log(`Refresh token found (${refreshToken.substring(0, 10)}...)`);
+
+    // Define default scopes for Google Docs if needed
+    if (
+      appId === "google-docs" &&
+      (!options.scopes || options.scopes.length === 0)
+    ) {
+      console.log("Adding default scopes for Google Docs");
+      options.scopes = [
+        "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/drive.file",
+      ];
+      console.log("Updated scopes:", options.scopes);
+    }
+
+    const serviceUrl =
+      process.env.DESCOPE_SERVICE_URL || "https://api.descope.com";
+    const projectId = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID || "";
+
+    // Make the request to Descope API
+    console.log(
+      `Making request to Descope API: ${serviceUrl}/v1/auth/oauth/authorize`
+    );
+    console.log(`Request body:`, {
+      appId,
+      options,
+      refreshToken: "PRESENT (hidden)",
     });
 
-    // Call Descope API to get the authorization URL
-    const response = await fetch(
-      "https://api.descope.com/v1/outbound/oauth/connect",
-      {
-        method: "POST",
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody),
-      }
+    const response = await fetch(`${serviceUrl}/v1/auth/oauth/authorize`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-descope-sdk-web-refresh-token": refreshToken,
+        Authorization: `Bearer ${projectId}`,
+      },
+      body: JSON.stringify({
+        appId,
+        options,
+      }),
+    });
+
+    console.log(
+      `Descope API Response Status: ${response.status} ${response.statusText}`
     );
 
+    // If response is not ok, log the error and return a 400
     if (!response.ok) {
-      const error = await response.json();
-      console.error("Descope API error:", error);
+      const errorBody = await response.text();
+      console.error(`Descope API Error:`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody,
+      });
+
+      let errorMessage;
+      try {
+        const parsedError = JSON.parse(errorBody);
+        errorMessage = parsedError.message || response.statusText;
+      } catch (e) {
+        errorMessage = errorBody || response.statusText;
+      }
+
       return NextResponse.json(
-        { error: error.message || "Failed to initiate OAuth connection" },
+        { message: `Failed to get authorization URL: ${errorMessage}` },
         { status: response.status }
       );
     }
 
+    // Parse the response and return the URL
     const data = await response.json();
-    return NextResponse.json(data);
+    console.log("Successfully retrieved authorization URL");
+
+    return NextResponse.json({ url: data.url });
   } catch (error) {
-    console.error("Error in OAuth connect:", error);
+    console.error("Error in OAuth connect endpoint:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }

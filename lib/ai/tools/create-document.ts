@@ -48,9 +48,35 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
 
         // Get token for Google Docs API
         const userId = session.token.sub;
+        console.log(`Requesting Google Docs token for user ${userId}`);
         const tokenData = await getGoogleDocsToken(userId);
 
+        console.log("Google Docs token response:", {
+          hasToken: !!tokenData,
+          hasError: tokenData && "error" in tokenData,
+          scopes:
+            tokenData && !("error" in tokenData) ? tokenData.token.scopes : [],
+          requiredScopes: [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+          ],
+        });
+
         if (!tokenData || "error" in tokenData) {
+          const errorMessage =
+            tokenData && "error" in tokenData
+              ? `Google Docs connection error: ${tokenData.error}${
+                  tokenData.requiredScopes
+                    ? `, required scopes: ${tokenData.requiredScopes.join(
+                        ", "
+                      )}`
+                    : ""
+                }`
+              : "Failed to get Google Docs token";
+
+          console.error(errorMessage);
+
           dataStream.append({
             toolActivity: {
               step: "error",
@@ -63,10 +89,35 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
 
           return {
             success: false,
-            error:
-              "To create documents, please connect your Google Docs account",
+            error: errorMessage,
             needsConnection: true,
             provider: "google-docs",
+            requiredScopes:
+              tokenData && "requiredScopes" in tokenData
+                ? tokenData.requiredScopes
+                : [
+                    "https://www.googleapis.com/auth/documents",
+                    "https://www.googleapis.com/auth/drive",
+                    "https://www.googleapis.com/auth/drive.file",
+                  ],
+            ui: {
+              type: "connection_required",
+              service: "google-docs",
+              message:
+                "Please connect your Google Docs account to create documents.",
+              requiredScopes:
+                tokenData && "requiredScopes" in tokenData
+                  ? tokenData.requiredScopes
+                  : [
+                      "https://www.googleapis.com/auth/documents",
+                      "https://www.googleapis.com/auth/drive",
+                      "https://www.googleapis.com/auth/drive.file",
+                    ],
+              connectButton: {
+                text: "Connect Google Docs",
+                action: "connection://google-docs",
+              },
+            },
           };
         }
 

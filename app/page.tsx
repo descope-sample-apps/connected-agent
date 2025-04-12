@@ -1091,24 +1091,40 @@ export default function Home() {
       const redirectTo = url.searchParams.get("redirectTo");
       const chatId = url.searchParams.get("chatId");
 
-      if (oauthStatus === "success" && redirectTo === "chat" && chatId) {
-        console.log("Returning from OAuth with chat ID:", chatId);
-        setCurrentChatId(chatId);
-        localStorage.setItem("currentChatId", chatId);
-        setMessages([]);
+      if (oauthStatus === "success") {
+        console.log("OAuth flow completed successfully");
 
-        // Clear the URL parameters and update URL to show chat ID
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete("oauth");
-        newUrl.searchParams.delete("redirectTo");
-        newUrl.searchParams.delete("chatId");
-        window.history.replaceState({}, "", `/chat/${chatId}`);
+        // Check if there's a pending reconnect callback
+        const hasPendingReconnect =
+          localStorage.getItem("pendingReconnectComplete") === "true";
+        if (hasPendingReconnect) {
+          console.log("Found pending reconnect callback, executing");
+          localStorage.removeItem("pendingReconnectComplete");
+          setTimeout(() => {
+            // Execute the reconnect callback (retry the last message)
+            handleReconnectComplete();
+          }, 1000);
+        }
 
-        // Reload the chat
-        reload();
+        if (redirectTo === "chat" && chatId) {
+          console.log("Returning from OAuth with chat ID:", chatId);
+          setCurrentChatId(chatId);
+          localStorage.setItem("currentChatId", chatId);
+          setMessages([]);
+
+          // Clear the URL parameters and update URL to show chat ID
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete("oauth");
+          newUrl.searchParams.delete("redirectTo");
+          newUrl.searchParams.delete("chatId");
+          window.history.replaceState({}, "", `/chat/${chatId}`);
+
+          // Reload the chat
+          reload();
+        }
       }
     }
-  }, [reload, setMessages]);
+  }, [reload, setMessages, handleReconnectComplete]);
 
   // Update chat URL when currentChatId changes - add handling flag here too
   useEffect(() => {
