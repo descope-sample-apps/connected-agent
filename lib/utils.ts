@@ -53,14 +53,55 @@ export function isCrmRelatedQuery(message: string): boolean {
     "crm",
     "customer",
     "deal",
+    "deals",
     "sales",
     "lead",
     "contact",
     "account",
+    "company",
+    "pipeline",
+    "prospect",
+    "opportunity",
+    "Inc",
+    "LLC",
+    "Corp",
+    "Corporation",
+    "Ltd",
+    "client",
   ];
   return crmKeywords.some((keyword) =>
     message.toLowerCase().includes(keyword.toLowerCase())
   );
+}
+
+/**
+ * Extracts a potential company name from a query
+ * @param message The user's query
+ * @returns The extracted company name or null
+ */
+export function extractCompanyName(message: string): string | null {
+  // Common patterns for company name mentions
+  const patterns = [
+    // "deals with <Company>"
+    /(?:deals|transactions|opportunities)(?:\s+with|\s+for|\s+from|\s+at)\s+([A-Z][A-Za-z0-9\s]*(?:Inc|LLC|Corp|Corporation|Ltd)?)/i,
+    // "deals for <Company>"
+    /(?:deals|transactions|opportunities)(?:\s+at|\s+for|\s+from|\s+with)\s+([A-Z][A-Za-z0-9\s]*(?:Inc|LLC|Corp|Corporation|Ltd)?)/i,
+    // "<Company> deals"
+    /([A-Z][A-Za-z0-9\s]*(?:Inc|LLC|Corp|Corporation|Ltd)?)(?:\s+deals|\s+transactions|\s+opportunities)/i,
+    // "information about <Company>"
+    /information\s+(?:about|for|on)\s+([A-Z][A-Za-z0-9\s]*(?:Inc|LLC|Corp|Corporation|Ltd)?)/i,
+    // Generic "<Company> Inc|LLC|Corp"
+    /([A-Z][A-Za-z0-9\s]*(?:Inc|LLC|Corp|Corporation|Ltd))/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return null;
 }
 
 /**

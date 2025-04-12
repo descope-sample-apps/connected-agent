@@ -119,19 +119,25 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
     try {
       setIsConnecting(connectionId);
 
-      // Get redirect URL - keep the popup on same origin for postMessage to work
-      const redirectUrl = `${window.location.origin}/api/oauth/callback`;
+      // Get current chat ID from localStorage to preserve chat context
+      const currentChatId =
+        localStorage.getItem("currentChatId") || `chat-${Date.now()}`;
+
+      // Redirect directly back to the current chat after OAuth completes
+      const redirectUrl = `${window.location.origin}/chat/${currentChatId}`;
+      console.log(`Setting OAuth redirect to: ${redirectUrl}`);
 
       // Get authorization URL
       const authUrl = await connectToOAuthProvider({
         appId: connectionId,
         redirectUrl,
+        // No need to use state for chat ID since it's in the redirectUrl
         state: {
-          originalUrl: window.location.href,
+          redirectTo: "chat",
         },
       });
 
-      // Handle the OAuth popup
+      // Handle the OAuth flow
       await handleOAuthPopup(authUrl, {
         onSuccess: () => {
           // Refresh connections list immediately

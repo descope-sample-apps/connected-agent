@@ -50,7 +50,8 @@ import LoginScreen from "@/components/login-screen";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import { nanoid } from "nanoid";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { SidebarHistory } from "@/components/sidebar-history";
 
 type PromptType =
   | "crm-lookup"
@@ -265,12 +266,12 @@ interface ChatMessageProps {
   onReconnectComplete: () => void;
 }
 
-const connectionMarkerRegex = /<connection:(.*?)>/s;
+const connectionMarkerRegex = /<connection:(.*?)>/;
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showZoomPrompt, setShowZoomPrompt] = useState(false);
+  const [historySidebarOpen, setHistorySidebarOpen] = useState(true);
   const [showProfileScreen, setShowProfileScreen] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [hasActivePrompt, setHasActivePrompt] = useState(false);
@@ -287,7 +288,7 @@ export default function Home() {
       }
 
       // Otherwise, generate a new one
-      const newId = `chat-${Date.now()}`;
+      const newId = `chat-${nanoid()}`;
       localStorage.setItem("currentChatId", newId);
       return newId;
     }
@@ -308,6 +309,9 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
 
+  const [isHandlingChatChange, setIsHandlingChatChange] = useState(false);
+  const [chatRedirectAttempts, setChatRedirectAttempts] = useState(0);
+
   const {
     messages,
     input,
@@ -316,6 +320,8 @@ export default function Home() {
     isLoading: isChatLoading,
     error,
     append,
+    setMessages,
+    reload,
   } = useChat({
     api: "/api/chat",
     body: {
@@ -323,6 +329,49 @@ export default function Home() {
       selectedChatModel: selectedModel,
     },
     credentials: "include",
+    onFinish: (message) => {
+      console.log("Chat finished with message:", message);
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView();
+      }
+
+      // Reset active prompt state when a message completes
+      setHasActivePrompt(false);
+      setShowPromptExplanation(false);
+
+      // Save the chat automatically (create title from first message if needed)
+      if (messages.length > 0 && currentChatId) {
+        saveChatToDatabase(currentChatId);
+      }
+
+      // Extract calendar event details from the assistant's response
+      const messageContent =
+        typeof message.content === "string" ? message.content : "";
+
+      // More robust pattern matching for meeting detection
+      const scheduledMatch = messageContent.match(
+        /scheduled|created|added|set up a meeting|calendar event/i
+      );
+      const titleMatch = messageContent.match(/"([^"]+)"/); // Extracts text in quotes as the title
+      const dateTimeMatch = messageContent.match(
+        /on\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})\s+at\s+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))/i
+      );
+
+      // Check if we have evidence of a meeting being scheduled
+      if (scheduledMatch && titleMatch && dateTimeMatch) {
+        const meetingDetails = {
+          title: titleMatch[1],
+          date: dateTimeMatch[1],
+          time: dateTimeMatch[2],
+          // We'll get this from the AI response in a real implementation
+          calendarEventId: "cal-event-456",
+        };
+
+        console.log("Detected meeting:", meetingDetails);
+        setLastScheduledMeeting(meetingDetails);
+        setShowGoogleMeetPrompt(true);
+      }
+    },
     onError: (error) => {
       console.error("Chat error details:", error);
 
@@ -356,45 +405,135 @@ export default function Home() {
 
       setHasActivePrompt(false);
     },
-    onFinish: (message) => {
-      console.log("Chat finished with message:", message);
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView();
-      }
-
-      // Reset active prompt state when a message completes
-      setHasActivePrompt(false);
-      setShowPromptExplanation(false);
-
-      // Extract calendar event details from the assistant's response
-      const messageContent =
-        typeof message.content === "string" ? message.content : "";
-
-      // More robust pattern matching for meeting detection
-      const scheduledMatch = messageContent.match(
-        /scheduled|created|added|set up a meeting|calendar event/i
-      );
-      const titleMatch = messageContent.match(/"([^"]+)"/); // Extracts text in quotes as the title
-      const dateTimeMatch = messageContent.match(
-        /on\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})\s+at\s+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))/i
-      );
-
-      // Check if we have evidence of a meeting being scheduled
-      if (scheduledMatch && titleMatch && dateTimeMatch) {
-        const meetingDetails = {
-          title: titleMatch[1],
-          date: dateTimeMatch[1],
-          time: dateTimeMatch[2],
-          // We'll get this from the AI response in a real implementation
-          calendarEventId: "cal-event-456",
-        };
-
-        console.log("Detected meeting:", meetingDetails);
-        setLastScheduledMeeting(meetingDetails);
-        setShowGoogleMeetPrompt(true);
-      }
-    },
   });
+
+  // Load chat messages when currentChatId changes
+  useEffect(() => {
+    const fetchChatMessages = async () => {
+      if (
+        !currentChatId ||
+        !isAuthenticated ||
+        messages.length > 0 ||
+        isHandlingChatChange
+      )
+        return;
+
+      // Don't try more than twice to avoid infinite loops
+      if (chatRedirectAttempts >= 2) {
+        console.log("Too many chat redirect attempts, stopping");
+        return;
+      }
+
+      try {
+        setIsHandlingChatChange(true);
+        console.log("Fetching messages for chat:", currentChatId);
+        const response = await fetch(
+          `/api/chat/messages?chatId=${currentChatId}`
+        );
+
+        // Handle invalid chat ID cases
+        if (!response.ok) {
+          if (response.status === 404) {
+            console.log("Chat ID not found, creating new chat");
+            createNewChat();
+            return;
+          }
+          throw new Error("Failed to fetch chat messages");
+        }
+
+        const data = await response.json();
+        if (
+          data.messages &&
+          Array.isArray(data.messages) &&
+          data.messages.length > 0
+        ) {
+          console.log(
+            `Loaded ${data.messages.length} messages for chat ${currentChatId}`
+          );
+
+          // Transform messages to the format expected by useChat
+          const formattedMessages = data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: extractMessageContent(msg),
+            parts: Array.isArray(msg.parts) ? msg.parts : [],
+          }));
+
+          // Set messages in chat
+          setMessages(formattedMessages);
+        } else {
+          // If no messages found for this chat ID, treat as invalid and create new chat
+          console.log("No messages found for chat ID, creating new chat");
+          createNewChat();
+        }
+      } catch (error) {
+        console.error("Error loading chat messages:", error);
+        // On any error, create a new chat
+        createNewChat();
+      } finally {
+        setIsHandlingChatChange(false);
+      }
+    };
+
+    // Helper function to create a new chat
+    const createNewChat = () => {
+      setChatRedirectAttempts((prev) => prev + 1);
+      const newChatId = `chat-${nanoid()}`;
+      console.log("Creating new chat with ID:", newChatId);
+      setCurrentChatId(newChatId);
+      localStorage.setItem("currentChatId", newChatId);
+
+      // Update URL without reload
+      if (typeof window !== "undefined") {
+        window.history.pushState({}, "", `/chat/${newChatId}`);
+      }
+    };
+
+    fetchChatMessages();
+  }, [
+    currentChatId,
+    isAuthenticated,
+    messages.length,
+    setMessages,
+    isHandlingChatChange,
+    chatRedirectAttempts,
+  ]);
+
+  // Helper function to extract message content from different message formats
+  const extractMessageContent = (msg: any): string => {
+    // If msg has direct content, use it first
+    if (typeof msg.content === "string" && msg.content.trim() !== "") {
+      return msg.content;
+    }
+
+    // Check if parts exists and is an array
+    if (!msg.parts || !Array.isArray(msg.parts) || msg.parts.length === 0) {
+      return "";
+    }
+
+    const firstPart = msg.parts[0];
+
+    // Handle different message part formats
+    if (typeof firstPart === "string") {
+      return firstPart;
+    } else if (typeof firstPart === "object" && firstPart !== null) {
+      // Object with text property
+      if ("text" in firstPart && firstPart.text) {
+        return String(firstPart.text);
+      }
+
+      // Object with content property
+      if ("content" in firstPart && firstPart.content) {
+        return String(firstPart.content);
+      }
+
+      // Try to convert the entire object to string as last resort
+      return JSON.stringify(firstPart);
+    }
+
+    // Fallback
+    return "";
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView();
@@ -749,7 +888,202 @@ export default function Home() {
     // Don't save the preference here - only save when explicitly changed in settings
   };
 
-  // Check for OAuth redirect parameters
+  // Function to save chat to database
+  const saveChatToDatabase = async (chatId: string) => {
+    try {
+      if (!isAuthenticated || !chatId) return;
+
+      // Extract title from the first user message's parts
+      let title = "New Chat";
+      const initialUserMessage = messages.find((m) => m.role === "user");
+      if (initialUserMessage?.parts?.[0]) {
+        const firstPart = initialUserMessage.parts[0];
+        if (typeof firstPart === "string") {
+          title = firstPart;
+        } else if (typeof firstPart === "object" && "text" in firstPart) {
+          title = firstPart.text;
+        }
+        // Limit title length
+        title = title.substring(0, 50);
+      }
+
+      // Format messages for saving
+      const formattedMessages = messages.map((msg) => {
+        interface MessagePart {
+          type: string;
+          text: string;
+        }
+
+        // Ensure we have a valid date for createdAt
+        let createdAt = new Date();
+        // If the message has a createdAt that's a valid date string or timestamp, use it
+        if (msg.createdAt) {
+          try {
+            createdAt = new Date(msg.createdAt);
+          } catch (e) {
+            console.warn(
+              "Invalid date format in message, using current date instead"
+            );
+          }
+        }
+
+        // First, prepare the formatted message structure
+        const formattedMsg: {
+          id: string;
+          chatId: string;
+          role: string;
+          content: string;
+          parts: MessagePart[];
+          createdAt: Date;
+        } = {
+          id: msg.id || `msg-${nanoid()}`, // Ensure all messages have an ID
+          chatId: chatId,
+          role: msg.role,
+          content: typeof msg.content === "string" ? msg.content : "",
+          parts: [],
+          createdAt,
+        };
+
+        // Handle different ways content might be stored
+        let processedParts: MessagePart[] = [];
+
+        // Case 1: If msg.parts exists and is an array
+        if (msg.parts && Array.isArray(msg.parts) && msg.parts.length > 0) {
+          processedParts = msg.parts.map((part) => {
+            // If part is a string, convert it to the right format
+            if (typeof part === "string") {
+              return { type: "text", text: part };
+            }
+            // If part is an object with text property
+            else if (typeof part === "object" && part !== null) {
+              if ("text" in part) {
+                return { type: "text", text: String(part.text || "") };
+              } else if ("type" in part && "text" in part) {
+                return {
+                  type: String(part.type),
+                  text: String(part.text || ""),
+                };
+              }
+              // Try to extract content from other possible structures
+              else if ("content" in part) {
+                return { type: "text", text: String(part.content || "") };
+              }
+            }
+            return { type: "text", text: "" };
+          });
+        }
+        // Case 2: If no parts but msg.content exists
+        else if (typeof msg.content === "string" && msg.content.trim() !== "") {
+          processedParts = [{ type: "text", text: msg.content }];
+        }
+        // Case 3: Check other possible formats
+        else if (typeof msg === "object" && msg !== null) {
+          // Try to extract from different properties that might contain the message
+          if ("message" in msg && typeof msg.message === "string") {
+            processedParts = [{ type: "text", text: msg.message }];
+          } else if ("value" in msg && typeof msg.value === "string") {
+            processedParts = [{ type: "text", text: msg.value }];
+          }
+        }
+
+        // Use processed parts
+        formattedMsg.parts = processedParts;
+
+        // Set the content from the first text part if available and not already set
+        if (!formattedMsg.content && processedParts.length > 0) {
+          const firstTextPart = processedParts.find(
+            (p) => p.type === "text" && p.text
+          );
+          if (firstTextPart) {
+            formattedMsg.content = firstTextPart.text;
+          }
+        }
+
+        // Log the message we're about to save for debugging
+        if (msg.role === "assistant") {
+          console.log("Saving assistant message:", {
+            originalContent: msg.content,
+            formattedContent: formattedMsg.content,
+            originalParts: msg.parts,
+            formattedParts: formattedMsg.parts,
+          });
+        }
+
+        return formattedMsg;
+      });
+
+      // Log message count to help with debugging
+      console.log(
+        `Saving chat ${chatId} with ${formattedMessages.length} messages`
+      );
+
+      // Save the chat using the chat API
+      await fetch("/api/chat/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: chatId,
+          title,
+          messages: formattedMessages,
+        }),
+      });
+
+      console.log("Chat saved successfully:", chatId);
+    } catch (error) {
+      console.error("Error saving chat:", error);
+      // Don't show toast to user as this is background functionality
+    }
+  };
+
+  // Function to handle selecting a chat from history
+  const handleChatSelect = async (chatId: string) => {
+    if (!chatId || chatId === currentChatId) return;
+
+    try {
+      // Update state first
+      setCurrentChatId(chatId);
+      localStorage.setItem("currentChatId", chatId);
+      setMessages([]);
+
+      // Fetch messages for the selected chat
+      const response = await fetch(`/api/chat/messages?chatId=${chatId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch chat messages");
+      }
+      const data = await response.json();
+
+      if (data.messages && Array.isArray(data.messages)) {
+        setMessages(data.messages);
+      }
+    } catch (error) {
+      console.error("Error loading chat messages:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load chat messages",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Function to handle creating a new chat
+  const handleNewChat = () => {
+    const newChatId = `chat-${nanoid()}`;
+    setCurrentChatId(newChatId);
+    localStorage.setItem("currentChatId", newChatId);
+    setMessages([]); // Clear messages to show the welcome screen
+  };
+
+  // Function to handle chat deletion
+  const handleChatDeleted = (deletedChatId: string) => {
+    // If the deleted chat was the current one, create a new chat
+    if (deletedChatId === currentChatId) {
+      handleNewChat();
+    }
+  };
+
+  // Add this to check for OAuth redirect with chat context
   useEffect(() => {
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -758,67 +1092,103 @@ export default function Home() {
       const chatId = url.searchParams.get("chatId");
 
       if (oauthStatus === "success" && redirectTo === "chat" && chatId) {
-        // Set the current chat ID and update localStorage
+        console.log("Returning from OAuth with chat ID:", chatId);
         setCurrentChatId(chatId);
         localStorage.setItem("currentChatId", chatId);
+        setMessages([]);
 
-        // Clear the URL parameters
+        // Clear the URL parameters and update URL to show chat ID
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete("oauth");
         newUrl.searchParams.delete("redirectTo");
         newUrl.searchParams.delete("chatId");
+        window.history.replaceState({}, "", `/chat/${chatId}`);
+
+        // Reload the chat
+        reload();
+      }
+    }
+  }, [reload, setMessages]);
+
+  // Update chat URL when currentChatId changes - add handling flag here too
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      currentChatId &&
+      isAuthenticated &&
+      !isHandlingChatChange
+    ) {
+      // Limit how aggressively we update the URL
+      window.history.replaceState({}, "", `/chat/${currentChatId}`);
+    }
+  }, [currentChatId, isAuthenticated, isHandlingChatChange]);
+
+  // Add searchParams hook to detect chat ID in URL
+  const searchParams = useSearchParams();
+
+  // Also update the URL parameter handling to prevent redirect loops
+  useEffect(() => {
+    if (!isAuthenticated || isHandlingChatChange) return;
+
+    const chatIdParam = searchParams?.get("chatId");
+
+    if (chatIdParam) {
+      console.log(
+        "Found chatId in URL params, setting current chat:",
+        chatIdParam
+      );
+
+      // Set the handling flag to prevent multiple updates
+      setIsHandlingChatChange(true);
+
+      // Set the current chat ID
+      setCurrentChatId(chatIdParam);
+      localStorage.setItem("currentChatId", chatIdParam);
+
+      // Manually load chat messages - the reload method will fetch messages for the chat ID
+      // The fetchChatMessages function will handle invalid chat IDs
+      setTimeout(() => {
+        console.log("Reloading chat messages for:", chatIdParam);
+        reload();
+        // Reset the handling flag after reload is called
+        setIsHandlingChatChange(false);
+      }, 100);
+
+      // Clean up URL (remove chatId parameter)
+      if (typeof window !== "undefined") {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("chatId");
         window.history.replaceState({}, "", newUrl.toString());
       }
     }
-  }, []);
+  }, [
+    searchParams,
+    isAuthenticated,
+    setCurrentChatId,
+    reload,
+    isHandlingChatChange,
+  ]);
 
-  // Update localStorage when currentChatId changes
+  // Reset redirect attempts on component mount
   useEffect(() => {
-    if (currentChatId) {
-      localStorage.setItem("currentChatId", currentChatId);
-    } else {
-      localStorage.removeItem("currentChatId");
-    }
-  }, [currentChatId]);
-
-  // When component mounts, update URL with chat ID if we're on the home page
-  useEffect(() => {
-    if (typeof window !== "undefined" && isAuthenticated) {
-      const url = new URL(window.location.href);
-
-      // If we're already on a chat route, no need to redirect
-      if (url.pathname.startsWith("/chat/")) {
-        return;
-      }
-
-      // If we're on the root path and authenticated, redirect to a chat ID
-      if ((url.pathname === "/" || url.pathname === "") && isAuthenticated) {
-        // Generate a chat ID if we don't have one
-        const chatId = currentChatId || `chat-${Date.now()}`;
-        setCurrentChatId(chatId);
-        localStorage.setItem("currentChatId", chatId);
-
-        // Replace the URL to maintain the chat ID in the URL
-        window.history.replaceState({}, "", `/chat/${chatId}`);
-      }
-    }
-  }, [isAuthenticated, currentChatId]);
-
-  // Add effect to handle chat ID from URL
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const path = window.location.pathname;
-      const chatIdMatch = path.match(/\/chat\/([^\/]+)/);
-
-      if (chatIdMatch && chatIdMatch[1]) {
-        const urlChatId = chatIdMatch[1];
-        setCurrentChatId(urlChatId);
-        localStorage.setItem("currentChatId", urlChatId);
-      }
-    }
+    setChatRedirectAttempts(0);
   }, []);
 
   const router = useRouter();
+
+  // Save chat after new messages are received
+  useEffect(() => {
+    // Only save if we have messages and a current chat ID
+    if (messages.length > 0 && currentChatId && isAuthenticated) {
+      // Use a small delay to ensure all messages are processed
+      const saveTimer = setTimeout(() => {
+        console.log("Auto-saving chat with messages:", messages.length);
+        saveChatToDatabase(currentChatId);
+      }, 1000);
+
+      return () => clearTimeout(saveTimer);
+    }
+  }, [messages, currentChatId, isAuthenticated]);
 
   if (isLoading) {
     return (
@@ -991,6 +1361,19 @@ export default function Home() {
           <WelcomeScreen />
         ) : (
           <div className="flex flex-1 overflow-hidden">
+            {/* Add Chat History Sidebar */}
+            <div className="border-r border-gray-100 dark:border-gray-800 h-full">
+              <SidebarHistory
+                currentChatId={currentChatId || ""}
+                onChatSelect={handleChatSelect}
+                onNewChat={handleNewChat}
+                isCollapsed={!historySidebarOpen}
+                onToggleCollapse={() =>
+                  setHistorySidebarOpen(!historySidebarOpen)
+                }
+              />
+            </div>
+
             <div className="flex-1 flex flex-col overflow-hidden relative">
               <ScrollArea
                 className="flex-1 p-6 pb-24"
@@ -1065,19 +1448,32 @@ export default function Home() {
                         message={{
                           role: message.role,
                           content:
-                            typeof message.content === "string"
+                            typeof message.content === "string" &&
+                            message.content.length > 0
                               ? message.content
-                              : "",
+                              : extractMessageContent(message),
                           parts: message.parts
                             ?.map((part) => {
-                              if (
-                                typeof part === "object" &&
-                                part.type === "text"
-                              ) {
+                              // Handle string parts
+                              if (typeof part === "string") {
                                 return {
                                   type: "text",
-                                  text: part.text || "",
+                                  text: part,
                                 };
+                              }
+                              // Handle object parts
+                              if (typeof part === "object" && part !== null) {
+                                if ("text" in part) {
+                                  return {
+                                    type: part.type || "text",
+                                    text: String(part.text || ""),
+                                  };
+                                } else if ("content" in part) {
+                                  return {
+                                    type: part.type || "text",
+                                    text: String(part.content || ""),
+                                  };
+                                }
                               }
                               return null;
                             })

@@ -24,18 +24,52 @@ export type Vote = typeof votes.$inferSelect;
 // using Vercel Postgres, Firebase, Supabase, or other databases
 
 export async function saveChat(userId: string, title: string, id?: string) {
-  const chat = await db
-    .insert(chats)
-    .values({
-      id: id || nanoid(),
-      userId,
-      title,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      visibility: "private",
-    })
-    .returning();
-  return chat[0];
+  try {
+    // Use upsert functionality to avoid duplicate key errors
+    const chatId = id || nanoid();
+
+    // First, try to update if the chat exists
+    const updated = await db
+      .update(chats)
+      .set({
+        title,
+        updatedAt: new Date(),
+      })
+      .where(eq(chats.id, chatId))
+      .returning();
+
+    // If we managed to update an existing record, return it
+    if (updated && updated.length > 0) {
+      console.log("Chat updated successfully:", chatId);
+      return updated[0];
+    }
+
+    // If no rows were updated, insert a new record
+    const inserted = await db
+      .insert(chats)
+      .values({
+        id: chatId,
+        userId,
+        title,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        visibility: "private",
+      })
+      .onConflictDoUpdate({
+        target: chats.id,
+        set: {
+          title,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    console.log("Chat inserted/updated successfully:", chatId);
+    return inserted[0];
+  } catch (error) {
+    console.error("Error in saveChat:", error);
+    throw error;
+  }
 }
 
 export async function getChats(userId: string) {
@@ -167,42 +201,92 @@ export async function saveMessages({
 }: {
   messages: ChatMessage[];
 }): Promise<void> {
-  console.log("Saving messages:", chatMessages);
+  console.log(`Saving ${chatMessages.length} messages`);
 
   try {
-    if (chatMessages.length > 0) {
-      // Update the chat's lastMessageAt timestamp when saving messages
-      const latestMessage = chatMessages[chatMessages.length - 1];
-      console.log("Updating chat last message time:", latestMessage.chatId);
-
-      // Update the chat's lastMessageAt timestamp
-      await db
-        .update(chats)
-        .set({
-          lastMessageAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(chats.id, latestMessage.chatId));
-
-      // Insert the messages
-      await db.insert(messages).values(
-        chatMessages.map((message) => {
-          return {
-            id: message.id,
-            chatId: message.chatId,
-            role: message.role,
-            parts: message.parts,
-            attachments: message.attachments || [],
-            metadata: message.metadata || {},
-            createdAt: message.createdAt || new Date(),
-          };
-        })
-      );
+    if (chatMessages.length === 0) {
+      console.log("No messages to save");
+      return;
     }
 
-    console.log("Messages saved successfully");
+    // Update the chat's lastMessageAt timestamp when saving messages
+    const latestMessage = chatMessages[chatMessages.length - 1];
+    const chatId = latestMessage.chatId;
+
+    console.log("Updating chat last message time for chat:", chatId);
+
+    // Update the chat's lastMessageAt timestamp
+    await db
+      .update(chats)
+      .set({
+        lastMessageAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(chats.id, chatId));
+
+    // Get existing message IDs for this chat to avoid duplicates
+    const existingMessagesResult = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(eq(messages.chatId, chatId));
+
+    const existingMessageIds = new Set(existingMessagesResult.map((m) => m.id));
+
+    // Filter out messages that already exist
+    const newMessages = chatMessages.filter(
+      (message) => !existingMessageIds.has(message.id)
+    );
+
+    if (newMessages.length === 0) {
+      console.log(
+        "All messages already exist in the database, skipping insert"
+      );
+      return;
+    }
+
+    // Prepare messages with proper date handling
+    const messagesToInsert = newMessages.map((message) => {
+      // Ensure we have a valid date object for createdAt
+      let createdAt: Date;
+      try {
+        // If createdAt exists and is valid
+        if (
+          message.createdAt &&
+          (message.createdAt instanceof Date ||
+            typeof message.createdAt === "string" ||
+            typeof message.createdAt === "number")
+        ) {
+          createdAt = new Date(message.createdAt);
+          // Verify it's a valid date
+          if (isNaN(createdAt.getTime())) {
+            throw new Error("Invalid date");
+          }
+        } else {
+          // Default to current time
+          createdAt = new Date();
+        }
+      } catch (e) {
+        console.warn("Invalid date in message, using current date instead");
+        createdAt = new Date();
+      }
+
+      return {
+        id: message.id,
+        chatId: message.chatId,
+        role: message.role,
+        parts: message.parts,
+        attachments: message.attachments || [],
+        metadata: message.metadata || {},
+        createdAt: createdAt,
+      };
+    });
+
+    // Insert only new messages
+    await db.insert(messages).values(messagesToInsert);
+
+    console.log(`${newMessages.length} new messages saved successfully`);
   } catch (error) {
-    console.error("Error in chat processing:", error);
+    console.error("Error saving messages:", error);
     throw error;
   }
 }
@@ -215,6 +299,12 @@ export async function getChatById({
   console.log("Getting chat by ID:", id);
 
   try {
+    // Early return if id is undefined, null, or empty
+    if (!id) {
+      console.warn("getChatById called with empty or undefined ID");
+      return null;
+    }
+
     const result = await db.query.chats.findFirst({
       where: eq(chats.id, id),
     });

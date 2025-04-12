@@ -69,14 +69,22 @@ export default function ChatMessage({
     console.log(`Initiating direct OAuth flow for ${serviceType}`);
 
     try {
-      // Get current URL to redirect back to
-      const currentUrl = window.location.href;
+      // Get current chat ID for direct redirection
+      const currentChatId =
+        localStorage.getItem("currentChatId") || `chat-${Date.now()}`;
+
+      // Build a direct URL back to the current chat
+      const directRedirectUrl = `${window.location.origin}/chat/${currentChatId}`;
+      console.log(`Setting OAuth redirect directly to: ${directRedirectUrl}`);
 
       // Initiate direct connection flow
       const authUrl = await connectToOAuthProvider({
         appId: serviceType,
-        redirectUrl: currentUrl,
-        // This will use the default scopes from the OpenAPI discovery
+        redirectUrl: directRedirectUrl,
+        // No need for chatId in state since it's in the redirect URL
+        state: {
+          redirectTo: "chat",
+        },
       });
 
       // Directly redirect to the OAuth provider
@@ -258,8 +266,8 @@ export default function ChatMessage({
     let cleanedContent = content;
 
     // First, extract any connection UI marker
-    // Refined Regex: Use non-greedy match and 's' flag for multiline
-    const connectionMarkerRegex = /<connection:(.*?)>/s;
+    // Use a regex that works without the 's' flag by using [\s\S] instead of dot
+    const connectionMarkerRegex = /<connection:([\s\S]*?)>/;
     let connectionUI = null;
 
     // Check for connection marker

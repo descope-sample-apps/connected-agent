@@ -244,6 +244,12 @@ export async function POST(request: Request) {
       selectedChatModel?: string;
     } = await request.json();
 
+    // Validate the chat ID
+    if (!id) {
+      console.error("Missing chat ID in request");
+      return new Response("Chat ID is required", { status: 400 });
+    }
+
     const userSession = await session();
 
     if (!userSession?.token?.sub) {

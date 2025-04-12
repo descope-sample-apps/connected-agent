@@ -83,7 +83,7 @@ class CRMStakeholdersTool extends Tool<{
     name: "Deal Stakeholders",
     description:
       "Get all stakeholders (contacts) associated with a specific deal",
-    scopes: ["contacts:read", "deals:read"],
+    scopes: ["openid", "contacts:read", "deals:read"],
     requiredFields: ["dealId"],
     optionalFields: [],
     capabilities: [
@@ -115,7 +115,7 @@ class CRMStakeholdersTool extends Tool<{
         {
           appId: "custom-crm",
           userId,
-          scopes: ["contacts:read", "deals:read"],
+          scopes: ["openid", "contacts:read", "deals:read"],
           operation: "tool_calling",
         }
       );

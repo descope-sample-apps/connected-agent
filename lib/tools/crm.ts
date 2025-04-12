@@ -113,7 +113,7 @@ export class CRMContactsTool extends Tool<{
   ): Promise<ToolResponse> {
     try {
       // Get token with necessary scopes
-      const token = await getOAuthTokenWithScopeValidation(
+      const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "custom-crm",
         {
@@ -124,10 +124,15 @@ export class CRMContactsTool extends Tool<{
         }
       );
 
-      if (!token) {
+      if (!tokenResponse || "error" in tokenResponse) {
+        const errorMsg =
+          tokenResponse && "error" in tokenResponse
+            ? tokenResponse.error
+            : "Failed to get CRM access token";
+
         return {
           success: false,
-          error: "Failed to get CRM access token",
+          error: errorMsg,
           ui: {
             type: "connection_required",
             service: "custom-crm",
@@ -140,8 +145,11 @@ export class CRMContactsTool extends Tool<{
         };
       }
 
+      // Extract the actual token from the response
+      const accessToken = tokenResponse.token.accessToken;
+
       // Use our enhanced contact fetching function
-      const responseData = await fetchCRMContacts(token, data.query);
+      const responseData = await fetchCRMContacts(accessToken, data.query);
 
       return {
         success: true,
@@ -171,6 +179,7 @@ export class CRMDealsTool extends Tool<{
   dealId?: string;
   contactId?: string;
   stage?: string;
+  companyName?: string;
 }> {
   config: ToolConfig = {
     id: "crm-deals",
@@ -178,10 +187,11 @@ export class CRMDealsTool extends Tool<{
     description: "Get deals from the CRM system",
     scopes: ["deals:read"],
     requiredFields: [],
-    optionalFields: ["dealId", "contactId", "stage"],
+    optionalFields: ["dealId", "contactId", "stage", "companyName"],
     capabilities: [
       "Retrieve deal information by ID",
       "Filter deals by customer or stage",
+      "Search deals by company name",
       "Get deal details including value and probability",
     ],
   };
@@ -190,17 +200,23 @@ export class CRMDealsTool extends Tool<{
     dealId?: string;
     contactId?: string;
     stage?: string;
+    companyName?: string;
   }): ToolResponse | null {
     return null;
   }
 
   async execute(
     userId: string,
-    data: { dealId?: string; contactId?: string; stage?: string }
+    data: {
+      dealId?: string;
+      contactId?: string;
+      stage?: string;
+      companyName?: string;
+    }
   ): Promise<ToolResponse> {
     try {
       // Get token with necessary scopes
-      const token = await getOAuthTokenWithScopeValidation(
+      const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "custom-crm",
         {
@@ -211,10 +227,15 @@ export class CRMDealsTool extends Tool<{
         }
       );
 
-      if (!token) {
+      if (!tokenResponse || "error" in tokenResponse) {
+        const errorMsg =
+          tokenResponse && "error" in tokenResponse
+            ? tokenResponse.error
+            : "Failed to get CRM access token";
+
         return {
           success: false,
-          error: "Failed to get CRM access token",
+          error: errorMsg,
           ui: {
             type: "connection_required",
             service: "custom-crm",
@@ -227,12 +248,16 @@ export class CRMDealsTool extends Tool<{
         };
       }
 
+      // Extract the actual token from the response
+      const accessToken = tokenResponse.token.accessToken;
+
       // Use our enhanced deals fetching function
       const responseData = await fetchCRMDeals(
-        token,
+        accessToken,
         data.dealId,
         data.contactId,
-        data.stage
+        data.stage,
+        data.companyName
       );
 
       return {
@@ -240,6 +265,7 @@ export class CRMDealsTool extends Tool<{
         data: responseData.data,
       };
     } catch (error) {
+      console.error("CRM Deals Tool Error:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to fetch deals",
@@ -292,7 +318,7 @@ export class DealStakeholdersTool extends Tool<{
   ): Promise<ToolResponse> {
     try {
       // Get token with necessary scopes
-      const token = await getOAuthTokenWithScopeValidation(
+      const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "custom-crm",
         {
@@ -303,10 +329,15 @@ export class DealStakeholdersTool extends Tool<{
         }
       );
 
-      if (!token) {
+      if (!tokenResponse || "error" in tokenResponse) {
+        const errorMsg =
+          tokenResponse && "error" in tokenResponse
+            ? tokenResponse.error
+            : "Failed to get CRM access token";
+
         return {
           success: false,
-          error: "Failed to get CRM access token",
+          error: errorMsg,
           ui: {
             type: "connection_required",
             service: "custom-crm",
@@ -319,14 +350,21 @@ export class DealStakeholdersTool extends Tool<{
         };
       }
 
+      // Extract the actual token from the response
+      const accessToken = tokenResponse.token.accessToken;
+
       // Use our enhanced deal stakeholders function
-      const stakeholdersData = await fetchDealStakeholders(token, data.dealId);
+      const stakeholdersData = await fetchDealStakeholders(
+        accessToken,
+        data.dealId
+      );
 
       return {
         success: true,
         data: stakeholdersData,
       };
     } catch (error) {
+      console.error("Deal Stakeholders Tool Error:", error);
       return {
         success: false,
         error:
@@ -480,14 +518,26 @@ export async function fetchCRMContacts(token: string, search?: string) {
  * @param dealId Optional specific deal ID to retrieve
  * @param contactId Optional contact ID to filter deals by contact
  * @param stage Optional deal stage to filter by (discovery, proposal, negotiation, closed_won, closed_lost)
+ * @param companyName Optional company name to search for in deals
  * @returns List of deals or a specific deal from the CRM system
  */
 export async function fetchCRMDeals(
   token: string,
   dealId?: string,
   contactId?: string,
-  stage?: string
+  stage?: string,
+  companyName?: string
 ) {
+  console.log("==== CRM DEALS REQUEST ====");
+  console.log(
+    `Token length: ${token ? token.length : 0}, starts with: ${
+      token ? token.substring(0, 10) + "..." : "undefined"
+    }`
+  );
+  console.log(
+    `Parameters: dealId=${dealId}, contactId=${contactId}, stage=${stage}, companyName=${companyName}`
+  );
+
   try {
     const url = new URL("https://www.10x-crm.app/api/deals");
 
@@ -504,6 +554,19 @@ export async function fetchCRMDeals(
       url.searchParams.append("stage", stage);
     }
 
+    // Add company name search parameter
+    if (companyName) {
+      console.log(`Adding company filter for "${companyName}"`);
+      url.searchParams.append("company", companyName);
+    }
+
+    console.log(`CRM API Request URL: ${url.toString()}`);
+    console.log(
+      `Request headers: Authorization: Bearer ${
+        token ? "Present (hidden)" : "Missing!"
+      }`
+    );
+
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
@@ -512,16 +575,87 @@ export async function fetchCRMDeals(
       },
     });
 
+    console.log(
+      `CRM API Response Status: ${response.status} ${response.statusText}`
+    );
+    console.log(
+      `CRM API Response Headers:`,
+      Object.fromEntries([...response.headers.entries()])
+    );
+    console.log(
+      `CRM API Response Content-Type: ${response.headers.get("content-type")}`
+    );
+
     if (!response.ok) {
+      console.error(
+        `CRM API Error Response: ${response.status} ${response.statusText}`
+      );
+
+      // Try to get the response body as text to see what's being returned
+      const responseText = await response.text();
+      console.error(
+        `CRM API Error Response Body: ${responseText.substring(0, 500)}${
+          responseText.length > 500 ? "..." : ""
+        }`
+      );
+
       throw new Error(
         `Failed to fetch deals: ${response.status} ${response.statusText}`
       );
     }
 
-    const data = await response.json();
-    return data;
+    // Clone the response for debugging
+    const responseClone = response.clone();
+
+    try {
+      // Log the first part of the response before attempting to parse
+      const textPreview = await responseClone.clone().text();
+      console.log(
+        `Response preview before parsing (first 200 chars): ${textPreview.substring(
+          0,
+          200
+        )}`
+      );
+
+      const data = await response.json();
+      console.log(
+        `CRM API Response Success - data received with ${
+          data.deals ? data.deals.length : 0
+        } deals`
+      );
+      return data;
+    } catch (parseError: any) {
+      // Explicitly type the parseError
+      // If JSON parsing fails, get the response as text to see what's being returned
+      const responseText = await responseClone.text();
+      console.error(`CRM API JSON Parse Error: ${parseError.message}`);
+      console.error(
+        `CRM API Raw Response: ${responseText.substring(0, 500)}${
+          responseText.length > 500 ? "..." : ""
+        }`
+      );
+
+      // Check if the response starts with HTML (common sign of authentication issues)
+      if (
+        responseText.trim().startsWith("<!DOCTYPE") ||
+        responseText.trim().startsWith("<html")
+      ) {
+        console.error(
+          `ERROR: Received HTML instead of JSON - likely an authentication issue or server error`
+        );
+        console.error(
+          `First 100 characters: ${responseText.substring(0, 100)}`
+        );
+      }
+
+      throw parseError;
+    }
   } catch (error) {
     console.error("Error fetching deals from CRM:", error);
+    if (error instanceof Error) {
+      console.error(`Error details: ${error.message}`);
+      console.error(`Error stack: ${error.stack}`);
+    }
     throw error;
   }
 }

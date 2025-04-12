@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { MessageSquare, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { useRouter } from "next/navigation";
 
 interface ChatHistoryItem {
   id: string;
@@ -32,6 +33,7 @@ export function SidebarHistory({
   isCollapsed,
   onToggleCollapse,
 }: SidebarHistoryProps) {
+  const router = useRouter();
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -45,7 +47,12 @@ export function SidebarHistory({
           throw new Error("Failed to fetch chat history");
         }
         const data = await response.json();
-        setChatHistory(data.chats || []);
+        // Ensure unique chat IDs by using a Map
+        const uniqueChats = new Map();
+        (data.chats || []).forEach((chat: ChatHistoryItem) => {
+          uniqueChats.set(chat.id, chat);
+        });
+        setChatHistory(Array.from(uniqueChats.values()));
       } catch (error) {
         console.error("Error fetching chat history:", error);
         toast({
@@ -70,6 +77,7 @@ export function SidebarHistory({
     }
 
     try {
+      // Delete from the database
       const response = await fetch(`/api/chats/${chatId}`, {
         method: "DELETE",
       });
@@ -81,15 +89,19 @@ export function SidebarHistory({
       // Remove the deleted chat from the list
       setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId));
 
+      // If the deleted chat was the current one, create a new chat and go to home
+      if (chatId === currentChatId) {
+        onNewChat();
+        // Navigate to home page
+        if (typeof window !== "undefined") {
+          window.location.href = "/";
+        }
+      }
+
       toast({
         title: "Success",
         description: "Chat deleted successfully",
       });
-
-      // If the deleted chat was the current one, create a new chat
-      if (chatId === currentChatId) {
-        onNewChat();
-      }
     } catch (error) {
       console.error("Error deleting chat:", error);
       toast({
@@ -97,6 +109,20 @@ export function SidebarHistory({
         description: "Failed to delete chat",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleChatClick = (chatId: string) => {
+    if (!chatId) return;
+
+    // Call the parent's onChatSelect first to update the state
+    onChatSelect(chatId);
+
+    // Update URL without reload
+    if (typeof window !== "undefined") {
+      const newUrl = new URL(window.location.href);
+      newUrl.pathname = `/chat/${chatId}`;
+      window.history.pushState({}, "", newUrl.toString());
     }
   };
 
@@ -132,7 +158,15 @@ export function SidebarHistory({
           <Button
             variant="outline"
             className="w-full mb-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-500"
-            onClick={onNewChat}
+            onClick={() => {
+              onNewChat();
+              // Update URL without reload
+              if (typeof window !== "undefined") {
+                const newUrl = new URL(window.location.href);
+                newUrl.pathname = "/";
+                window.history.pushState({}, "", newUrl.toString());
+              }
+            }}
           >
             New Chat
           </Button>
@@ -154,7 +188,15 @@ export function SidebarHistory({
               <Button
                 variant="link"
                 className="mt-2 text-indigo-500 hover:text-indigo-600"
-                onClick={onNewChat}
+                onClick={() => {
+                  onNewChat();
+                  // Update URL without reload
+                  if (typeof window !== "undefined") {
+                    const newUrl = new URL(window.location.href);
+                    newUrl.pathname = "/";
+                    window.history.pushState({}, "", newUrl.toString());
+                  }
+                }}
               >
                 Start a new chat
               </Button>
@@ -162,16 +204,16 @@ export function SidebarHistory({
           </div>
         ) : (
           <div className="space-y-1">
-            {chatHistory.map((chat) => (
+            {chatHistory.map((chat, index) => (
               <div
-                key={chat.id}
+                key={`${chat.id}-${index}`}
                 className={cn(
                   "flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group transition-colors",
                   chat.id === currentChatId
                     ? "bg-gray-100 dark:bg-gray-800 border-l-2 border-indigo-500"
                     : ""
                 )}
-                onClick={() => onChatSelect(chat.id)}
+                onClick={() => handleChatClick(chat.id)}
               >
                 {isCollapsed ? (
                   <MessageSquare
@@ -192,9 +234,18 @@ export function SidebarHistory({
                         {chat.title || "Untitled Chat"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {formatDistanceToNow(new Date(chat.updatedAt), {
-                          addSuffix: true,
-                        })}
+                        {(() => {
+                          try {
+                            return chat.updatedAt
+                              ? formatDistanceToNow(new Date(chat.updatedAt), {
+                                  addSuffix: true,
+                                })
+                              : "Recently";
+                          } catch (error) {
+                            console.error("Error formatting date:", error);
+                            return "Recently";
+                          }
+                        })()}
                       </p>
                     </div>
                     <Button

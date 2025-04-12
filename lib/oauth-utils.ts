@@ -12,6 +12,7 @@ interface OAuthConnectParams {
     chatId?: string;
     [key: string]: any;
   };
+  chatId?: string; // Optional chat ID to return to after OAuth flow
 }
 
 // Add new interface for disconnection
@@ -58,7 +59,7 @@ export const DEFAULT_SCOPES: Record<string, string[]> = {
   "google-calendar": ["https://www.googleapis.com/auth/calendar"],
   "google-docs": ["https://www.googleapis.com/auth/documents"],
   "google-meet": ["https://www.googleapis.com/auth/meetings.space.created"],
-  "custom-crm": ["contacts:read", "openid", "deals:read"],
+  "custom-crm": ["openid", "contacts:read", "deals:read"],
 };
 
 // Add a function to get scopes from OpenAPI spec
@@ -130,8 +131,7 @@ export async function getOAuthTokenWithScopeValidation(
       };
     }
 
-    // If we have a valid token, return it
-    console.log("[OAuth] Successfully validated token");
+    console.log("[OAuth] Successfully validated token", token);
     return token;
   } catch (error) {
     console.error(`[OAuth] Error getting token for ${provider}:`, error);
@@ -148,7 +148,8 @@ export async function connectToOAuthProvider({
   redirectUrl,
   scopes,
   state,
-}: OAuthConnectParams) {
+  chatId,
+}: OAuthConnectParams & { chatId?: string }) {
   try {
     // Get refresh token from localStorage if available
     const refreshToken = localStorage.getItem("DSR");
@@ -164,6 +165,12 @@ export async function connectToOAuthProvider({
 
     // Create a state parameter that includes the redirectTo and any other state
     let stateObject = { redirectTo: "chat" };
+
+    // If we have a chat ID, include it in the state for returning to the same chat
+    if (chatId) {
+      stateObject = { ...stateObject, chatId };
+      console.log("Including chat ID in OAuth state:", chatId);
+    }
 
     // Add any additional state parameters if provided
     if (state) {
