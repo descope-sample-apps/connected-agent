@@ -1195,7 +1195,7 @@ export default function Home() {
                   <div className="p-6 animate-in fade-in duration-300">
                     <div className="flex justify-between items-center mb-6">
                       <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        Quick Actions
+                        Connected Applications
                       </h2>
                     </div>
                     <div className="space-y-4">
