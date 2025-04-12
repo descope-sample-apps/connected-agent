@@ -868,17 +868,6 @@ export default function Home() {
             <p className="text-muted-foreground mb-6 max-w-md">
               Sign in to get started with your AI assistant.
             </p>
-            <div className="grid grid-cols-2 gap-4 max-w-2xl w-full mb-8">
-              {actionOptions.map((option) => (
-                <ActionCard
-                  key={option.id}
-                  title={option.title}
-                  description={option.description}
-                  logo={option.logo}
-                  onClick={() => setShowProfileScreen(true)}
-                />
-              ))}
-            </div>
             <Button
               size="lg"
               className="rounded-full gap-2"
