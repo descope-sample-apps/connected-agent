@@ -52,6 +52,28 @@ const providers = {
       "sales",
     ],
   },
+  slack: {
+    id: "slack",
+    name: "Slack",
+    icon: "/logos/slack-logo.svg",
+    scopes: [
+      "chat:write",
+      "channels:read",
+      "channels:write",
+      "users:read.email",
+      "search:read",
+      "channels:history",
+    ],
+    keywords: [
+      "slack",
+      "channel",
+      "message",
+      "#general",
+      "post",
+      "chat",
+      "team chat",
+    ],
+  },
 };
 
 type ProviderKey = keyof typeof providers;

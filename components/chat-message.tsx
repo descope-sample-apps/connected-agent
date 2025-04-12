@@ -258,29 +258,33 @@ export default function ChatMessage({
     let cleanedContent = content;
 
     // First, extract any connection UI marker
-    const connectionMarkerRegex = /<connection:([\s\S]+?)>/;
+    // Refined Regex: Use non-greedy match and 's' flag for multiline
+    const connectionMarkerRegex = /<connection:(.*?)>/s;
     let connectionUI = null;
 
     // Check for connection marker
     const connectionMatch = content.match(connectionMarkerRegex);
-    if (connectionMatch) {
+    // Check if connectionMatch and group 1 exist
+    if (connectionMatch && connectionMatch[1]) {
+      const jsonString = connectionMatch[1];
+      console.log("Found potential connection marker:", jsonString);
       try {
-        console.log(
-          "Found connection marker:",
-          connectionMatch[1].substring(0, 50) + "..."
-        );
-        connectionUI = JSON.parse(connectionMatch[1]);
-        console.log("Parsed connection UI:", connectionUI);
+        connectionUI = JSON.parse(jsonString);
+        console.log("Successfully parsed connection UI:", connectionUI);
 
-        // Remove the connection marker from the content
+        // Only remove the marker if parsing was successful
         cleanedContent = content.replace(connectionMarkerRegex, "").trim();
+        console.log("Content after removing marker:", cleanedContent);
       } catch (e) {
-        console.error("Error parsing connection marker:", e);
+        console.error("Error parsing connection marker JSON:", e);
+        console.error("Problematic JSON string:", jsonString); // Log the exact string that failed
+        // Keep the original content if parsing fails
+        cleanedContent = content;
       }
     } else {
       // Also check for explicit mentions of connecting services
       const connectionMentionRegex =
-        /connect (your|to) (Zoom|Google Calendar|CRM)/i;
+        /connect (your|to) (Zoom|Google Calendar|CRM|Slack)/i; // Added Slack here too
       const mentionMatch = content.match(connectionMentionRegex);
 
       if (mentionMatch) {
@@ -291,6 +295,7 @@ export default function ChatMessage({
         if (service.includes("zoom")) serviceId = "zoom";
         else if (service.includes("calendar")) serviceId = "google-calendar";
         else if (service.includes("crm")) serviceId = "crm";
+        else if (service.includes("slack")) serviceId = "slack"; // Handle Slack mention
 
         connectionUI = {
           type: "connection_required",
@@ -316,7 +321,7 @@ export default function ChatMessage({
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center mr-2">
               {SERVICE_LOGOS[
                 connectionUI.service as keyof typeof SERVICE_LOGOS
-              ] && (
+              ] ? (
                 <Image
                   src={
                     SERVICE_LOGOS[
@@ -332,6 +337,9 @@ export default function ChatMessage({
                   height={24}
                   className="object-contain"
                 />
+              ) : (
+                // Fallback icon if logo not found (e.g., for Slack)
+                getIcon(connectionUI.service) // Use getIcon as fallback
               )}
             </div>
             <p className="text-gray-700 dark:text-gray-200 font-medium">

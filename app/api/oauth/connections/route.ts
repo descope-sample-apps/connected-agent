@@ -4,6 +4,7 @@ import {
   getGoogleDocsToken,
   getGoogleMeetToken,
   getCRMToken,
+  getSlackToken,
 } from "@/lib/descope";
 import { trackOAuthEvent, trackError } from "@/lib/analytics";
 import { getChatById, getChatMessages } from "@/lib/db/queries";
@@ -41,7 +42,7 @@ export async function GET() {
 
     // Get the status of all OAuth connections using default operations from lib/descope.ts
     console.log("Starting OAuth provider token fetch");
-    const [googleCalendar, googleDocs, googleMeet, customCrm] =
+    const [googleCalendar, googleDocs, googleMeet, customCrm, slack] =
       await Promise.all([
         getGoogleCalendarToken(userId).catch((e) => {
           console.error("Error fetching Google Calendar token:", e);
@@ -65,21 +66,16 @@ export async function GET() {
           console.error("Error fetching CRM token:", e);
           return { error: e.message, connected: false };
         }),
+        getSlackToken(userId).catch((e) => {
+          console.error("Error fetching Slack token:", e);
+          return { error: e.message, connected: false };
+        }),
       ]);
 
     // Process token responses
     const processConnection = (response: any) => {
-      // First, add more detailed debug logging to see exactly what we're receiving
-      console.log(
-        `Processing connection response:`,
-        JSON.stringify(response, null, 2)
-      );
-
       // Return disconnected status if response is null or undefined
       if (!response) {
-        console.log(
-          "Connection response is null or undefined - marking as disconnected"
-        );
         return { connected: false, status: "disconnected" };
       }
 
@@ -90,9 +86,6 @@ export async function GET() {
           "error" in response &&
           response.error === "connection_required")
       ) {
-        console.log(
-          "Connection requires authorization - marking as disconnected"
-        );
         return {
           connected: false,
           status: "requires_connection",
@@ -160,6 +153,7 @@ export async function GET() {
       "google-docs": processConnection(googleDocs),
       "google-meet": processConnection(googleMeet),
       "custom-crm": processConnection(customCrm),
+      slack: processConnection(slack),
     };
 
     trackOAuthEvent("connection_successful", {
@@ -169,6 +163,7 @@ export async function GET() {
       googleDocsConnected: connections["google-docs"].connected,
       googleMeetConnected: connections["google-meet"].connected,
       crmConnected: connections["custom-crm"].connected,
+      slackConnected: connections["slack"].connected,
     });
 
     return Response.json({ connections });

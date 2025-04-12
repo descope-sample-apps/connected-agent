@@ -291,6 +291,7 @@ export async function POST(request: Request) {
     const calendarListTool = toolRegistry.getTool("google-calendar-list");
     const crmContactsTool = toolRegistry.getTool("crm-contacts");
     const googleMeetTool = toolRegistry.getTool("google-meet");
+    const slackTool = toolRegistry.getTool("slack");
 
     // Define the tools object
     const toolsObject: any = {
@@ -684,6 +685,54 @@ export async function POST(request: Request) {
           }
         },
       },
+      // Add Slack messaging tool
+      sendSlackMessage: {
+        description: "Send a message to a Slack channel",
+        parameters: z.object({
+          channelName: z
+            .string()
+            .describe("Slack channel name (e.g., '#general')"),
+          message: z.string().describe("Message content to send"),
+        }),
+        execute: async (data: any) => {
+          try {
+            if (!slackTool) {
+              return {
+                success: false,
+                error: "Slack tool not available",
+                message:
+                  "Unable to send Slack messages. Please connect your Slack account.",
+                ui: {
+                  type: "connection_required",
+                  service: "slack",
+                  message: "Please connect your Slack account to send messages",
+                  connectButton: {
+                    text: "Connect Slack",
+                    action: "connection://slack",
+                  },
+                },
+              };
+            }
+
+            return await slackTool.execute(userId, {
+              action: "send_message",
+              channelName: data.channelName,
+              message: data.message,
+            });
+          } catch (error) {
+            console.error("Error sending Slack message:", error);
+            return {
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Unknown error sending Slack message",
+              message:
+                "There was an error sending your Slack message. Please try again later.",
+            };
+          }
+        },
+      },
     };
 
     // Add calendar tool if available
@@ -921,6 +970,22 @@ export async function POST(request: Request) {
                                     action: "connection://google-meet",
                                   },
                                 })}>`
+                              : // Check for Slack connection references
+                              messageText.includes(
+                                  "connect your Slack account"
+                                ) ||
+                                messageText.includes("connect to Slack") ||
+                                messageText.includes("connect your Slack")
+                              ? `\n\n<connection:${JSON.stringify({
+                                  type: "connection_required",
+                                  service: "slack",
+                                  message:
+                                    "Please connect your Slack account to send messages",
+                                  connectButton: {
+                                    text: "Connect Slack",
+                                    action: "connection://slack",
+                                  },
+                                })}>`
                               : // Or check for other needed connections
                               messageText.includes(
                                   "connect your Google Calendar"
@@ -1036,7 +1101,7 @@ function extractUIElementsFromToolResponses(message: any): any {
     // Also check if the message content contains any connection text markers
     if (message.content && typeof message.content === "string") {
       const connectionRegex =
-        /connect your (Google Meet|Google Calendar|CRM) account/i;
+        /connect your (Google Meet|Google Calendar|CRM|Slack) account/i;
       const match = message.content.match(connectionRegex);
 
       if (match) {
@@ -1046,6 +1111,7 @@ function extractUIElementsFromToolResponses(message: any): any {
         else if (match[1].toLowerCase().includes("calendar"))
           service = "google-calendar";
         else if (match[1].toLowerCase().includes("crm")) service = "crm";
+        else if (match[1].toLowerCase().includes("slack")) service = "slack";
 
         // Return a generic connection UI object
         return {
@@ -1054,7 +1120,13 @@ function extractUIElementsFromToolResponses(message: any): any {
           message: `Please connect your ${match[1]} account to continue`,
           connectButton: {
             text: `Connect ${
-              service === "google-calendar" ? "Google Calendar" : service
+              service === "google-calendar"
+                ? "Google Calendar"
+                : service === "google-meet"
+                ? "Google Meet"
+                : service === "slack"
+                ? "Slack"
+                : service
             }`,
             action: `connection://${service}`,
           },

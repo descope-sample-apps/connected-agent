@@ -88,11 +88,6 @@ export async function getOAuthToken(
       }
     );
 
-    // Log the response status
-    console.log(
-      `Descope OAuth token response status: ${response.status} ${response.statusText}`
-    );
-
     // Clone the response to read the body without consuming it
     const clonedResponse = response.clone();
     const responseText = await clonedResponse.text();
@@ -242,6 +237,16 @@ export async function getGoogleMeetToken(
   operation: string = "check_connection"
 ) {
   return getOAuthToken(userId, "google-meet", operation, {
+    withRefreshToken: false,
+  });
+}
+
+// Add Slack token function
+export async function getSlackToken(
+  userId: string,
+  operation: string = "check_connection"
+) {
+  return getOAuthToken(userId, "slack", operation, {
     withRefreshToken: false,
   });
 }

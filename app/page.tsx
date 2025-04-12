@@ -49,11 +49,13 @@ import { convertToUIMessages } from "@/lib/utils";
 import LoginScreen from "@/components/login-screen";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
+import { nanoid } from "nanoid";
+import { useRouter } from "next/navigation";
 
 type PromptType =
   | "crm-lookup"
   | "schedule-meeting"
-  | "create-google-meet"
+  | "slack"
   | "summarize-deal";
 
 interface PromptExplanation {
@@ -154,44 +156,45 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     ],
     apis: ["Google Calendar API", "Custom CRM API"],
   },
-  "create-google-meet": {
-    title: "Create Google Meet",
+  slack: {
+    title: "Slack Integration",
     description:
-      "Generate Google Meet video conference links for scheduled calendar events",
-    logo: "/logos/google-meet-logo.svg",
+      "Send messages, retrieve conversations, and manage channels in your Slack workspace",
+    logo: "/logos/slack-logo.svg",
     examples: [
-      "Create a Google Meet for my meeting with John Doe",
-      "Add video conferencing to my call with Jane Lane from Globex Corp",
-      "Set up a Google Meet link for the IT infrastructure meeting with Michael Chen",
+      "Post a message to #general about the upcoming meeting",
+      "Show me recent messages from the #team channel",
+      "Create a new channel for the Alpha project",
+      "Find messages about the quarterly review in Slack",
     ],
     steps: [
       {
-        title: "Meeting Enhancement Request",
+        title: "User Requests Slack Action",
         description:
-          "After scheduling a calendar event, the user requests to add a Google Meet link to the event.",
+          "The user asks to interact with Slack, such as sending a message or viewing recent conversations.",
       },
       {
-        title: "Calendar Event Identification",
+        title: "Authentication Check",
         description:
-          "The assistant identifies the relevant calendar event that needs a Google Meet link.",
+          "The assistant verifies the user is authenticated and has connected Slack via OAuth.",
       },
       {
-        title: "Google Calendar Integration",
+        title: "Slack API Access",
         description:
-          "Using the Google Calendar API, the assistant adds a Google Meet link to the existing calendar event.",
+          "Using the stored OAuth token from Descope, the assistant makes a secure API call to Slack.",
       },
       {
-        title: "Meet Link Generation",
+        title: "Action Execution",
         description:
-          "A Google Meet link is automatically generated and added to the calendar event.",
+          "The assistant performs the requested action and provides confirmation or retrieves the requested information.",
       },
       {
-        title: "Calendar Event Update",
+        title: "Results Presentation",
         description:
-          "The calendar event is updated to include the Google Meet details, making them available to all attendees.",
+          "The assistant presents the results or confirmation in a clear, user-friendly format.",
       },
     ],
-    apis: ["Google Calendar API"],
+    apis: ["Slack API"],
   },
   "summarize-deal": {
     title: "Summarize Deal to Google Docs",
@@ -232,7 +235,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     ],
     apis: ["Google Docs API", "Custom CRM API"],
   },
-} as const;
+};
 
 interface GoogleMeetPromptProps {
   isOpen: boolean;
@@ -261,6 +264,8 @@ interface ChatMessageProps {
   };
   onReconnectComplete: () => void;
 }
+
+const connectionMarkerRegex = /<connection:(.*?)>/s;
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -293,7 +298,7 @@ export default function Home() {
     useState<LastScheduledMeeting | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [currentPromptType, setCurrentPromptType] =
-    useState<PromptType>("crm-lookup");
+    useState<PromptType>("slack");
   const [showDealSummaryPrompt, setShowDealSummaryPrompt] = useState(false);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] =
@@ -354,7 +359,7 @@ export default function Home() {
     onFinish: (message) => {
       console.log("Chat finished with message:", message);
       if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        messagesEndRef.current.scrollIntoView();
       }
 
       // Reset active prompt state when a message completes
@@ -392,7 +397,7 @@ export default function Home() {
   });
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView();
   };
 
   useEffect(() => {
@@ -547,38 +552,25 @@ export default function Home() {
       let enhancedPrompt = promptText;
 
       // Test cases for exact and partial name matching
-      if (promptText.includes("John Doe") && promptType === "crm-lookup") {
-        enhancedPrompt = "What is John Doe's email address and company?";
-      } else if (
-        promptText.includes("just John") &&
-        promptType === "crm-lookup"
-      ) {
+      if (promptText.includes("John Doe") && promptType === "slack") {
+        enhancedPrompt = "Show me recent messages from the #general channel";
+      } else if (promptText.includes("just John") && promptType === "slack") {
         // Test partial name matching
-        enhancedPrompt = "What is John's email address?";
+        enhancedPrompt = "Show me recent messages from the #general channel";
       } else if (
         promptText.includes("schedule with John") &&
-        promptType === "schedule-meeting"
+        promptType === "slack"
       ) {
         // Test scheduling with partial name
-        enhancedPrompt = "Schedule a meeting with John next Tuesday at 2pm";
-      } else if (
-        promptText.includes("Jane Lane") &&
-        promptType === "crm-lookup"
-      ) {
-        enhancedPrompt =
-          "What is Jane Lane's email address? What deals is she working on?";
-      } else if (
-        promptText.includes("just Jane") &&
-        promptType === "crm-lookup"
-      ) {
+        enhancedPrompt = "Show me recent messages from the #general channel";
+      } else if (promptText.includes("Jane Lane") && promptType === "slack") {
+        enhancedPrompt = "Show me recent messages from the #general channel";
+      } else if (promptText.includes("just Jane") && promptType === "slack") {
         // Test partial name matching for Jane
-        enhancedPrompt = "Find Jane's contact information in the CRM";
-      } else if (
-        promptText.includes("Michael") &&
-        promptType === "crm-lookup"
-      ) {
+        enhancedPrompt = "Show me recent messages from the #general channel";
+      } else if (promptText.includes("Michael") && promptType === "slack") {
         // Test partial name matching for Michael
-        enhancedPrompt = "What's Michael's email address?";
+        enhancedPrompt = "Show me recent messages from the #general channel";
       } else {
         enhancedPrompt = `${promptText} (Please use tools to respond to this query)`;
       }
@@ -630,48 +622,51 @@ export default function Home() {
   const actionOptions = [
     {
       id: "crm-lookup",
-      title: "CRM Lookup",
-      description: "Get customer information and deal history",
+      title: "CRM Customer Lookup",
+      description:
+        "Access customer information and deal history from your CRM system using secure OAuth connections",
       logo: "/logos/crm-logo.png",
-      action: () =>
-        checkOAuthAndPrompt(() =>
-          usePredefinedPrompt("Find John's contact information", "crm-lookup")
-        ),
+      action: () => {
+        setCurrentPromptType("crm-lookup");
+        setShowPromptExplanation(true);
+        setHasActivePrompt(true);
+      },
     },
     {
       id: "schedule-meeting",
-      title: "Schedule Meeting",
-      description: "Schedule a meeting with contacts from the CRM",
+      title: "Schedule Calendar Meeting",
+      description:
+        "Create calendar events with contacts from your CRM using your Google Calendar",
       logo: "/logos/google-calendar.png",
-      action: () =>
-        usePredefinedPrompt(
-          "Schedule a meeting with John next Tuesday",
-          "schedule-meeting"
-        ),
+      action: () => {
+        setCurrentPromptType("schedule-meeting");
+        setShowPromptExplanation(true);
+        setHasActivePrompt(true);
+      },
     },
     {
-      id: "create-google-meet",
-      title: "Create Google Meet",
-      description: "Create a Google Meet for a scheduled event",
-      logo: "/logos/google-meet-logo.svg",
-      action: () =>
-        usePredefinedPrompt(
-          "Create a Google Meet for my meeting with Jane",
-          "create-google-meet"
-        ),
+      id: "slack",
+      title: "Slack Integration",
+      description:
+        "Send messages, retrieve conversations, and manage channels in your Slack workspace",
+      logo: "/logos/slack-logo.svg",
+      action: () => {
+        setCurrentPromptType("slack");
+        setShowPromptExplanation(true);
+        setHasActivePrompt(true);
+      },
     },
     {
       id: "summarize-deal",
-      title: "Summarize Deal",
-      description: "Summarize deal status and save to Google Docs",
+      title: "Summarize Deal to Google Docs",
+      description:
+        "Create comprehensive deal summaries and save them directly to Google Docs for sharing and collaboration",
       logo: "/logos/google-docs.png",
-      action: () =>
-        checkOAuthAndPrompt(() =>
-          usePredefinedPrompt(
-            "Summarize the Enterprise Software License deal",
-            "summarize-deal"
-          )
-        ),
+      action: () => {
+        setCurrentPromptType("summarize-deal");
+        setShowPromptExplanation(true);
+        setHasActivePrompt(true);
+      },
     },
   ];
 
@@ -822,6 +817,8 @@ export default function Home() {
       }
     }
   }, []);
+
+  const router = useRouter();
 
   if (isLoading) {
     return (
@@ -995,60 +992,69 @@ export default function Home() {
         ) : (
           <div className="flex flex-1 overflow-hidden">
             <div className="flex-1 flex flex-col overflow-hidden relative">
-              <ScrollArea className="flex-1 p-6 pb-24">
+              <ScrollArea
+                className="flex-1 p-6 pb-24"
+                style={{ overflowAnchor: "auto" }}
+              >
                 {messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-                    
                     <h2 className="text-2xl font-bold mb-2">
                       Welcome to CRM Assistant
                     </h2>
                     <p className="text-muted-foreground mb-8 max-w-lg text-center">
                       This sample application showcases AI tool calling using
-                      Descope Outbound Apps. Try one of these example prompts or type your own question below.
+                      Descope Outbound Apps. Try one of these example prompts or
+                      type your own question below.
                     </p>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                      {Object.entries(promptExplanations).map(([key, category]) => (
-                        <Card 
-                          key={key} 
-                          className="text-left hover:shadow-md transition-shadow bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border-primary/10"
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="relative w-8 h-8 flex-shrink-0">
-                                <Image
-                                  src={category.logo}
-                                  alt={category.title}
-                                  fill
-                                  className="object-contain"
-                                />
+                      {Object.entries(promptExplanations).map(
+                        ([key, category]) => (
+                          <Card
+                            key={key}
+                            className="text-left hover:shadow-md transition-shadow bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border-primary/10"
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="relative w-8 h-8 flex-shrink-0">
+                                  <Image
+                                    src={category.logo}
+                                    alt={category.title}
+                                    fill
+                                    className="object-contain"
+                                  />
+                                </div>
+                                <h3 className="font-semibold truncate">
+                                  {category.title}
+                                </h3>
                               </div>
-                              <h3 className="font-semibold truncate">{category.title}</h3>
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-3 break-words">
-                              {category.description}
-                            </p>
-                            <div className="space-y-2">
-                              {category.examples.map((example, index) => (
-                                <Button
-                                  key={index}
-                                  variant="ghost"
-                                  className="w-full justify-start text-left h-auto py-2 px-3 text-sm hover:bg-accent/50 font-normal break-words whitespace-normal"
-                                  onClick={() => {
-                                    append({
-                                      role: "user",
-                                      content: example,
-                                    });
-                                  }}
-                                >
-                                  <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
-                                  <span className="line-clamp-2">{example}</span>
-                                </Button>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                              <p className="text-sm text-muted-foreground mb-3 break-words">
+                                {category.description}
+                              </p>
+                              <div className="space-y-2">
+                                {category.examples.map((example, index) => (
+                                  <Button
+                                    key={index}
+                                    variant="ghost"
+                                    className="w-full justify-start text-left h-auto py-2 px-3 text-sm hover:bg-accent/50 font-normal break-words whitespace-normal"
+                                    onClick={() => {
+                                      append({
+                                        role: "user",
+                                        content: example,
+                                      });
+                                    }}
+                                  >
+                                    <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
+                                    <span className="line-clamp-2">
+                                      {example}
+                                    </span>
+                                  </Button>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      )}
                     </div>
                   </div>
                 ) : (

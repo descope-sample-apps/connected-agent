@@ -21,6 +21,7 @@ import {
   Database,
   Loader2,
   RefreshCw,
+  MessageSquare,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -64,6 +65,12 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
       id: "custom-crm",
       name: "CRM",
       icon: "/logos/crm-logo.png",
+      connected: false,
+    },
+    {
+      id: "slack",
+      name: "Slack",
+      icon: "/logos/slack-logo.svg",
       connected: false,
     },
   ]);
@@ -169,6 +176,8 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
         return <Video className="h-4 w-4 text-indigo-500" />;
       case "custom-crm":
         return <Database className="h-4 w-4 text-purple-500" />;
+      case "slack":
+        return <MessageSquare className="h-4 w-4 text-indigo-500" />;
       default:
         return <ExternalLink className="h-4 w-4 text-indigo-500" />;
     }
