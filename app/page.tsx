@@ -46,6 +46,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useToast } from "@/components/ui/use-toast";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { convertToUIMessages } from "@/lib/utils";
+import LoginScreen from "@/components/login-screen";
 
 type PromptType =
   | "crm-lookup"
@@ -260,7 +261,7 @@ interface ChatMessageProps {
 }
 
 export default function Home() {
-  const { isAuthenticated, isLoading, setShowAuthModal } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showZoomPrompt, setShowZoomPrompt] = useState(false);
   const [showProfileScreen, setShowProfileScreen] = useState(false);
@@ -270,8 +271,20 @@ export default function Home() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
     // Initialize from localStorage if available
     if (typeof window !== "undefined") {
-      return localStorage.getItem("currentChatId");
+      // If we just redirected from a chat/[id] page, that ID will be in localStorage
+      const storedId = localStorage.getItem("currentChatId");
+
+      // If we have an ID, use it
+      if (storedId) {
+        return storedId;
+      }
+
+      // Otherwise, generate a new one
+      const newId = `chat-${Date.now()}`;
+      localStorage.setItem("currentChatId", newId);
+      return newId;
     }
+    // Server-side rendering case
     return null;
   });
   const [lastScheduledMeeting, setLastScheduledMeeting] =
@@ -299,8 +312,10 @@ export default function Home() {
   } = useChat({
     api: "/api/chat",
     body: {
+      id: currentChatId,
       selectedChatModel: selectedModel,
     },
+    credentials: "include",
     onError: (error) => {
       console.error("Chat error details:", error);
 
@@ -517,7 +532,8 @@ export default function Home() {
   const usePredefinedPrompt = useCallback(
     (promptText: string, promptType: string) => {
       if (!isAuthenticated) {
-        setShowAuthModal(true);
+        // The user needs to be authenticated, but we'll just return
+        // since the WelcomeScreen will show the authentication UI
         return;
       }
 
@@ -571,13 +587,14 @@ export default function Home() {
         data: { fromQuickAction: true },
       });
     },
-    [isAuthenticated, setShowAuthModal, chatHandleSubmit]
+    [isAuthenticated, chatHandleSubmit]
   );
 
   const checkOAuthAndPrompt = useCallback(
     (action: () => void) => {
       if (!isAuthenticated) {
-        setShowAuthModal(true);
+        // Instead of showing modal, we'll show the WelcomeScreen
+        // which now has the inline authentication
         return;
       }
 
@@ -605,7 +622,7 @@ export default function Home() {
         }
       }, 500);
     },
-    [isAuthenticated, setShowAuthModal, error, toast, setShowProfileScreen]
+    [isAuthenticated, error, toast, setShowProfileScreen]
   );
 
   const actionOptions = [
@@ -717,7 +734,7 @@ export default function Home() {
 
   const handleCreateDealSummary = (dealId?: string) => {
     if (!isAuthenticated) {
-      setShowAuthModal(true);
+      setShowProfileScreen(true);
       return;
     }
 
@@ -767,10 +784,109 @@ export default function Home() {
     }
   }, [currentChatId]);
 
+  // When component mounts, update URL with chat ID if we're on the home page
+  useEffect(() => {
+    if (typeof window !== "undefined" && isAuthenticated) {
+      const url = new URL(window.location.href);
+
+      // If we're already on a chat route, no need to redirect
+      if (url.pathname.startsWith("/chat/")) {
+        return;
+      }
+
+      // If we're on the root path and authenticated, redirect to a chat ID
+      if ((url.pathname === "/" || url.pathname === "") && isAuthenticated) {
+        // Generate a chat ID if we don't have one
+        const chatId = currentChatId || `chat-${Date.now()}`;
+        setCurrentChatId(chatId);
+        localStorage.setItem("currentChatId", chatId);
+
+        // Replace the URL to maintain the chat ID in the URL
+        window.history.replaceState({}, "", `/chat/${chatId}`);
+      }
+    }
+  }, [isAuthenticated, currentChatId]);
+
+  // Add effect to handle chat ID from URL
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      const chatIdMatch = path.match(/\/chat\/([^\/]+)/);
+
+      if (chatIdMatch && chatIdMatch[1]) {
+        const urlChatId = chatIdMatch[1];
+        setCurrentChatId(urlChatId);
+        localStorage.setItem("currentChatId", urlChatId);
+      }
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
+        <header className="border-b bg-white dark:bg-gray-900 px-6 py-4 flex items-center justify-between shadow-sm">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
+            ConnectedAgent
+          </h1>
+
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              className="rounded-full gap-2"
+              onClick={() => setShowProfileScreen(true)}
+            >
+              Sign In
+            </Button>
+          </div>
+        </header>
+
+        {showProfileScreen ? (
+          <LoginScreen />
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+              <Briefcase className="h-10 w-10 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">
+              Welcome to ConnectedAgent
+            </h2>
+            <p className="text-muted-foreground mb-4 max-w-md">
+              This sample application showcases AI tool calling using Descope
+              Outbound Apps. The assistant can securely access your connected
+              services using OAuth tokens.
+            </p>
+            <p className="text-muted-foreground mb-6 max-w-md">
+              Sign in to get started with your AI assistant.
+            </p>
+            <div className="grid grid-cols-2 gap-4 max-w-2xl w-full mb-8">
+              {actionOptions.map((option) => (
+                <ActionCard
+                  key={option.id}
+                  title={option.title}
+                  description={option.description}
+                  logo={option.logo}
+                  onClick={() => setShowProfileScreen(true)}
+                />
+              ))}
+            </div>
+            <Button
+              size="lg"
+              className="rounded-full gap-2"
+              onClick={() => setShowProfileScreen(true)}
+            >
+              <Sparkles className="h-4 w-4" />
+              Get Started
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -786,7 +902,6 @@ export default function Home() {
 
   return (
     <div className="app-container">
-      <AuthModal />
       {showGoogleMeetPrompt && lastScheduledMeeting && (
         <GoogleMeetPrompt
           isOpen={showGoogleMeetPrompt}
@@ -880,7 +995,7 @@ export default function Home() {
               <Button
                 size="sm"
                 className="rounded-full gap-2"
-                onClick={() => setShowAuthModal(true)}
+                onClick={() => setShowProfileScreen(true)}
               >
                 Sign In
               </Button>

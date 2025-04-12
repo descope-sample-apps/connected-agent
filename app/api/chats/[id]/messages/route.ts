@@ -1,5 +1,5 @@
 import { session } from "@descope/nextjs-sdk/server";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getChatById, getChatMessages } from "@/lib/db/queries";
 
 export async function GET(
@@ -10,7 +10,7 @@ export async function GET(
   const userSession = await session();
 
   if (!userSession?.token?.sub) {
-    return Response.json({ error: "Unauthorized!" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized!" }, { status: 401 });
   }
 
   try {
@@ -18,20 +18,20 @@ export async function GET(
     const chat = await getChatById({ id });
 
     if (!chat) {
-      return Response.json({ error: "Chat not found" }, { status: 404 });
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
     }
 
     if (chat.userId !== userSession.token.sub) {
-      return Response.json({ error: "Unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     // Get chat messages
     const messages = await getChatMessages({ chatId: id });
 
-    return Response.json({ messages });
+    return NextResponse.json({ messages });
   } catch (error) {
     console.error("Error fetching chat messages:", error);
-    return Response.json(
+    return NextResponse.json(
       { error: "Failed to fetch chat messages" },
       { status: 500 }
     );
