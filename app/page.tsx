@@ -853,13 +853,10 @@ export default function Home() {
         {showProfileScreen ? (
           <LoginScreen />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-              <Briefcase className="h-10 w-10 text-primary" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">
+          <div className="flex-1 flex flex-col items-center p-8 text-center">
+            <h1 className="text-3xl font-bold mb-6 mt-12">
               Welcome to ConnectedAgent
-            </h2>
+            </h1>
             <p className="text-muted-foreground mb-4 max-w-md">
               This sample application showcases AI tool calling using Descope
               Outbound Apps. The assistant can securely access your connected
@@ -870,10 +867,9 @@ export default function Home() {
             </p>
             <Button
               size="lg"
-              className="rounded-full gap-2"
+              className="rounded-full bg-primary hover:bg-primary/90 text-white font-medium"
               onClick={() => setShowProfileScreen(true)}
             >
-              <Sparkles className="h-4 w-4" />
               Get Started
             </Button>
           </div>
