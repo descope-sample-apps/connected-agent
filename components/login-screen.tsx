@@ -60,9 +60,6 @@ export default function LoginScreen() {
           }`}
         >
           <CardHeader className="space-y-1 text-center">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Briefcase className="h-8 w-8 text-primary" />
-            </div>
             <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
               ConnectedAgent
             </CardTitle>
@@ -91,17 +88,6 @@ export default function LoginScreen() {
             <p className="text-xs text-muted-foreground mb-2">
               Powered by Descope AI
             </p>
-            <a
-              href="https://descope.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full"
-            >
-              <Button className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white hover:text-white border-0 group transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] font-medium rounded-xl">
-                <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-                Learn More About Descope AI
-              </Button>
-            </a>
           </CardFooter>
         </Card>
       </div>
