@@ -64,8 +64,8 @@ export default function PromptExplanation({
         <p className="text-sm text-muted-foreground mt-4">{description}</p>
       </div>
 
-      <div className="flex-1 p-6 grid grid-cols-2 gap-6 overflow-auto">
-        <div className="space-y-4">
+      <div className="flex-1 p-6 overflow-auto">
+        <div className="space-y-6">
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Examples:</h4>
             <ul className="space-y-1">
@@ -102,29 +102,29 @@ export default function PromptExplanation({
               ))}
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium">How it works:</h4>
           <div className="space-y-4">
-            {steps.map((step, index) => (
-              <div key={index} className="flex gap-4">
-                <div className="relative w-8 h-8 flex-shrink-0">
-                  <Image
-                    src={getStepIcon(step.title)}
-                    alt={step.title}
-                    fill
-                    className="object-contain"
-                  />
+            <h4 className="text-sm font-medium">How it works:</h4>
+            <div className="space-y-4">
+              {steps.map((step, index) => (
+                <div key={index} className="flex gap-4">
+                  <div className="relative w-8 h-8 flex-shrink-0">
+                    <Image
+                      src={getStepIcon(step.title)}
+                      alt={step.title}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-medium">{step.title}</h5>
+                    <p className="text-sm text-muted-foreground">
+                      {step.description}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h5 className="text-sm font-medium">{step.title}</h5>
-                  <p className="text-sm text-muted-foreground">
-                    {step.description}
-                  </p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>

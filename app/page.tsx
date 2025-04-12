@@ -47,6 +47,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { convertToUIMessages } from "@/lib/utils";
 import LoginScreen from "@/components/login-screen";
+import { Card, CardContent } from "@/components/ui/card";
+import Image from "next/image";
 
 type PromptType =
   | "crm-lookup"
@@ -1010,22 +1012,59 @@ export default function Home() {
             <div className="flex-1 flex flex-col overflow-hidden relative">
               <ScrollArea className="flex-1 p-6 pb-24">
                 {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                    <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                      <Briefcase className="h-10 w-10 text-primary" />
-                    </div>
+                  <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+                    
                     <h2 className="text-2xl font-bold mb-2">
-                      Welcome to ConnectedAgent
+                      Welcome to CRM Assistant
                     </h2>
-                    <p className="text-muted-foreground mb-4 max-w-md">
+                    <p className="text-muted-foreground mb-8 max-w-lg text-center">
                       This sample application showcases AI tool calling using
-                      Descope Outbound Apps. The assistant can securely access
-                      your connected services using OAuth tokens.
+                      Descope Outbound Apps. Try one of these example prompts or type your own question below.
                     </p>
-                    <p className="text-muted-foreground mb-6 max-w-md">
-                      Get started by typing a question below or selecting a
-                      quick action from the sidebar.
-                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                      {Object.entries(promptExplanations).map(([key, category]) => (
+                        <Card 
+                          key={key} 
+                          className="text-left hover:shadow-md transition-shadow bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border-primary/10"
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="relative w-8 h-8 flex-shrink-0">
+                                <Image
+                                  src={category.logo}
+                                  alt={category.title}
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                              <h3 className="font-semibold truncate">{category.title}</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-3 break-words">
+                              {category.description}
+                            </p>
+                            <div className="space-y-2">
+                              {category.examples.map((example, index) => (
+                                <Button
+                                  key={index}
+                                  variant="ghost"
+                                  className="w-full justify-start text-left h-auto py-2 px-3 text-sm hover:bg-accent/50 font-normal break-words whitespace-normal"
+                                  onClick={() => {
+                                    append({
+                                      role: "user",
+                                      content: example,
+                                    });
+                                  }}
+                                >
+                                  <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
+                                  <span className="line-clamp-2">{example}</span>
+                                </Button>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div className="md:max-w-4xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto">
@@ -1156,7 +1195,7 @@ export default function Home() {
                   <div className="p-6 animate-in fade-in duration-300">
                     <div className="flex justify-between items-center mb-6">
                       <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        Quick Actions
+                        Connected Applications
                       </h2>
                     </div>
                     <div className="space-y-4">
