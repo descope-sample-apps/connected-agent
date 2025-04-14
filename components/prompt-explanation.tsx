@@ -18,6 +18,37 @@ import {
   X,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+
+// Helper function to convert URLs in text to clickable links
+function convertUrlsToLinks(text: string): React.ReactNode {
+  // URL regex pattern
+  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  
+  // Split the text by URLs
+  const parts = text.split(urlPattern);
+  
+  // Map through parts and convert URLs to links
+  return parts.map((part, index) => {
+    // Check if this part is a URL
+    if (part.match(urlPattern)) {
+      return (
+        <Link 
+          key={index} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-primary hover:underline inline-flex items-center"
+        >
+          {part}
+          <ExternalLink className="h-3 w-3 ml-1" />
+        </Link>
+      );
+    }
+    // Return regular text
+    return part;
+  });
+}
 
 interface PromptExplanationProps {
   title: string;
@@ -61,47 +92,53 @@ export default function PromptExplanation({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground mt-4">{description}</p>
+        <div className="text-sm text-muted-foreground mt-4">
+          {convertUrlsToLinks(description)}
+        </div>
       </div>
 
       <div className="flex-1 p-6 overflow-auto">
         <div className="space-y-6">
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Examples:</h4>
-            <ul className="space-y-1">
-              {examples.map((example, index) => (
-                <li
-                  key={index}
-                  className="text-sm text-muted-foreground cursor-pointer hover:text-foreground"
-                  onClick={() => onExampleClick?.(example)}
-                >
-                  {example}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">APIs Used:</h4>
-            <div className="flex flex-wrap gap-2">
-              {apis.map((api) => (
-                <div
-                  key={api}
-                  className="flex items-center gap-2 px-2 py-1 bg-secondary rounded text-xs"
-                >
-                  <div className="relative w-4 h-4">
-                    <Image
-                      src={getApiLogo(api)}
-                      alt={api}
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                  {api}
-                </div>
-              ))}
+          {examples.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Examples:</h4>
+              <ul className="space-y-1">
+                {examples.map((example, index) => (
+                  <li
+                    key={index}
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground"
+                    onClick={() => onExampleClick?.(example)}
+                  >
+                    {example}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
+          )}
+
+          {apis.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">APIs Used:</h4>
+              <div className="flex flex-wrap gap-2">
+                {apis.map((api) => (
+                  <div
+                    key={api}
+                    className="flex items-center gap-2 px-2 py-1 bg-secondary rounded text-xs"
+                  >
+                    <div className="relative w-4 h-4">
+                      <Image
+                        src={getApiLogo(api)}
+                        alt={api}
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    {api}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <h4 className="text-sm font-medium">How it works:</h4>
