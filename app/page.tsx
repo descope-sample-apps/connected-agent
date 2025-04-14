@@ -843,45 +843,56 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const input = form.querySelector('input[type="text"]') as HTMLInputElement;
-    const value = input.value.trim();
 
+    if (!inputRef.current) return;
+
+    const value = inputRef.current.value.trim();
     if (!value) return;
 
-    // Check if the message matches any example prompts
+    // Check if this is a tool-related prompt
     const matchedPrompt = Object.entries(promptExplanations).find(
-      ([_, explanation]) =>
-        explanation.examples.some((example) =>
-          value.toLowerCase().includes(example.toLowerCase())
+      ([key, category]) =>
+        category.examples.some(
+          (example) => value.toLowerCase() === example.toLowerCase()
         )
     );
 
-    let systemMessage = "";
     if (matchedPrompt) {
-      const [category, explanation] = matchedPrompt;
-      systemMessage =
-        explanation.context?.systemPrompt ||
-        `You are a helpful assistant specializing in ${explanation.title}. 
-         When users ask about ${explanation.title.toLowerCase()}, provide specific guidance based on the available steps and APIs.`;
-    }
-
-    // Add the user's message
-    append({
-      role: "user",
-      content: value,
-    });
-
-    // If we have a matched prompt, add the system message
-    if (systemMessage) {
+      const [key, category] = matchedPrompt;
+      // Add the user's message and system context in a single append call
       append({
-        role: "system",
-        content: systemMessage,
+        role: "user",
+        content: value,
+        parts: [
+          { type: "text", text: value },
+          {
+            type: "reasoning",
+            reasoning:
+              category.context?.systemPrompt ||
+              `This is a ${category.title} request. Please provide specific guidance.`,
+            details: [
+              {
+                type: "text",
+                text:
+                  category.context?.systemPrompt ||
+                  `This is a ${category.title} request. Please provide specific guidance.`,
+              },
+            ],
+          },
+        ],
+      });
+    } else {
+      // Regular message handling
+      append({
+        role: "user",
+        content: value,
       });
     }
 
-    // Clear the input
-    input.value = "";
+    // Clear input using the handleInputChange from useChat
+    handleInputChange({
+      target: { value: "" },
+    } as React.ChangeEvent<HTMLInputElement>);
   };
 
   const usePredefinedPrompt = useCallback(
@@ -1409,6 +1420,8 @@ export default function Home() {
     }
   }, [messages.length, isChatLoading]);
 
+  const [isScrolling, setIsScrolling] = useState(false);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1599,6 +1612,7 @@ export default function Home() {
                   onToggleCollapse={() =>
                     setHistorySidebarOpen(!historySidebarOpen)
                   }
+                  isAuthenticated={isAuthenticated}
                 />
               </div>
 
@@ -1719,6 +1733,7 @@ export default function Home() {
                     <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
                       <form onSubmit={handleSubmit} className="relative">
                         <Input
+                          ref={inputRef}
                           value={input}
                           onChange={handleInputChange}
                           placeholder="Ask anything..."
@@ -1732,7 +1747,11 @@ export default function Home() {
                             className="rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
                             disabled={isChatLoading || !input.trim()}
                           >
-                            <Send className="size-4" />
+                            {isChatLoading ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                            ) : (
+                              <Send className="size-4" />
+                            )}
                           </Button>
                         </div>
                       </form>

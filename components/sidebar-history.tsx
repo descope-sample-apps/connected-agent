@@ -38,8 +38,9 @@ interface SidebarHistoryProps {
   currentChatId: string;
   onChatSelect: (chatId: string) => void;
   onNewChat: () => void;
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  isAuthenticated: boolean;
 }
 
 export const SidebarHistory = forwardRef<
@@ -47,7 +48,14 @@ export const SidebarHistory = forwardRef<
   SidebarHistoryProps
 >(
   (
-    { currentChatId, onChatSelect, onNewChat, isCollapsed, onToggleCollapse },
+    {
+      currentChatId,
+      onChatSelect,
+      onNewChat,
+      isCollapsed = false,
+      onToggleCollapse,
+      isAuthenticated,
+    },
     ref
   ) => {
     const router = useRouter();
@@ -57,16 +65,16 @@ export const SidebarHistory = forwardRef<
     const [error, setError] = useState<string | null>(null);
 
     // Fetch chat history
-    const fetchChatHistory = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+    const fetchChatHistory = async (showLoading = true) => {
+      if (!isAuthenticated) return;
 
-        const response = await fetch("/api/chats", {
-          headers: {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          },
+      try {
+        if (showLoading) {
+          setIsLoading(true);
+        }
+
+        const response = await fetch("/api/chat/history", {
+          credentials: "include",
         });
 
         if (!response.ok) {
@@ -75,44 +83,50 @@ export const SidebarHistory = forwardRef<
 
         const data = await response.json();
 
-        // Use a Map to ensure unique chat IDs
+        if (!data.chats || !Array.isArray(data.chats)) {
+          throw new Error("Invalid chat data received");
+        }
+
+        // Use a Map to ensure unique chat IDs and maintain the most recent version of each chat
         const uniqueChats = new Map<string, ChatHistoryItem>();
 
-        // Transform and deduplicate the data
-        data.chats.forEach((item: any) => {
-          if (item.chat.id) {
-            uniqueChats.set(item.chat.id, {
-              id: item.chat.id,
-              title: item.chat.title || "Untitled Chat",
-              preview: item.lastMessage
-                ? typeof item.lastMessage.parts[0] === "string"
-                  ? item.lastMessage.parts[0].substring(0, 100)
-                  : "Chat content"
-                : "No messages",
-              date: item.chat.lastMessageAt
-                ? new Date(item.chat.lastMessageAt).toLocaleString()
-                : new Date(item.chat.createdAt).toLocaleString(),
-              updatedAt: item.chat.lastMessageAt || item.chat.createdAt,
-              createdAt: item.chat.createdAt,
-            });
+        data.chats.forEach((chat: ChatHistoryItem) => {
+          if (chat.id && chat.title) {
+            // If we already have this chat, only update if the new version is more recent
+            const existingChat = uniqueChats.get(chat.id);
+            if (existingChat) {
+              const existingDate = new Date(
+                existingChat.updatedAt || existingChat.createdAt
+              );
+              const newDate = new Date(chat.updatedAt || chat.createdAt);
+              if (newDate > existingDate) {
+                uniqueChats.set(chat.id, chat);
+              }
+            } else {
+              uniqueChats.set(chat.id, chat);
+            }
           }
         });
 
-        // Convert Map to array and sort by date
+        // Convert Map back to array and sort by most recent first
         const sortedChats = Array.from(uniqueChats.values()).sort((a, b) => {
-          const dateA = new Date(a.date);
-          const dateB = new Date(b.date);
+          const dateA = new Date(a.updatedAt || a.createdAt);
+          const dateB = new Date(b.updatedAt || b.createdAt);
           return dateB.getTime() - dateA.getTime();
         });
 
         setChatHistory(sortedChats);
       } catch (error) {
         console.error("Error fetching chat history:", error);
-        setError(
-          error instanceof Error ? error.message : "Failed to load chat history"
-        );
+        toast({
+          title: "Error",
+          description: "Failed to load chat history",
+          variant: "destructive",
+        });
       } finally {
-        setIsLoading(false);
+        if (showLoading) {
+          setIsLoading(false);
+        }
       }
     };
 
