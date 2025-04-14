@@ -308,6 +308,7 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [isHandlingChatChange, setIsHandlingChatChange] = useState(false);
   const [chatRedirectAttempts, setChatRedirectAttempts] = useState(0);
@@ -1190,6 +1191,16 @@ export default function Home() {
     }
   }, [messages, currentChatId, isAuthenticated]);
 
+  // Focus input field after response
+  useEffect(() => {
+    if (messages.length > 0 && !isChatLoading && inputRef.current) {
+      // Small delay to ensure the UI has updated
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [messages.length, isChatLoading]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1496,6 +1507,7 @@ export default function Home() {
                         placeholder="Ask anything..."
                         className="pr-20 py-6 resize-none border-muted/30 focus-visible:ring-primary/70 shadow-lg rounded-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm transition-all duration-200 hover:shadow-xl"
                         disabled={isChatLoading}
+                        ref={inputRef}
                       />
                       <div className="absolute top-0 right-0 h-full flex items-center justify-center pr-4">
                         <Button
