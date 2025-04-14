@@ -40,6 +40,7 @@ import {
   MessageSquare,
   ExternalLink,
   Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import SaveChatDialog from "@/components/save-chat-dialog";
 import { toast } from "@/components/ui/use-toast";
@@ -1623,63 +1624,62 @@ export default function Home() {
                 >
                   {messages.length === 0 && !isHandlingChatChange ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/40">
+                        <Briefcase className="h-8 w-8 text-indigo-500" />
+                      </div>
                       <h2 className="text-2xl font-bold mb-2">
                         Welcome to CRM Assistant
                       </h2>
                       <p className="text-muted-foreground mb-8 max-w-lg text-center">
-                        This sample application showcases AI tool calling using
-                        Descope Outbound Apps. Try one of these example prompts
-                        or type your own question below.
+                        I can help you manage customer relationships, schedule meetings, and more. Try one of these examples or type your own question below.
                       </p>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                        {Object.entries(promptExplanations).map(
-                          ([key, category]) => (
-                            <Card
-                              key={key}
-                              className="text-left hover:shadow-md transition-shadow bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border-primary/10"
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
+                        {(() => {
+                          // Create a flat array of all examples from all tools
+                          const allExamples = Object.entries(promptExplanations)
+                            .filter(([key]) => key !== "add-custom-tool") // Exclude the add-custom-tool
+                            .flatMap(
+                              ([key, category]) => 
+                                category.examples.map(example => ({
+                                  example,
+                                  toolKey: key,
+                                  logo: category.logo,
+                                  title: category.title
+                                }))
+                            );
+                          
+                          // Shuffle the array and take a subset (12 examples)
+                          const shuffled = [...allExamples].sort(() => Math.random() - 0.5);
+                          const selectedExamples = shuffled.slice(0, 12);
+                          
+                          return selectedExamples.map((item, index) => (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                // Use the handleInputChange function from useChat
+                                const event = {
+                                  target: { value: item.example }
+                                } as React.ChangeEvent<HTMLInputElement>;
+                                handleInputChange(event);
+                                inputRef.current?.focus();
+                              }}
+                              className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 text-left group relative"
                             >
-                              <CardContent className="p-4">
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className="relative w-8 h-8 flex-shrink-0">
-                                    <Image
-                                      src={category.logo}
-                                      alt={category.title}
-                                      fill
-                                      className="object-contain"
-                                    />
-                                  </div>
-                                  <h3 className="font-semibold truncate">
-                                    {category.title}
-                                  </h3>
-                                </div>
-                                <p className="text-sm text-muted-foreground mb-3 break-words">
-                                  {category.description}
-                                </p>
-                                <div className="space-y-2">
-                                  {category.examples.map((example, index) => (
-                                    <Button
-                                      key={index}
-                                      variant="ghost"
-                                      className="w-full justify-start text-left h-auto py-2 px-3 text-sm hover:bg-accent/50 font-normal break-words whitespace-normal"
-                                      onClick={() => {
-                                        append({
-                                          role: "user",
-                                          content: example,
-                                        });
-                                      }}
-                                    >
-                                      <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
-                                      <span className="line-clamp-2">
-                                        {example}
-                                      </span>
-                                    </Button>
-                                  ))}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )
-                        )}
+                              <div className="relative w-6 h-6 flex-shrink-0">
+                                <Image
+                                  src={item.logo}
+                                  alt={item.title}
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                              <span className="text-sm text-muted-foreground group-hover:text-foreground line-clamp-2">
+                                {item.example}
+                              </span>
+                            </button>
+                          ));
+                        })()}
                       </div>
                     </div>
                   ) : (
