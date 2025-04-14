@@ -35,6 +35,8 @@ export async function GET() {
       {
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "private, max-age=60",
+          Vary: "Cookie",
         },
       }
     );
@@ -49,6 +51,7 @@ export async function GET() {
         status: 500,
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "no-store",
         },
       }
     );

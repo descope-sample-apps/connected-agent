@@ -138,9 +138,7 @@ export const SidebarHistory = forwardRef<
     // Fetch chat history on mount and when currentChatId changes
     useEffect(() => {
       fetchChatHistory();
-      const timer = setInterval(fetchChatHistory, 10000); // Refresh every 10 seconds
-      return () => clearInterval(timer);
-    }, [currentChatId]); // Add currentChatId as a dependency
+    }, [currentChatId, isAuthenticated]); // Only fetch when chat ID or auth status changes
 
     // Filter chats based on search query
     const filteredChats = chatHistory.filter(

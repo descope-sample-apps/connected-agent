@@ -19,24 +19,25 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import React from "react";
 
 // Helper function to convert URLs in text to clickable links
 function convertUrlsToLinks(text: string): React.ReactNode {
   // URL regex pattern
   const urlPattern = /(https?:\/\/[^\s]+)/g;
-  
+
   // Split the text by URLs
   const parts = text.split(urlPattern);
-  
+
   // Map through parts and convert URLs to links
   return parts.map((part, index) => {
     // Check if this part is a URL
     if (part.match(urlPattern)) {
       return (
-        <Link 
-          key={index} 
-          href={part} 
-          target="_blank" 
+        <Link
+          key={index}
+          href={part}
+          target="_blank"
           rel="noopener noreferrer"
           className="text-primary hover:underline inline-flex items-center"
         >
@@ -78,6 +79,9 @@ export default function PromptExplanation({
 }: PromptExplanationProps) {
   if (!isVisible) return null;
 
+  // Memoize the examples list to prevent re-renders
+  const memoizedExamples = React.useMemo(() => examples, []);
+
   return (
     <div className="h-full flex flex-col">
       <div className="p-6 border-b">
@@ -99,11 +103,11 @@ export default function PromptExplanation({
 
       <div className="flex-1 p-6 overflow-auto">
         <div className="space-y-6">
-          {examples.length > 0 && (
+          {memoizedExamples.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Examples:</h4>
               <ul className="space-y-1">
-                {examples.map((example, index) => (
+                {memoizedExamples.map((example, index) => (
                   <li
                     key={index}
                     className="text-sm text-muted-foreground cursor-pointer hover:text-foreground p-2 rounded-md border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all duration-200 group relative flex items-center"

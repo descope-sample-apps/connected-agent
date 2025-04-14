@@ -94,6 +94,14 @@ interface MeetingDetails {
   participants?: string[];
 }
 
+interface UIMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  parts: any[];
+  chatId?: string; // Add optional chatId property
+}
+
 const promptExplanations: Record<PromptType, PromptExplanation> = {
   "crm-lookup": {
     title: "CRM Customer Lookup",
@@ -582,13 +590,7 @@ export default function Home() {
   // Load chat messages when currentChatId changes
   useEffect(() => {
     const fetchChatMessages = async () => {
-      if (
-        !currentChatId ||
-        !isAuthenticated ||
-        messages.length > 0 ||
-        isHandlingChatChange
-      )
-        return;
+      if (!currentChatId || !isAuthenticated) return;
 
       // Don't try more than twice to avoid infinite loops
       if (chatRedirectAttempts >= 2) {
@@ -599,8 +601,21 @@ export default function Home() {
       try {
         setIsHandlingChatChange(true);
         console.log("Fetching messages for chat:", currentChatId);
+
+        // Check if we already have messages for this chat
+        if (messages.length > 0 && messages[0]?.chatId === currentChatId) {
+          console.log("Messages already loaded for chat:", currentChatId);
+          return;
+        }
+
         const response = await fetch(
-          `/api/chat/messages?chatId=${currentChatId}`
+          `/api/chat/messages?chatId=${currentChatId}`,
+          {
+            headers: {
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
+            },
+          }
         );
 
         // Handle invalid chat ID cases
@@ -629,6 +644,7 @@ export default function Home() {
             role: msg.role,
             content: extractMessageContent(msg),
             parts: Array.isArray(msg.parts) ? msg.parts : [],
+            chatId: currentChatId, // Add chatId to track message ownership
           }));
 
           // Set messages in chat
@@ -662,14 +678,7 @@ export default function Home() {
     };
 
     fetchChatMessages();
-  }, [
-    currentChatId,
-    isAuthenticated,
-    messages.length,
-    setMessages,
-    isHandlingChatChange,
-    chatRedirectAttempts,
-  ]);
+  }, [currentChatId, isAuthenticated]); // Remove unnecessary dependencies
 
   // Helper function to extract message content from different message formats
   const extractMessageContent = (msg: any): string => {
