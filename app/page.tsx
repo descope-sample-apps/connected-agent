@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -267,6 +267,68 @@ interface ChatMessageProps {
 }
 
 const connectionMarkerRegex = /<connection:(.*?)>/;
+
+// Create a separate component that uses useSearchParams
+function ChatParamsHandler({
+  isAuthenticated,
+  isHandlingChatChange,
+  setIsHandlingChatChange,
+  setCurrentChatId,
+  reload,
+}: {
+  isAuthenticated: boolean;
+  isHandlingChatChange: boolean;
+  setIsHandlingChatChange: (value: boolean) => void;
+  setCurrentChatId: (id: string) => void;
+  reload: () => void;
+}) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!isAuthenticated || isHandlingChatChange) return;
+
+    const chatIdParam = searchParams?.get("chatId");
+
+    if (chatIdParam) {
+      console.log(
+        "Found chatId in URL params, setting current chat:",
+        chatIdParam
+      );
+
+      // Set the handling flag to prevent multiple updates
+      setIsHandlingChatChange(true);
+
+      // Set the current chat ID
+      setCurrentChatId(chatIdParam);
+      localStorage.setItem("currentChatId", chatIdParam);
+
+      // Manually load chat messages - the reload method will fetch messages for the chat ID
+      // The fetchChatMessages function will handle invalid chat IDs
+      setTimeout(() => {
+        console.log("Reloading chat messages for:", chatIdParam);
+        reload();
+        // Reset the handling flag after reload is called
+        setIsHandlingChatChange(false);
+      }, 100);
+
+      // Clean up URL (remove chatId parameter)
+      if (typeof window !== "undefined") {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("chatId");
+        window.history.replaceState({}, "", newUrl.toString());
+      }
+    }
+  }, [
+    searchParams,
+    isAuthenticated,
+    isHandlingChatChange,
+    setIsHandlingChatChange,
+    setCurrentChatId,
+    reload,
+  ]);
+
+  return null; // This component doesn't render anything
+}
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -1139,52 +1201,6 @@ export default function Home() {
     }
   }, [currentChatId, isAuthenticated, isHandlingChatChange]);
 
-  // Add searchParams hook to detect chat ID in URL
-  const searchParams = useSearchParams();
-
-  // Also update the URL parameter handling to prevent redirect loops
-  useEffect(() => {
-    if (!isAuthenticated || isHandlingChatChange) return;
-
-    const chatIdParam = searchParams?.get("chatId");
-
-    if (chatIdParam) {
-      console.log(
-        "Found chatId in URL params, setting current chat:",
-        chatIdParam
-      );
-
-      // Set the handling flag to prevent multiple updates
-      setIsHandlingChatChange(true);
-
-      // Set the current chat ID
-      setCurrentChatId(chatIdParam);
-      localStorage.setItem("currentChatId", chatIdParam);
-
-      // Manually load chat messages - the reload method will fetch messages for the chat ID
-      // The fetchChatMessages function will handle invalid chat IDs
-      setTimeout(() => {
-        console.log("Reloading chat messages for:", chatIdParam);
-        reload();
-        // Reset the handling flag after reload is called
-        setIsHandlingChatChange(false);
-      }, 100);
-
-      // Clean up URL (remove chatId parameter)
-      if (typeof window !== "undefined") {
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete("chatId");
-        window.history.replaceState({}, "", newUrl.toString());
-      }
-    }
-  }, [
-    searchParams,
-    isAuthenticated,
-    setCurrentChatId,
-    reload,
-    isHandlingChatChange,
-  ]);
-
   // Reset redirect attempts on component mount
   useEffect(() => {
     setChatRedirectAttempts(0);
@@ -1271,369 +1287,380 @@ export default function Home() {
   }
 
   return (
-    <div className="app-container">
-      {showGoogleMeetPrompt && lastScheduledMeeting && (
-        <GoogleMeetPrompt
-          isOpen={showGoogleMeetPrompt}
-          onClose={() => setShowGoogleMeetPrompt(false)}
-          onConfirm={handleCreateGoogleMeet}
-          meetingDetails={{
-            title: lastScheduledMeeting.title,
-            date: lastScheduledMeeting.date,
-            time: lastScheduledMeeting.time,
-            participants: lastScheduledMeeting.participants,
+    <Suspense fallback={<div>Loading...</div>}>
+      <ChatParamsHandler
+        isAuthenticated={isAuthenticated}
+        isHandlingChatChange={isHandlingChatChange}
+        setIsHandlingChatChange={setIsHandlingChatChange}
+        setCurrentChatId={setCurrentChatId}
+        reload={reload}
+      />
+      <div className="app-container">
+        {showGoogleMeetPrompt && lastScheduledMeeting && (
+          <GoogleMeetPrompt
+            isOpen={showGoogleMeetPrompt}
+            onClose={() => setShowGoogleMeetPrompt(false)}
+            onConfirm={handleCreateGoogleMeet}
+            meetingDetails={{
+              title: lastScheduledMeeting.title,
+              date: lastScheduledMeeting.date,
+              time: lastScheduledMeeting.time,
+              participants: lastScheduledMeeting.participants,
+            }}
+          />
+        )}
+        <ShareChatDialog
+          isOpen={showShareDialog}
+          onClose={() => setShowShareDialog(false)}
+          chatId={currentChatId || "temp-chat-id"}
+        />
+        <SaveChatDialog
+          open={showSaveDialog}
+          onOpenChange={setShowSaveDialog}
+          onSave={() => {
+            // Chat is now saved automatically
+            setShowSaveDialog(false);
           }}
         />
-      )}
-      <ShareChatDialog
-        isOpen={showShareDialog}
-        onClose={() => setShowShareDialog(false)}
-        chatId={currentChatId || "temp-chat-id"}
-      />
-      <SaveChatDialog
-        open={showSaveDialog}
-        onOpenChange={setShowSaveDialog}
-        onSave={() => {
-          // Chat is now saved automatically
-          setShowSaveDialog(false);
-        }}
-      />
-      <DealSummaryPrompt
-        isOpen={showDealSummaryPrompt}
-        onClose={() => setShowDealSummaryPrompt(false)}
-        onSuccess={handleDealSummarySuccess}
-        dealId={selectedDealId || undefined}
-      />
+        <DealSummaryPrompt
+          isOpen={showDealSummaryPrompt}
+          onClose={() => setShowDealSummaryPrompt(false)}
+          onSuccess={handleDealSummarySuccess}
+          dealId={selectedDealId || undefined}
+        />
 
-      <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-        <header className="border-b bg-white dark:bg-gray-900 px-6 py-4 flex items-center justify-between shadow-sm">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
-            ConnectedAgent
-          </h1>
+        <div className="flex flex-col h-screen max-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
+          <header className="border-b bg-white dark:bg-gray-900 px-6 py-4 flex items-center justify-between shadow-sm">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
+              ConnectedAgent
+            </h1>
 
-          <div className="flex items-center gap-3">
-            {isAuthenticated && messages.length > 0 && (
-              <div className="flex items-center gap-2 mr-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleShareChat}
-                  className="h-9"
-                >
-                  <Share2 className="h-4 w-4 mr-2" /> Share
-                </Button>
-              </div>
-            )}
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
+            <div className="flex items-center gap-3">
+              {isAuthenticated && messages.length > 0 && (
+                <div className="flex items-center gap-2 mr-2">
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-gray-700 dark:text-gray-300"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShareChat}
+                    className="h-9"
                   >
-                    <HelpCircle className="h-5 w-5" />
+                    <Share2 className="h-4 w-4 mr-2" /> Share
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[280px] p-4">
-                  <div className="space-y-2">
-                    <p className="font-medium">About this demo</p>
-                    <p className="text-sm text-muted-foreground">
-                      This sample app showcases OpenAI function calling with
-                      Descope outbound OAuth apps. AI functions can securely
-                      access your connected services using OAuth.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      For more information, visit{" "}
-                      <a
-                        href="https://docs.descope.com/outbound/"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary underline hover:no-underline"
-                      >
-                        Descope docs
-                      </a>
-                    </p>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {isAuthenticated ? (
-              <UserMenu onProfileClick={() => setShowProfileScreen(true)} />
-            ) : (
-              <Button
-                size="sm"
-                className="rounded-full gap-2"
-                onClick={() => setShowProfileScreen(true)}
-              >
-                Sign In
-              </Button>
-            )}
-          </div>
-        </header>
+                </div>
+              )}
 
-        {!isAuthenticated ? (
-          <WelcomeScreen />
-        ) : (
-          <div className="flex flex-1 overflow-hidden">
-            {/* Add Chat History Sidebar */}
-            <div className="border-r border-gray-100 dark:border-gray-800 h-full">
-              <SidebarHistory
-                currentChatId={currentChatId || ""}
-                onChatSelect={handleChatSelect}
-                onNewChat={handleNewChat}
-                isCollapsed={!historySidebarOpen}
-                onToggleCollapse={() =>
-                  setHistorySidebarOpen(!historySidebarOpen)
-                }
-              />
-            </div>
-
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-              <ScrollArea
-                className="flex-1 p-6 pb-24"
-                style={{ overflowAnchor: "auto" }}
-              >
-                {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-                    <h2 className="text-2xl font-bold mb-2">
-                      Welcome to CRM Assistant
-                    </h2>
-                    <p className="text-muted-foreground mb-8 max-w-lg text-center">
-                      This sample application showcases AI tool calling using
-                      Descope Outbound Apps. Try one of these example prompts or
-                      type your own question below.
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                      {Object.entries(promptExplanations).map(
-                        ([key, category]) => (
-                          <Card
-                            key={key}
-                            className="text-left hover:shadow-md transition-shadow bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border-primary/10"
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex items-center gap-3 mb-3">
-                                <div className="relative w-8 h-8 flex-shrink-0">
-                                  <Image
-                                    src={category.logo}
-                                    alt={category.title}
-                                    fill
-                                    className="object-contain"
-                                  />
-                                </div>
-                                <h3 className="font-semibold truncate">
-                                  {category.title}
-                                </h3>
-                              </div>
-                              <p className="text-sm text-muted-foreground mb-3 break-words">
-                                {category.description}
-                              </p>
-                              <div className="space-y-2">
-                                {category.examples.map((example, index) => (
-                                  <Button
-                                    key={index}
-                                    variant="ghost"
-                                    className="w-full justify-start text-left h-auto py-2 px-3 text-sm hover:bg-accent/50 font-normal break-words whitespace-normal"
-                                    onClick={() => {
-                                      append({
-                                        role: "user",
-                                        content: example,
-                                      });
-                                    }}
-                                  >
-                                    <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
-                                    <span className="line-clamp-2">
-                                      {example}
-                                    </span>
-                                  </Button>
-                                ))}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )
-                      )}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      <HelpCircle className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[280px] p-4">
+                    <div className="space-y-2">
+                      <p className="font-medium">About this demo</p>
+                      <p className="text-sm text-muted-foreground">
+                        This sample app showcases OpenAI function calling with
+                        Descope outbound OAuth apps. AI functions can securely
+                        access your connected services using OAuth.
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        For more information, visit{" "}
+                        <a
+                          href="https://docs.descope.com/outbound/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline hover:no-underline"
+                        >
+                          Descope docs
+                        </a>
+                      </p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="md:max-w-4xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto">
-                    {messages.map((message, index) => (
-                      <ChatMessage
-                        key={index}
-                        message={{
-                          role: message.role,
-                          content:
-                            typeof message.content === "string" &&
-                            message.content.length > 0
-                              ? message.content
-                              : extractMessageContent(message),
-                          parts: message.parts
-                            ?.map((part) => {
-                              // Handle string parts
-                              if (typeof part === "string") {
-                                return {
-                                  type: "text",
-                                  text: part,
-                                };
-                              }
-                              // Handle object parts
-                              if (typeof part === "object" && part !== null) {
-                                if ("text" in part) {
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {isAuthenticated ? (
+                <UserMenu onProfileClick={() => setShowProfileScreen(true)} />
+              ) : (
+                <Button
+                  size="sm"
+                  className="rounded-full gap-2"
+                  onClick={() => setShowProfileScreen(true)}
+                >
+                  Sign In
+                </Button>
+              )}
+            </div>
+          </header>
+
+          {!isAuthenticated ? (
+            <WelcomeScreen />
+          ) : (
+            <div className="flex flex-1 overflow-hidden">
+              {/* Add Chat History Sidebar */}
+              <div className="border-r border-gray-100 dark:border-gray-800 h-full">
+                <SidebarHistory
+                  currentChatId={currentChatId || ""}
+                  onChatSelect={handleChatSelect}
+                  onNewChat={handleNewChat}
+                  isCollapsed={!historySidebarOpen}
+                  onToggleCollapse={() =>
+                    setHistorySidebarOpen(!historySidebarOpen)
+                  }
+                />
+              </div>
+
+              <div className="flex-1 flex flex-col overflow-hidden relative">
+                <ScrollArea
+                  className="flex-1 p-6 pb-24"
+                  style={{ overflowAnchor: "auto" }}
+                >
+                  {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+                      <h2 className="text-2xl font-bold mb-2">
+                        Welcome to CRM Assistant
+                      </h2>
+                      <p className="text-muted-foreground mb-8 max-w-lg text-center">
+                        This sample application showcases AI tool calling using
+                        Descope Outbound Apps. Try one of these example prompts
+                        or type your own question below.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                        {Object.entries(promptExplanations).map(
+                          ([key, category]) => (
+                            <Card
+                              key={key}
+                              className="text-left hover:shadow-md transition-shadow bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border-primary/10"
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <div className="relative w-8 h-8 flex-shrink-0">
+                                    <Image
+                                      src={category.logo}
+                                      alt={category.title}
+                                      fill
+                                      className="object-contain"
+                                    />
+                                  </div>
+                                  <h3 className="font-semibold truncate">
+                                    {category.title}
+                                  </h3>
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-3 break-words">
+                                  {category.description}
+                                </p>
+                                <div className="space-y-2">
+                                  {category.examples.map((example, index) => (
+                                    <Button
+                                      key={index}
+                                      variant="ghost"
+                                      className="w-full justify-start text-left h-auto py-2 px-3 text-sm hover:bg-accent/50 font-normal break-words whitespace-normal"
+                                      onClick={() => {
+                                        append({
+                                          role: "user",
+                                          content: example,
+                                        });
+                                      }}
+                                    >
+                                      <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
+                                      <span className="line-clamp-2">
+                                        {example}
+                                      </span>
+                                    </Button>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="md:max-w-4xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto">
+                      {messages.map((message, index) => (
+                        <ChatMessage
+                          key={index}
+                          message={{
+                            role: message.role,
+                            content:
+                              typeof message.content === "string" &&
+                              message.content.length > 0
+                                ? message.content
+                                : extractMessageContent(message),
+                            parts: message.parts
+                              ?.map((part) => {
+                                // Handle string parts
+                                if (typeof part === "string") {
                                   return {
-                                    type: part.type || "text",
-                                    text: String(part.text || ""),
-                                  };
-                                } else if ("content" in part) {
-                                  return {
-                                    type: part.type || "text",
-                                    text: String(part.content || ""),
+                                    type: "text",
+                                    text: part,
                                   };
                                 }
-                              }
-                              return null;
-                            })
-                            .filter(Boolean) as any,
-                        }}
-                        onReconnectComplete={handleReconnectComplete}
-                      />
-                    ))}
-                    <div ref={messagesEndRef} />
+                                // Handle object parts
+                                if (typeof part === "object" && part !== null) {
+                                  if ("text" in part) {
+                                    return {
+                                      type: part.type || "text",
+                                      text: String(part.text || ""),
+                                    };
+                                  } else if ("content" in part) {
+                                    return {
+                                      type: part.type || "text",
+                                      text: String(part.content || ""),
+                                    };
+                                  }
+                                }
+                                return null;
+                              })
+                              .filter(Boolean) as any,
+                          }}
+                          onReconnectComplete={handleReconnectComplete}
+                        />
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </ScrollArea>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-6 px-4">
+                  <div className="mx-auto max-w-4xl w-full">
+                    <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                      <form onSubmit={handleSubmit} className="relative">
+                        <Input
+                          value={input}
+                          onChange={handleInputChange}
+                          placeholder="Ask anything..."
+                          className="pr-20 py-6 resize-none border-muted/30 focus-visible:ring-primary/70 shadow-lg rounded-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm transition-all duration-200 hover:shadow-xl"
+                          disabled={isChatLoading}
+                        />
+                        <div className="absolute top-0 right-0 h-full flex items-center justify-center pr-4">
+                          <Button
+                            size="icon"
+                            type="submit"
+                            className="rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+                            disabled={isChatLoading || !input.trim()}
+                          >
+                            <Send className="size-4" />
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
-                )}
-              </ScrollArea>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-6 px-4">
-                <div className="mx-auto max-w-4xl w-full">
-                  <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
-                    <form onSubmit={handleSubmit} className="relative">
-                      <Input
-                        value={input}
-                        onChange={handleInputChange}
-                        placeholder="Ask anything..."
-                        className="pr-20 py-6 resize-none border-muted/30 focus-visible:ring-primary/70 shadow-lg rounded-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm transition-all duration-200 hover:shadow-xl"
-                        disabled={isChatLoading}
-                      />
-                      <div className="absolute top-0 right-0 h-full flex items-center justify-center pr-4">
+                </div>
+
+                {/* Sidebar toggle button - now positioned in the main chat area */}
+                <div className="absolute top-4 right-4 z-10">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                         <Button
+                          variant="outline"
                           size="icon"
-                          type="submit"
-                          className="rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-                          disabled={isChatLoading || !input.trim()}
+                          onClick={toggleSidebar}
+                          className="rounded-full shadow-sm hover:shadow-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border-muted/20"
                         >
-                          <Send className="size-4" />
+                          {sidebarOpen ? (
+                            <PanelRightClose className="size-4 text-primary" />
+                          ) : (
+                            <PanelRightOpen className="size-4 text-primary" />
+                          )}
                         </Button>
-                      </div>
-                    </form>
-                  </div>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="left"
+                        className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm shadow-lg"
+                      >
+                        {sidebarOpen
+                          ? "Hide quick actions"
+                          : "Show quick actions"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
 
-              {/* Sidebar toggle button - now positioned in the main chat area */}
-              <div className="absolute top-4 right-4 z-10">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={toggleSidebar}
-                        className="rounded-full shadow-sm hover:shadow-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border-muted/20"
-                      >
-                        {sidebarOpen ? (
-                          <PanelRightClose className="size-4 text-primary" />
-                        ) : (
-                          <PanelRightOpen className="size-4 text-primary" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="left"
-                      className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm shadow-lg"
-                    >
-                      {sidebarOpen
-                        ? "Hide quick actions"
-                        : "Show quick actions"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+              {sidebarOpen && (
+                <div
+                  className={`${
+                    showPromptExplanation && hasActivePrompt
+                      ? "w-[32rem]"
+                      : "w-80"
+                  } bg-white/95 dark:bg-gray-900/95 shadow-xl overflow-hidden transition-all duration-300 ease-in-out backdrop-blur-sm border-l border-l-slate-200/30 dark:border-l-slate-700/30`}
+                  style={{
+                    boxShadow: "0 0 20px 0 rgba(0, 0, 0, 0.05)",
+                    borderImageSource:
+                      "linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
+                  }}
+                >
+                  {showPromptExplanation && hasActivePrompt ? (
+                    <div className="animate-in slide-in-from-right duration-300 h-full">
+                      <PromptExplanation
+                        title={promptExplanations[currentPromptType].title}
+                        description={
+                          promptExplanations[currentPromptType].description
+                        }
+                        logo={promptExplanations[currentPromptType].logo}
+                        examples={
+                          promptExplanations[currentPromptType].examples
+                        }
+                        steps={promptExplanations[currentPromptType].steps}
+                        apis={promptExplanations[currentPromptType].apis}
+                        isVisible={true}
+                        onToggle={togglePromptExplanation}
+                        onExampleClick={(example) => {
+                          append({
+                            role: "user",
+                            content: example,
+                          });
+                          setShowPromptExplanation(false);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-6 animate-in fade-in duration-300">
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                          Connected Applications
+                        </h2>
+                      </div>
+                      <div className="space-y-4">
+                        {actionOptions.map((option) => (
+                          <ActionCard
+                            key={option.id}
+                            title={option.title}
+                            description={option.description}
+                            logo={option.logo}
+                            onClick={option.action}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="mt-8 pt-6 border-t border-primary/10 dark:border-primary/5">
+                        <a
+                          href="https://descope.ai"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <Button className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white hover:text-white border-0 group transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] font-medium rounded-xl">
+                            <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
+                            Learn More About Descope AI
+                            <ExternalLink className="w-3 h-3 ml-2 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-300" />
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-
-            {sidebarOpen && (
-              <div
-                className={`${
-                  showPromptExplanation && hasActivePrompt
-                    ? "w-[32rem]"
-                    : "w-80"
-                } bg-white/95 dark:bg-gray-900/95 shadow-xl overflow-hidden transition-all duration-300 ease-in-out backdrop-blur-sm border-l border-l-slate-200/30 dark:border-l-slate-700/30`}
-                style={{
-                  boxShadow: "0 0 20px 0 rgba(0, 0, 0, 0.05)",
-                  borderImageSource:
-                    "linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
-                }}
-              >
-                {showPromptExplanation && hasActivePrompt ? (
-                  <div className="animate-in slide-in-from-right duration-300 h-full">
-                    <PromptExplanation
-                      title={promptExplanations[currentPromptType].title}
-                      description={
-                        promptExplanations[currentPromptType].description
-                      }
-                      logo={promptExplanations[currentPromptType].logo}
-                      examples={promptExplanations[currentPromptType].examples}
-                      steps={promptExplanations[currentPromptType].steps}
-                      apis={promptExplanations[currentPromptType].apis}
-                      isVisible={true}
-                      onToggle={togglePromptExplanation}
-                      onExampleClick={(example) => {
-                        append({
-                          role: "user",
-                          content: example,
-                        });
-                        setShowPromptExplanation(false);
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="p-6 animate-in fade-in duration-300">
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                        Connected Applications
-                      </h2>
-                    </div>
-                    <div className="space-y-4">
-                      {actionOptions.map((option) => (
-                        <ActionCard
-                          key={option.id}
-                          title={option.title}
-                          description={option.description}
-                          logo={option.logo}
-                          onClick={option.action}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-primary/10 dark:border-primary/5">
-                      <a
-                        href="https://descope.ai"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block"
-                      >
-                        <Button className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white hover:text-white border-0 group transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] font-medium rounded-xl">
-                          <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-                          Learn More About Descope AI
-                          <ExternalLink className="w-3 h-3 ml-2 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-300" />
-                        </Button>
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </Suspense>
   );
 }

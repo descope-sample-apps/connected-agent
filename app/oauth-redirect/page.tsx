@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { trackOAuthEvent } from "@/lib/analytics";
 
-export default function OAuthRedirectPage() {
+// Create a separate component that uses useSearchParams
+function OAuthRedirectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -123,5 +124,25 @@ export default function OAuthRedirectPage() {
         {errorMessage || "Completing your authentication. Please wait..."}
       </p>
     </div>
+  );
+}
+
+export default function OAuthRedirectPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
+            Loading...
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Preparing authentication...
+          </p>
+        </div>
+      }
+    >
+      <OAuthRedirectContent />
+    </Suspense>
   );
 }
