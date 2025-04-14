@@ -57,7 +57,9 @@ type PromptType =
   | "crm-lookup"
   | "schedule-meeting"
   | "slack"
-  | "summarize-deal";
+  | "summarize-deal"
+  | "create-google-meet"
+  | "add-custom-tool";
 
 interface PromptExplanation {
   title: string;
@@ -91,7 +93,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
   "crm-lookup": {
     title: "CRM Customer Lookup",
     description:
-      "Access customer information and deal history from your CRM system using secure OAuth connections",
+      "Access customer information and deal history from http://10x-crm.app using secure OAuth connections",
     logo: "/logos/crm-logo.png",
     examples: [
       "Find contact information for John Doe",
@@ -236,7 +238,76 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     ],
     apis: ["Google Docs API", "Custom CRM API"],
   },
-};
+  "create-google-meet": {
+    title: "Create Google Meet",
+    description:
+      "Generate Google Meet video conference links for scheduled calendar events",
+    logo: "/logos/google-meet-logo.svg",
+    examples: [
+      "Create a Google Meet for my meeting with John Doe",
+      "Add video conferencing to my call with Jane Lane from Globex Corp",
+      "Set up a Google Meet link for the IT infrastructure meeting with Michael Chen",
+    ],
+    steps: [
+      {
+        title: "Meeting Enhancement Request",
+        description:
+          "After scheduling a calendar event, the user requests to add a Google Meet link to the event.",
+      },
+      {
+        title: "Calendar Event Identification",
+        description:
+          "The assistant identifies the relevant calendar event that needs a Google Meet link.",
+      },
+      {
+        title: "Google Calendar Integration",
+        description:
+          "Using the Google Calendar API, the assistant adds a Google Meet link to the existing calendar event.",
+      },
+      {
+        title: "Meet Link Generation",
+        description:
+          "A Google Meet link is automatically generated and added to the calendar event.",
+      },
+      {
+        title: "Calendar Event Update",
+        description:
+          "The calendar event is updated to include the Google Meet details, making them available to all attendees.",
+      },
+    ],
+    apis: ["Google Calendar API"],
+  },
+  "add-custom-tool": {
+    title: "Add Your Own Tool",
+    description:
+      "Descope makes it easy to integrate other built-in or your own custom tools with the AI agent",
+    logo: "/logos/custom-tool.svg",
+    examples: [],
+    steps: [
+      {
+        title: "Define Your Tool's Purpose",
+        description:
+          "Identify what problem your tool will solve and what data or actions it will provide to the assistant.",
+      },
+      {
+        title: "Create the Tool Implementation using Descope",
+        description:
+          "Develop your tool using Descope SDK and outbound applications, which includes authentication and token management.",
+      },
+      {
+        title: "Register Your Tool",
+        description:
+          "Add your tool to the assistant's configuration, including its name, description, and required parameters.",
+      },
+      {
+        title: "Test and Deploy",
+        description:
+          "Verify your tool works correctly with the assistant and deploy it to your production environment.",
+      },
+    ],
+    apis: [],
+  },
+} as const;
 
 interface GoogleMeetPromptProps {
   isOpen: boolean;
@@ -370,6 +441,7 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const promptExplanationRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [isHandlingChatChange, setIsHandlingChatChange] = useState(false);
   const [chatRedirectAttempts, setChatRedirectAttempts] = useState(0);
@@ -823,51 +895,73 @@ export default function Home() {
   const actionOptions = [
     {
       id: "crm-lookup",
-      title: "CRM Customer Lookup",
-      description:
-        "Access customer information and deal history from your CRM system using secure OAuth connections",
+      title: "CRM Lookup",
+      description: "Get customer information and deal history",
       logo: "/logos/crm-logo.png",
-      action: () => {
-        setCurrentPromptType("crm-lookup");
-        setShowPromptExplanation(true);
-        setHasActivePrompt(true);
-      },
+      action: () =>
+        checkOAuthAndPrompt(() =>
+          usePredefinedPrompt("Find John's contact information", "crm-lookup")
+        ),
     },
     {
       id: "schedule-meeting",
-      title: "Schedule Calendar Meeting",
-      description:
-        "Create calendar events with contacts from your CRM using your Google Calendar",
+      title: "Schedule Meeting",
+      description: "Schedule a meeting with contacts from the CRM",
       logo: "/logos/google-calendar.png",
-      action: () => {
-        setCurrentPromptType("schedule-meeting");
-        setShowPromptExplanation(true);
-        setHasActivePrompt(true);
-      },
+      action: () =>
+        usePredefinedPrompt(
+          "Schedule a meeting with John next Tuesday",
+          "schedule-meeting"
+        ),
+    },
+    {
+      id: "create-google-meet",
+      title: "Create Google Meet",
+      description: "Create a Google Meet for a scheduled event",
+      logo: "/logos/google-meet-logo.svg",
+      action: () =>
+        usePredefinedPrompt(
+          "Create a Google Meet for my meeting with Jane",
+          "create-google-meet"
+        ),
+    },
+    {
+      id: "summarize-deal",
+      title: "Summarize Deal",
+      description: "Summarize deal status and save to Google Docs",
+      logo: "/logos/google-docs.png",
+      action: () =>
+        checkOAuthAndPrompt(() =>
+          usePredefinedPrompt(
+            "Summarize the Enterprise Software License deal",
+            "summarize-deal"
+          )
+        ),
     },
     {
       id: "slack",
       title: "Slack Integration",
-      description:
-        "Send messages, retrieve conversations, and manage channels in your Slack workspace",
+      description: "Send messages and updates to Slack channels",
       logo: "/logos/slack-logo.svg",
-      action: () => {
-        setCurrentPromptType("slack");
-        setShowPromptExplanation(true);
-        setHasActivePrompt(true);
-      },
+      action: () =>
+        checkOAuthAndPrompt(() =>
+          usePredefinedPrompt(
+            "Send a message to the #sales channel about the new deal",
+            "slack"
+          )
+        ),
     },
     {
-      id: "summarize-deal",
-      title: "Summarize Deal to Google Docs",
+      id: "add-custom-tool",
+      title: "Add Your Own Tool",
       description:
-        "Create comprehensive deal summaries and save them directly to Google Docs for sharing and collaboration",
-      logo: "/logos/google-docs.png",
-      action: () => {
-        setCurrentPromptType("summarize-deal");
-        setShowPromptExplanation(true);
-        setHasActivePrompt(true);
-      },
+        "Create and integrate your own custom tools with the assistant",
+      logo: "/logos/custom-tool.svg",
+      action: () =>
+        usePredefinedPrompt(
+          "How can I add my own custom tool to the assistant?",
+          "add-custom-tool"
+        ),
     },
   ];
 
@@ -1221,6 +1315,16 @@ export default function Home() {
       return () => clearTimeout(saveTimer);
     }
   }, [messages, currentChatId, isAuthenticated]);
+
+  // Focus input field after response
+  useEffect(() => {
+    if (messages.length > 0 && !isChatLoading && inputRef.current) {
+      // Small delay to ensure the UI has updated
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [messages.length, isChatLoading]);
 
   if (isLoading) {
     return (
