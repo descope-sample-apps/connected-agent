@@ -106,10 +106,14 @@ export default function PromptExplanation({
                 {examples.map((example, index) => (
                   <li
                     key={index}
-                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground"
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground p-2 rounded-md border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all duration-200 group relative flex items-center"
                     onClick={() => onExampleClick?.(example)}
+                    title={example}
                   >
-                    {example}
+                    <span className="flex-1 truncate">{example}</span>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <ArrowRight className="h-4 w-4 text-primary" />
+                    </div>
                   </li>
                 ))}
               </ul>
