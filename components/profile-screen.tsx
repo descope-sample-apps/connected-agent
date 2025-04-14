@@ -185,23 +185,37 @@ export default function ProfileScreen({
 
       const data = await response.json();
 
-      // Transform the data to match our ChatHistory interface
-      const formattedChats = data.chats.map((item: any) => ({
-        id: item.chat.id,
-        title: item.chat.title || "Untitled Chat",
-        preview: item.lastMessage
-          ? typeof item.lastMessage.parts[0] === "string"
-            ? item.lastMessage.parts[0].substring(0, 100)
-            : "Chat content"
-          : "No messages",
-        date: item.chat.lastMessageAt
-          ? new Date(item.chat.lastMessageAt).toLocaleString()
-          : new Date(item.chat.createdAt).toLocaleString(),
-        starred: false, // We can add this feature later
-        shared: false, // We can add this feature later
-      }));
+      // Use a Map to ensure unique chat IDs
+      const uniqueChats = new Map<string, ChatHistory>();
 
-      setChatHistory(formattedChats);
+      // Transform and deduplicate the data
+      data.chats.forEach((item: any) => {
+        if (item.chat.id) {
+          uniqueChats.set(item.chat.id, {
+            id: item.chat.id,
+            title: item.chat.title || "Untitled Chat",
+            preview: item.lastMessage
+              ? typeof item.lastMessage.parts[0] === "string"
+                ? item.lastMessage.parts[0].substring(0, 100)
+                : "Chat content"
+              : "No messages",
+            date: item.chat.lastMessageAt
+              ? new Date(item.chat.lastMessageAt).toLocaleString()
+              : new Date(item.chat.createdAt).toLocaleString(),
+            starred: false,
+            shared: false,
+          });
+        }
+      });
+
+      // Convert Map to array and sort by date
+      const sortedChats = Array.from(uniqueChats.values()).sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setChatHistory(sortedChats);
     } catch (error) {
       console.error("Error fetching chat history:", error);
       setChatError(
@@ -211,6 +225,13 @@ export default function ProfileScreen({
       setIsLoadingChats(false);
     }
   };
+
+  // Add auto-refresh for chat history
+  useEffect(() => {
+    fetchChatHistory();
+    const timer = setInterval(fetchChatHistory, 10000); // Refresh every 10 seconds
+    return () => clearInterval(timer);
+  }, []);
 
   // Fetch connections and chat history on component mount and after connections change
   useEffect(() => {
@@ -744,6 +765,21 @@ export default function ProfileScreen({
     </Button>
   );
 
+  const handleChatClick = (chatId: string) => {
+    // Call the parent's onLoadChat first to update the state
+    onLoadChat(chatId);
+
+    // Update URL without reload
+    if (typeof window !== "undefined") {
+      const newUrl = new URL(window.location.href);
+      newUrl.pathname = `/chat/${chatId}`;
+      window.history.pushState({}, "", newUrl.toString());
+
+      // Close the profile screen after navigation
+      onBack();
+    }
+  };
+
   return (
     <div className="container max-w-4xl py-6">
       <Button variant="ghost" className="mb-6" onClick={onBack}>
@@ -969,7 +1005,7 @@ export default function ProfileScreen({
                     <div
                       key={chat.id}
                       className="border rounded-lg hover:border-primary overflow-hidden transition-all cursor-pointer"
-                      onClick={() => onLoadChat(chat.id)}
+                      onClick={() => handleChatClick(chat.id)}
                     >
                       <div className="p-4">
                         <div className="flex justify-between items-start mb-1">

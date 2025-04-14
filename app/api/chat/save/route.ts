@@ -1,6 +1,9 @@
 import { session } from "@descope/nextjs-sdk/server";
 import { saveChat, saveMessages } from "@/lib/db/queries";
 import { nanoid } from "nanoid";
+import { eq } from "drizzle-orm";
+import { chats } from "@/lib/db/schema";
+import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +31,16 @@ export async function POST(request: Request) {
     // First, try to save the chat metadata
     try {
       await saveChat(userId, title || "New Chat", id);
+
+      // Update the chat's lastMessageAt timestamp
+      await db
+        .update(chats)
+        .set({
+          lastMessageAt: new Date(),
+          updatedAt: new Date(),
+          title: title || "New Chat",
+        })
+        .where(eq(chats.id, id));
     } catch (error) {
       console.error("Error saving chat metadata:", error);
       return new Response(

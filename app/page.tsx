@@ -441,6 +441,7 @@ export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [historySidebarOpen, setHistorySidebarOpen] = useState(true);
+  const historySidebarRef = useRef<{ fetchChatHistory: () => void }>(null);
   const [showProfileScreen, setShowProfileScreen] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [hasActivePrompt, setHasActivePrompt] = useState(false);
@@ -1058,20 +1059,28 @@ export default function Home() {
     // Monitor messages for meeting creation responses
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.role === "assistant") {
-      // Parse the message for meeting details using regex or other methods
-      const meetingTitleMatch =
-        lastMessage.content.match(/scheduled "([^"]+)"/);
-      const dateMatch = lastMessage.content.match(
-        /on ([\w\s,]+) at ([\d:]+\s?[AP]M)/i
-      );
+      try {
+        // Ensure content is a string before using match
+        const messageContent =
+          typeof lastMessage.content === "string" ? lastMessage.content : "";
 
-      if (meetingTitleMatch && dateMatch) {
-        setMeetingDetails({
-          title: meetingTitleMatch[1],
-          date: dateMatch[1],
-          time: dateMatch[2],
-          participants: [], // Extract participants if needed
-        });
+        // Parse the message for meeting details using regex or other methods
+        const meetingTitleMatch = messageContent.match(/scheduled "([^"]+)"/);
+        const dateMatch = messageContent.match(
+          /on ([\w\s,]+) at ([\d:]+\s?[AP]M)/i
+        );
+
+        if (meetingTitleMatch && dateMatch) {
+          setMeetingDetails({
+            title: meetingTitleMatch[1],
+            date: dateMatch[1],
+            time: dateMatch[2],
+            participants: [], // Extract participants if needed
+          });
+        }
+      } catch (error) {
+        console.error("Error parsing meeting details:", error);
+        // Don't set meeting details if there's an error
       }
     }
   }, [messages]);
@@ -1229,16 +1238,6 @@ export default function Home() {
           }
         }
 
-        // Log the message we're about to save for debugging
-        if (msg.role === "assistant") {
-          console.log("Saving assistant message:", {
-            originalContent: msg.content,
-            formattedContent: formattedMsg.content,
-            originalParts: msg.parts,
-            formattedParts: formattedMsg.parts,
-          });
-        }
-
         return formattedMsg;
       });
 
@@ -1248,7 +1247,7 @@ export default function Home() {
       );
 
       // Save the chat using the chat API
-      await fetch("/api/chat/save", {
+      const response = await fetch("/api/chat/save", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1257,8 +1256,13 @@ export default function Home() {
           id: chatId,
           title,
           messages: formattedMessages,
+          lastMessageAt: new Date().toISOString(), // Add lastMessageAt
         }),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to save chat");
+      }
 
       console.log("Chat saved successfully:", chatId);
     } catch (error) {
@@ -1303,6 +1307,11 @@ export default function Home() {
     setCurrentChatId(newChatId);
     localStorage.setItem("currentChatId", newChatId);
     setMessages([]); // Clear messages to show the welcome screen
+
+    // Force a refresh of the chat history
+    if (historySidebarRef.current) {
+      historySidebarRef.current.fetchChatHistory();
+    }
   };
 
   // Function to handle chat deletion
@@ -1582,6 +1591,7 @@ export default function Home() {
               {/* Add Chat History Sidebar */}
               <div className="border-r border-gray-100 dark:border-gray-800 h-full">
                 <SidebarHistory
+                  ref={historySidebarRef}
                   currentChatId={currentChatId || ""}
                   onChatSelect={handleChatSelect}
                   onNewChat={handleNewChat}
@@ -1597,7 +1607,7 @@ export default function Home() {
                   className="flex-1 p-6 pb-24"
                   style={{ overflowAnchor: "auto" }}
                 >
-                  {messages.length === 0 ? (
+                  {messages.length === 0 && !isHandlingChatChange ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
                       <h2 className="text-2xl font-bold mb-2">
                         Welcome to CRM Assistant

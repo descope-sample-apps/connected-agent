@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -28,9 +28,10 @@ import {
 interface ChatHistoryItem {
   id: string;
   title: string;
-  createdAt: string;
+  preview: string;
+  date: string;
   updatedAt: string;
-  messageCount: number;
+  createdAt: string;
 }
 
 interface SidebarHistoryProps {
@@ -41,359 +42,388 @@ interface SidebarHistoryProps {
   onToggleCollapse: () => void;
 }
 
-export function SidebarHistory({
-  currentChatId,
-  onChatSelect,
-  onNewChat,
-  isCollapsed,
-  onToggleCollapse,
-}: SidebarHistoryProps) {
-  const router = useRouter();
-  const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
+export const SidebarHistory = forwardRef<
+  { fetchChatHistory: () => void },
+  SidebarHistoryProps
+>(
+  (
+    { currentChatId, onChatSelect, onNewChat, isCollapsed, onToggleCollapse },
+    ref
+  ) => {
+    const router = useRouter();
+    const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [error, setError] = useState<string | null>(null);
 
-  // Fetch chat history
-  useEffect(() => {
+    // Fetch chat history
     const fetchChatHistory = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch("/api/chats");
+        setError(null);
+
+        const response = await fetch("/api/chats", {
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        });
+
         if (!response.ok) {
           throw new Error("Failed to fetch chat history");
         }
+
         const data = await response.json();
 
-        // Ensure unique chat IDs by using a Map
-        const uniqueChats = new Map();
-        (data.chats || []).forEach((chat: ChatHistoryItem) => {
-          uniqueChats.set(chat.id, chat);
+        // Use a Map to ensure unique chat IDs
+        const uniqueChats = new Map<string, ChatHistoryItem>();
+
+        // Transform and deduplicate the data
+        data.chats.forEach((item: any) => {
+          if (item.chat.id) {
+            uniqueChats.set(item.chat.id, {
+              id: item.chat.id,
+              title: item.chat.title || "Untitled Chat",
+              preview: item.lastMessage
+                ? typeof item.lastMessage.parts[0] === "string"
+                  ? item.lastMessage.parts[0].substring(0, 100)
+                  : "Chat content"
+                : "No messages",
+              date: item.chat.lastMessageAt
+                ? new Date(item.chat.lastMessageAt).toLocaleString()
+                : new Date(item.chat.createdAt).toLocaleString(),
+              updatedAt: item.chat.lastMessageAt || item.chat.createdAt,
+              createdAt: item.chat.createdAt,
+            });
+          }
         });
 
-        // Sort chats by most recent update
+        // Convert Map to array and sort by date
         const sortedChats = Array.from(uniqueChats.values()).sort((a, b) => {
-          const dateA = new Date(a.updatedAt || a.createdAt);
-          const dateB = new Date(b.updatedAt || b.createdAt);
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
           return dateB.getTime() - dateA.getTime();
         });
 
-        console.log(`Fetched ${sortedChats.length} chats`);
         setChatHistory(sortedChats);
       } catch (error) {
         console.error("Error fetching chat history:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load chat history",
-          variant: "destructive",
-        });
+        setError(
+          error instanceof Error ? error.message : "Failed to load chat history"
+        );
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchChatHistory();
+    // Expose fetchChatHistory through ref
+    useImperativeHandle(ref, () => ({
+      fetchChatHistory,
+    }));
 
-    // Set up a timer to refresh the chat list every 10 seconds
-    const timer = setInterval(() => {
-      setRefreshKey((prev) => prev + 1);
-    }, 10000);
+    // Fetch chat history on mount and when currentChatId changes
+    useEffect(() => {
+      fetchChatHistory();
+      const timer = setInterval(fetchChatHistory, 10000); // Refresh every 10 seconds
+      return () => clearInterval(timer);
+    }, [currentChatId]); // Add currentChatId as a dependency
 
-    return () => clearInterval(timer);
-  }, [refreshKey]);
+    // Filter chats based on search query
+    const filteredChats = chatHistory.filter(
+      (chat) =>
+        chat.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        "Untitled Chat".toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
-  // Filter chats based on search query
-  const filteredChats = chatHistory.filter(
-    (chat) =>
-      chat.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      "Untitled Chat".toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    // Handle chat deletion
+    const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent chat selection when deleting
 
-  // Handle chat deletion
-  const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent chat selection when deleting
-
-    if (!confirm("Are you sure you want to delete this chat?")) {
-      return;
-    }
-
-    try {
-      // Delete from the database
-      const response = await fetch(`/api/chats/${chatId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete chat");
+      if (!confirm("Are you sure you want to delete this chat?")) {
+        return;
       }
 
-      // Remove the deleted chat from the list
-      setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId));
+      try {
+        // Delete from the database
+        const response = await fetch(`/api/chats/${chatId}`, {
+          method: "DELETE",
+        });
 
-      // If the deleted chat was the current one, create a new chat and go to home
-      if (chatId === currentChatId) {
-        onNewChat();
-        // Navigate to home page
-        if (typeof window !== "undefined") {
-          window.location.href = "/";
+        if (!response.ok) {
+          throw new Error("Failed to delete chat");
         }
+
+        // Remove the deleted chat from the list
+        setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId));
+
+        // If the deleted chat was the current one, create a new chat and go to home
+        if (chatId === currentChatId) {
+          onNewChat();
+          // Navigate to home page
+          if (typeof window !== "undefined") {
+            window.location.href = "/";
+          }
+        }
+
+        toast({
+          title: "Success",
+          description: "Chat deleted successfully",
+        });
+      } catch (error) {
+        console.error("Error deleting chat:", error);
+        toast({
+          title: "Error",
+          description: "Failed to delete chat",
+          variant: "destructive",
+        });
       }
+    };
 
-      toast({
-        title: "Success",
-        description: "Chat deleted successfully",
-      });
-    } catch (error) {
-      console.error("Error deleting chat:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete chat",
-        variant: "destructive",
-      });
-    }
-  };
+    const handleChatClick = (chatId: string) => {
+      if (!chatId) return;
 
-  const handleChatClick = (chatId: string) => {
-    if (!chatId) return;
+      // Call the parent's onChatSelect first to update the state
+      onChatSelect(chatId);
 
-    // Call the parent's onChatSelect first to update the state
-    onChatSelect(chatId);
+      // Update URL without reload
+      if (typeof window !== "undefined") {
+        const newUrl = new URL(window.location.href);
+        newUrl.pathname = `/chat/${chatId}`;
+        window.history.pushState({}, "", newUrl.toString());
+      }
+    };
 
-    // Update URL without reload
-    if (typeof window !== "undefined") {
-      const newUrl = new URL(window.location.href);
-      newUrl.pathname = `/chat/${chatId}`;
-      window.history.pushState({}, "", newUrl.toString());
-    }
-  };
+    const handleNewChat = () => {
+      onNewChat();
+      // Update URL without reload
+      if (typeof window !== "undefined") {
+        const newUrl = new URL(window.location.href);
+        newUrl.pathname = "/";
+        window.history.pushState({}, "", newUrl.toString());
+      }
+    };
 
-  const handleNewChat = () => {
-    onNewChat();
-    // Update URL without reload
-    if (typeof window !== "undefined") {
-      const newUrl = new URL(window.location.href);
-      newUrl.pathname = "/";
-      window.history.pushState({}, "", newUrl.toString());
-    }
-  };
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col h-full transition-all duration-300 ease-in-out border-r border-gray-100 dark:border-gray-800",
-        isCollapsed ? "w-16" : "w-64"
-      )}
-    >
-      <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800">
-        {!isCollapsed && (
-          <h2 className="text-lg font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-            Chat History
-          </h2>
+    return (
+      <div
+        className={cn(
+          "flex flex-col h-full transition-all duration-300 ease-in-out border-r border-gray-100 dark:border-gray-800",
+          isCollapsed ? "w-16" : "w-64"
         )}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onToggleCollapse}
-                className={cn(
-                  "ml-auto hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors",
-                  isCollapsed ? "mx-auto" : ""
-                )}
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
-                ) : (
-                  <ChevronLeft className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side={isCollapsed ? "right" : "bottom"}>
-              {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-
-      <div className="p-2">
-        {!isCollapsed ? (
-          <div className="space-y-2">
-            <Button
-              variant="outline"
-              className="w-full mb-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-500 transition-colors"
-              onClick={handleNewChat}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Chat
-            </Button>
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search chats..."
-                className="pl-8 h-9 text-sm"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        ) : (
+      >
+        <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800">
+          {!isCollapsed && (
+            <h2 className="text-lg font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+              Chat History
+            </h2>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="w-full mb-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-500 transition-colors"
-                  onClick={handleNewChat}
+                  onClick={onToggleCollapse}
+                  className={cn(
+                    "ml-auto hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors",
+                    isCollapsed ? "mx-auto" : ""
+                  )}
                 >
-                  <Plus className="h-4 w-4" />
+                  {isCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronLeft className="h-4 w-4" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right">New Chat</TooltipContent>
+              <TooltipContent side={isCollapsed ? "right" : "bottom"}>
+                {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        )}
-      </div>
+        </div>
 
-      <Separator className="bg-gray-100 dark:bg-gray-800" />
-
-      <ScrollArea className="flex-1 p-2">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-pulse flex space-x-2">
-              <div className="h-2 w-2 bg-indigo-500 rounded-full"></div>
-              <div className="h-2 w-2 bg-indigo-500 rounded-full"></div>
-              <div className="h-2 w-2 bg-indigo-500 rounded-full"></div>
-            </div>
-          </div>
-        ) : filteredChats.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-center p-4">
-            {!isCollapsed ? (
-              <>
-                <MessageSquare className="h-8 w-8 text-indigo-400 dark:text-indigo-500 mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {searchQuery
-                    ? "No matching chats found"
-                    : "No chat history yet"}
-                </p>
-                <Button
-                  variant="link"
-                  className="mt-2 text-indigo-500 hover:text-indigo-600"
-                  onClick={handleNewChat}
-                >
-                  Start a new chat
-                </Button>
-              </>
-            ) : (
-              <div className="flex flex-col items-center">
-                <MessageSquare className="h-6 w-6 text-indigo-400 dark:text-indigo-500 mb-1" />
-                <div className="h-1 w-1 rounded-full bg-indigo-500"></div>
+        <div className="p-2">
+          {!isCollapsed ? (
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full mb-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-500 transition-colors"
+                onClick={handleNewChat}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Chat
+              </Button>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search chats..."
+                  className="pl-8 h-9 text-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {filteredChats.map((chat, index) => (
-              <TooltipProvider key={`${chat.id}-${index}`}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div
-                      className={cn(
-                        "flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group transition-colors",
-                        chat.id === currentChatId
-                          ? "bg-gray-100 dark:bg-gray-800 border-l-2 border-indigo-500"
-                          : ""
-                      )}
-                      onClick={() => handleChatClick(chat.id)}
-                    >
-                      {isCollapsed ? (
-                        <div className="flex flex-col items-center mx-auto">
-                          <MessageSquare
-                            className={cn(
-                              "h-4 w-4 mb-1",
-                              chat.id === currentChatId
-                                ? "text-indigo-500"
-                                : "text-gray-500"
-                            )}
-                          />
-                          <div className="h-1 w-1 rounded-full bg-indigo-500"></div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex-1 min-w-0">
-                            <p
+            </div>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="w-full mb-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-indigo-500 transition-colors"
+                    onClick={handleNewChat}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">New Chat</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+
+        <Separator className="bg-gray-100 dark:bg-gray-800" />
+
+        <ScrollArea className="flex-1 p-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-pulse flex space-x-2">
+                <div className="h-2 w-2 bg-indigo-500 rounded-full"></div>
+                <div className="h-2 w-2 bg-indigo-500 rounded-full"></div>
+                <div className="h-2 w-2 bg-indigo-500 rounded-full"></div>
+              </div>
+            </div>
+          ) : filteredChats.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 text-center p-4">
+              {!isCollapsed ? (
+                <>
+                  <MessageSquare className="h-8 w-8 text-indigo-400 dark:text-indigo-500 mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {searchQuery
+                      ? "No matching chats found"
+                      : "No chat history yet"}
+                  </p>
+                  <Button
+                    variant="link"
+                    className="mt-2 text-indigo-500 hover:text-indigo-600"
+                    onClick={handleNewChat}
+                  >
+                    Start a new chat
+                  </Button>
+                </>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <MessageSquare className="h-6 w-6 text-indigo-400 dark:text-indigo-500 mb-1" />
+                  <div className="h-1 w-1 rounded-full bg-indigo-500"></div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {filteredChats.map((chat, index) => (
+                <TooltipProvider key={`${chat.id}-${index}`}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={cn(
+                          "flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group transition-colors",
+                          chat.id === currentChatId
+                            ? "bg-gray-100 dark:bg-gray-800 border-l-2 border-indigo-500"
+                            : ""
+                        )}
+                        onClick={() => handleChatClick(chat.id)}
+                      >
+                        {isCollapsed ? (
+                          <div className="flex flex-col items-center mx-auto">
+                            <MessageSquare
                               className={cn(
-                                "text-sm font-medium truncate",
+                                "h-4 w-4 mb-1",
                                 chat.id === currentChatId
                                   ? "text-indigo-500"
-                                  : ""
+                                  : "text-gray-500"
                               )}
-                            >
-                              {chat.title || "Untitled Chat"}
-                            </p>
-                            <div className="flex items-center text-xs text-muted-foreground truncate">
-                              <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
-                              <span className="truncate">
-                                {(() => {
-                                  try {
-                                    return chat.updatedAt
-                                      ? formatDistanceToNow(
-                                          new Date(chat.updatedAt),
-                                          {
-                                            addSuffix: true,
-                                          }
-                                        )
-                                      : "Recently";
-                                  } catch (error) {
-                                    console.error(
-                                      "Error formatting date:",
-                                      error
-                                    );
-                                    return "Recently";
-                                  }
-                                })()}
-                              </span>
-                            </div>
+                            />
+                            <div className="h-1 w-1 rounded-full bg-indigo-500"></div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-500"
-                            onClick={(e) => handleDeleteChat(chat.id, e)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  {isCollapsed && (
-                    <TooltipContent side="right" className="max-w-[200px]">
-                      <div className="font-medium">
-                        {chat.title || "Untitled Chat"}
+                        ) : (
+                          <>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={cn(
+                                  "text-sm font-medium truncate",
+                                  chat.id === currentChatId
+                                    ? "text-indigo-500"
+                                    : ""
+                                )}
+                              >
+                                {chat.title || "Untitled Chat"}
+                              </p>
+                              <div className="flex items-center text-xs text-muted-foreground truncate">
+                                <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                                <span className="truncate">
+                                  {(() => {
+                                    try {
+                                      return chat.updatedAt
+                                        ? formatDistanceToNow(
+                                            new Date(chat.updatedAt),
+                                            {
+                                              addSuffix: true,
+                                            }
+                                          )
+                                        : "Recently";
+                                    } catch (error) {
+                                      console.error(
+                                        "Error formatting date:",
+                                        error
+                                      );
+                                      return "Recently";
+                                    }
+                                  })()}
+                                </span>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-500"
+                              onClick={(e) => handleDeleteChat(chat.id, e)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {(() => {
-                          try {
-                            return chat.updatedAt
-                              ? formatDistanceToNow(new Date(chat.updatedAt), {
-                                  addSuffix: true,
-                                })
-                              : "Recently";
-                          } catch (error) {
-                            return "Recently";
-                          }
-                        })()}
-                      </div>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
-            ))}
-          </div>
-        )}
-      </ScrollArea>
-    </div>
-  );
-}
+                    </TooltipTrigger>
+                    {isCollapsed && (
+                      <TooltipContent side="right" className="max-w-[200px]">
+                        <div className="font-medium">
+                          {chat.title || "Untitled Chat"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {(() => {
+                            try {
+                              return chat.updatedAt
+                                ? formatDistanceToNow(
+                                    new Date(chat.updatedAt),
+                                    {
+                                      addSuffix: true,
+                                    }
+                                  )
+                                : "Recently";
+                            } catch (error) {
+                              return "Recently";
+                            }
+                          })()}
+                        </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </div>
+    );
+  }
+);
