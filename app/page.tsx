@@ -71,6 +71,10 @@ interface PromptExplanation {
     description: string;
   }>;
   apis: string[];
+  context?: {
+    systemPrompt: string;
+    followUpQuestions: string[];
+  };
 }
 
 interface LastScheduledMeeting {
@@ -282,30 +286,62 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     description:
       "Descope makes it easy to integrate other built-in or your own custom tools with the AI agent",
     logo: "/logos/custom-tool.svg",
-    examples: [],
+    examples: [
+      "How can I add a custom tool to the assistant?",
+      "I want to integrate my own API with the CRM Assistant",
+      "How do I create a new tool for the AI to use?",
+      "Can I add a custom integration to this app?",
+    ],
     steps: [
       {
         title: "Define Your Tool's Purpose",
         description:
-          "Identify what problem your tool will solve and what data or actions it will provide to the assistant.",
+          "Identify what problem your tool will solve and what data or actions it will provide to the assistant. Plan the required parameters, authentication needs, and expected responses.",
       },
       {
-        title: "Create the Tool Implementation using Descope",
+        title: "Create the Tool Implementation",
         description:
-          "Develop your tool using Descope SDK and outbound applications, which includes authentication and token management.",
+          "Develop your tool by extending the base Tool class. Implement the required methods: config (tool metadata), validate (input validation), and execute (core functionality). Use the Descope SDK for OAuth authentication and token management.",
       },
       {
-        title: "Register Your Tool",
+        title: "Register Your Tool with the Registry",
         description:
-          "Add your tool to the assistant's configuration, including its name, description, and required parameters.",
+          "Add your tool to the application's tool registry by importing it in lib/tools/index.ts and calling toolRegistry.register(new YourTool()). This makes your tool available to the AI assistant.",
+      },
+      {
+        title: "Update the AI Configuration",
+        description:
+          "Add your tool's schema to the APPROVED_TOOLS array in lib/ai/models.ts. This defines the function signature that the AI will use to call your tool, including parameters and descriptions.",
+      },
+      {
+        title: "Add UI Components",
+        description:
+          "Create UI components to showcase your tool in the sidebar and quick actions. Update the actionOptions array in app/page.tsx to include your tool with appropriate icons and descriptions.",
       },
       {
         title: "Test and Deploy",
         description:
-          "Verify your tool works correctly with the assistant and deploy it to your production environment.",
+          "Verify your tool works correctly with the assistant by testing various scenarios. Deploy your changes to your production environment and monitor for any issues.",
       },
     ],
-    apis: [],
+    apis: ["Custom API", "Descope Outbound Apps"],
+    context: {
+      systemPrompt: `You are a helpful assistant guiding users through the process of creating custom tools for the CRM Assistant. 
+      When users ask about adding custom tools, provide specific, actionable guidance based on the application's architecture.
+      Focus on:
+      1. Tool implementation using the base Tool class
+      2. Integration with Descope's OAuth system
+      3. Registration in the tool registry
+      4. UI component creation
+      5. Testing and deployment best practices
+      
+      Always reference the existing codebase structure and provide concrete examples when possible.`,
+      followUpQuestions: [
+        "What specific functionality would you like to add to the CRM Assistant?",
+        "Do you have an existing API that you want to integrate?",
+        "Would you like to see an example of a custom tool implementation?",
+      ],
+    },
   },
 } as const;
 
@@ -804,9 +840,47 @@ export default function Home() {
     setShowPromptExplanation(!showPromptExplanation);
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    chatHandleSubmit(e);
+    const form = e.currentTarget;
+    const input = form.querySelector('input[type="text"]') as HTMLInputElement;
+    const value = input.value.trim();
+
+    if (!value) return;
+
+    // Check if the message matches any example prompts
+    const matchedPrompt = Object.entries(promptExplanations).find(
+      ([_, explanation]) =>
+        explanation.examples.some((example) =>
+          value.toLowerCase().includes(example.toLowerCase())
+        )
+    );
+
+    let systemMessage = "";
+    if (matchedPrompt) {
+      const [category, explanation] = matchedPrompt;
+      systemMessage =
+        explanation.context?.systemPrompt ||
+        `You are a helpful assistant specializing in ${explanation.title}. 
+         When users ask about ${explanation.title.toLowerCase()}, provide specific guidance based on the available steps and APIs.`;
+    }
+
+    // Add the user's message
+    append({
+      role: "user",
+      content: value,
+    });
+
+    // If we have a matched prompt, add the system message
+    if (systemMessage) {
+      append({
+        role: "system",
+        content: systemMessage,
+      });
+    }
+
+    // Clear the input
+    input.value = "";
   };
 
   const usePredefinedPrompt = useCallback(
