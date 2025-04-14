@@ -1516,7 +1516,7 @@ export default function Home() {
                           <Button
                             key={index}
                             variant="outline"
-                            className="flex items-start gap-2 text-left h-auto py-3 px-4 text-sm hover:bg-accent/50 font-normal break-words whitespace-normal border-primary/10"
+                            className="flex items-start gap-2 text-left h-auto py-3 px-4 text-sm font-normal break-words whitespace-normal border-primary/20 rounded-lg shadow-sm hover:shadow-md hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 group relative"
                             onClick={() => {
                               // Set the input value instead of sending the prompt
                               handleInputChange({ target: { value: item.example } } as React.ChangeEvent<HTMLInputElement>);
@@ -1526,6 +1526,9 @@ export default function Home() {
                               }
                             }}
                           >
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <MessageSquare className="h-4 w-4 text-primary" />
+                            </div>
                             <div className="relative w-5 h-5 flex-shrink-0 mt-0.5">
                               <Image
                                 src={item.toolLogo}
@@ -1534,7 +1537,7 @@ export default function Home() {
                                 className="object-contain"
                               />
                             </div>
-                            <span className="line-clamp-2">
+                            <span className="line-clamp-2 pr-6">
                               {item.example}
                             </span>
                           </Button>
