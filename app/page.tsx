@@ -159,7 +159,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     ],
     apis: ["Google Calendar API", "Custom CRM API"],
   },
-  "slack": {
+  slack: {
     title: "Slack Integration",
     description:
       "Send messages, retrieve conversations, and manage channels in your Slack workspace",
@@ -282,8 +282,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     description:
       "Descope makes it easy to integrate other built-in or your own custom tools with the AI agent",
     logo: "/logos/custom-tool.svg",
-    examples: [
-    ],
+    examples: [],
     steps: [
       {
         title: "Define Your Tool's Purpose",
@@ -955,7 +954,8 @@ export default function Home() {
     {
       id: "add-custom-tool",
       title: "Add Your Own Tool",
-      description: "Create and integrate your own custom tools with the assistant",
+      description:
+        "Create and integrate your own custom tools with the assistant",
       logo: "/logos/custom-tool.svg",
       action: () =>
         usePredefinedPrompt(
@@ -1655,145 +1655,6 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-              <ScrollArea
-                className="flex-1 p-6 pb-24"
-                style={{ overflowAnchor: "auto" }}
-              >
-                {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-                    <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                      <Briefcase className="h-10 w-10 text-primary" />
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2">
-                      Welcome to CRM Assistant
-                    </h2>
-                    <p className="text-muted-foreground mb-8 max-w-md text-center">
-                      I can help you manage customer relationships, schedule meetings, and more. Try one of these example prompts or type your own question below.
-                    </p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
-                      {(() => {
-                        // Create a flat array of all examples with their tool info
-                        const allExamples = Object.entries(promptExplanations).flatMap(([key, category]) => 
-                          category.examples.map(example => ({
-                            example,
-                            toolKey: key,
-                            toolTitle: category.title,
-                            toolLogo: category.logo
-                          }))
-                        );
-                        
-                        // Shuffle the array and take a subset (12 examples)
-                        const shuffledExamples = [...allExamples]
-                          .sort(() => Math.random() - 0.5)
-                          .slice(0, 12);
-                        
-                        return shuffledExamples.map((item, index) => (
-                          <Button
-                            key={index}
-                            variant="outline"
-                            className="flex items-start gap-2 text-left h-auto py-3 px-4 text-sm font-normal break-words whitespace-normal border-primary/20 rounded-lg shadow-sm hover:shadow-md hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 group relative"
-                            onClick={() => {
-                              // Set the input value instead of sending the prompt
-                              handleInputChange({ target: { value: item.example } } as React.ChangeEvent<HTMLInputElement>);
-                              // Focus the input field
-                              if (inputRef.current) {
-                                inputRef.current.focus();
-                              }
-                            }}
-                          >
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                              <MessageSquare className="h-4 w-4 text-primary" />
-                            </div>
-                            <div className="relative w-5 h-5 flex-shrink-0 mt-0.5">
-                              <Image
-                                src={item.toolLogo}
-                                alt={item.toolTitle}
-                                fill
-                                className="object-contain"
-                              />
-                            </div>
-                            <span className="line-clamp-2 pr-6">
-                              {item.example}
-                            </span>
-                          </Button>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="md:max-w-4xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto">
-                    {messages.map((message, index) => (
-                      <ChatMessage
-                        key={index}
-                        message={{
-                          role: message.role,
-                          content:
-                            typeof message.content === "string" &&
-                            message.content.length > 0
-                              ? message.content
-                              : extractMessageContent(message),
-                          parts: message.parts
-                            ?.map((part) => {
-                              // Handle string parts
-                              if (typeof part === "string") {
-                                return {
-                                  type: "text",
-                                  text: part,
-                                };
-                              }
-                              // Handle object parts
-                              if (typeof part === "object" && part !== null) {
-                                if ("text" in part) {
-                                  return {
-                                    type: part.type || "text",
-                                    text: String(part.text || ""),
-                                  };
-                                } else if ("content" in part) {
-                                  return {
-                                    type: part.type || "text",
-                                    text: String(part.content || ""),
-                                  };
-                                }
-                              }
-                              return null;
-                            })
-                            .filter(Boolean) as any,
-                        }}
-                        onReconnectComplete={handleReconnectComplete}
-                      />
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </div>
-                )}
-              </ScrollArea>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-6 px-4">
-                <div className="mx-auto max-w-4xl w-full">
-                  <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
-                    <form onSubmit={handleSubmit} className="relative">
-                      <Input
-                        value={input}
-                        onChange={handleInputChange}
-                        placeholder="Ask anything..."
-                        className="pr-20 py-6 resize-none border-muted/30 focus-visible:ring-primary/70 shadow-lg rounded-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm transition-all duration-200 hover:shadow-xl"
-                        disabled={isChatLoading}
-                        ref={inputRef}
-                      />
-                      <div className="absolute top-0 right-0 h-full flex items-center justify-center pr-4">
-                        <Button
-                          size="icon"
-                          type="submit"
-                          className="rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-                          disabled={isChatLoading || !input.trim()}
-                        >
-                          <Send className="size-4" />
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              </div>
 
                 {/* Sidebar toggle button - now positioned in the main chat area */}
                 <div className="absolute top-4 right-4 z-10">
