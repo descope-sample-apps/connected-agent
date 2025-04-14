@@ -350,6 +350,7 @@ interface ModelConfig {
   paid?: boolean;
 }
 
+//
 export const availableModels: Record<string, ModelConfig> = {
   "gpt-3.5-turbo": {
     name: "GPT-3.5 Turbo",

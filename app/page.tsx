@@ -1631,7 +1631,9 @@ export default function Home() {
                         Welcome to CRM Assistant
                       </h2>
                       <p className="text-muted-foreground mb-8 max-w-lg text-center">
-                        I can help you manage customer relationships, schedule meetings, and more. Try one of these examples or type your own question below.
+                        I can help you manage customer relationships, schedule
+                        meetings, and more. Try one of these examples or type
+                        your own question below.
                       </p>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
@@ -1639,27 +1641,28 @@ export default function Home() {
                           // Create a flat array of all examples from all tools
                           const allExamples = Object.entries(promptExplanations)
                             .filter(([key]) => key !== "add-custom-tool") // Exclude the add-custom-tool
-                            .flatMap(
-                              ([key, category]) => 
-                                category.examples.map(example => ({
-                                  example,
-                                  toolKey: key,
-                                  logo: category.logo,
-                                  title: category.title
-                                }))
+                            .flatMap(([key, category]) =>
+                              category.examples.map((example) => ({
+                                example,
+                                toolKey: key,
+                                logo: category.logo,
+                                title: category.title,
+                              }))
                             );
-                          
+
                           // Shuffle the array and take a subset (12 examples)
-                          const shuffled = [...allExamples].sort(() => Math.random() - 0.5);
+                          const shuffled = [...allExamples].sort(
+                            () => Math.random() - 0.5
+                          );
                           const selectedExamples = shuffled.slice(0, 12);
-                          
+
                           return selectedExamples.map((item, index) => (
                             <button
                               key={index}
                               onClick={() => {
                                 // Use the handleInputChange function from useChat
                                 const event = {
-                                  target: { value: item.example }
+                                  target: { value: item.example },
                                 } as React.ChangeEvent<HTMLInputElement>;
                                 handleInputChange(event);
                                 inputRef.current?.focus();

@@ -15,6 +15,7 @@ import {
   getChatById,
   saveChat,
   saveMessages,
+  incrementUserUsage,
 } from "@/lib/db/queries";
 import {
   generateUUID,
@@ -851,6 +852,22 @@ export async function POST(request: Request) {
       crmDealsSchema,
       dealStakeholdersSchema,
     ];
+
+    // Check and increment usage before processing the message
+    try {
+      await incrementUserUsage(userId);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "Monthly usage limit exceeded"
+      ) {
+        return Response.json(
+          { error: "Monthly usage limit exceeded" },
+          { status: 429 }
+        );
+      }
+      throw error;
+    }
 
     // Return a streaming response
     return createDataStreamResponse({

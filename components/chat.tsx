@@ -10,6 +10,7 @@ import InChatConnectionPrompt from "@/components/in-chat-connection-prompt";
 import { useConnectionNotification } from "@/hooks/use-connection-notification";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import ActionCard from "@/components/action-card";
+import { useToast } from "@/components/ui/use-toast";
 
 // Define message types
 interface UIElement {
@@ -64,6 +65,12 @@ export default function Chat({
     },
     initialMessages,
   });
+
+  const { toast } = useToast();
+  const [usage, setUsage] = useState<{
+    messageCount: number;
+    monthlyLimit: number;
+  } | null>(null);
 
   // Messages that have action cards to display
   const [messagesWithActions, setMessagesWithActions] = useState<string[]>([]);
@@ -185,6 +192,22 @@ export default function Chat({
       }
     }
   }, [messages, messagesWithActions]);
+
+  // Fetch usage information
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const response = await fetch("/api/usage");
+        const data = await response.json();
+        if (data.usage) {
+          setUsage(data.usage);
+        }
+      } catch (error) {
+        console.error("Error fetching usage:", error);
+      }
+    };
+    fetchUsage();
+  }, []);
 
   // Function to render a connection prompt if needed
   const renderConnectionPrompt = (message: ExtendedMessage) => {
@@ -309,6 +332,23 @@ export default function Chat({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Usage information */}
+      {usage && (
+        <div className="px-4 py-2 bg-gray-50 border-b">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>
+              Monthly Usage: {usage.messageCount} / {usage.monthlyLimit}{" "}
+              messages
+            </span>
+            {usage.messageCount >= usage.monthlyLimit && (
+              <span className="text-red-500 font-medium">
+                Monthly limit reached
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       <ScrollArea className="flex-1 p-4 md:p-6">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 py-12">

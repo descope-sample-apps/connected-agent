@@ -1,7 +1,7 @@
 import { UIMessage } from "ai";
-import { eq, desc, asc, and } from "drizzle-orm";
+import { eq, desc, asc, and, sql } from "drizzle-orm";
 import { db } from "./index";
-import { chats, messages, votes } from "./schema";
+import { chats, messages, votes, usage } from "./schema";
 import { nanoid } from "nanoid";
 
 // Types for database operations
@@ -472,6 +472,74 @@ export async function getRecentChatsWithLastMessage({
       .slice(0, limit); // Limit the number of results
   } catch (error) {
     console.error("Error getting recent chats with last message:", error);
+    throw error;
+  }
+}
+
+// Usage tracking functions
+export async function getUserUsage(userId: string) {
+  try {
+    const result = await db.query.usage.findFirst({
+      where: eq(usage.userId, userId),
+    });
+
+    if (!result) {
+      // Create new usage record if none exists
+      const newUsage = {
+        id: nanoid(),
+        userId,
+        messageCount: 0,
+        lastResetAt: new Date(),
+        monthlyLimit: 100,
+      };
+      await db.insert(usage).values(newUsage);
+      return newUsage;
+    }
+
+    // Check if we need to reset the monthly count
+    const lastReset = new Date(result.lastResetAt);
+    const now = new Date();
+    if (
+      lastReset.getMonth() !== now.getMonth() ||
+      lastReset.getFullYear() !== now.getFullYear()
+    ) {
+      // Reset the count for the new month
+      await db
+        .update(usage)
+        .set({
+          messageCount: 0,
+          lastResetAt: now,
+        })
+        .where(eq(usage.id, result.id));
+      return { ...result, messageCount: 0, lastResetAt: now };
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error getting user usage:", error);
+    throw error;
+  }
+}
+
+export async function incrementUserUsage(userId: string) {
+  try {
+    const userUsage = await getUserUsage(userId);
+
+    if (userUsage.messageCount >= userUsage.monthlyLimit) {
+      throw new Error("Monthly usage limit exceeded");
+    }
+
+    await db
+      .update(usage)
+      .set({
+        messageCount: userUsage.messageCount + 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(usage.id, userUsage.id));
+
+    return userUsage.messageCount + 1;
+  } catch (error) {
+    console.error("Error incrementing user usage:", error);
     throw error;
   }
 }

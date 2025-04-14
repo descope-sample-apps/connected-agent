@@ -1,5 +1,29 @@
+// Define types for model configuration
+export interface ModelConfig {
+  name: string;
+  provider: string;
+  maxTokens: number;
+  supportsFunctions: boolean;
+  supportsVision: boolean;
+  temperature?: number;
+}
+
 // Define constants for AI model defaults
 export const DEFAULT_CHAT_MODEL = "gpt-3.5-turbo";
+
+// Configuration flag to control model selection availability
+export const ENABLE_MODEL_SELECTION = false;
+
+// Define available models
+export const availableModels: Record<string, ModelConfig> = {
+  "gpt-3.5-turbo": {
+    name: "GPT-3.5 Turbo",
+    provider: "OpenAI",
+    maxTokens: 4096,
+    supportsFunctions: true,
+    supportsVision: false,
+  },
+};
 
 // Model settings
 export const MODEL_SETTINGS = {

@@ -9,12 +9,12 @@ config({ path: ".env.local" });
 
 async function resetDatabase() {
   try {
-    if (!process.env.POSTGRES_URL) {
+    if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL is not defined");
     }
 
     console.log("Connecting to database...");
-    const connection = postgres(process.env.POSTGRES_URL, { max: 1 });
+    const connection = postgres(process.env.DATABASE_URL, { max: 1 });
     const db = drizzle(connection);
 
     console.log("⏳ Resetting database...");
