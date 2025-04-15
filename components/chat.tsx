@@ -13,6 +13,7 @@ import ActionCard from "@/components/action-card";
 import { useToast } from "@/components/ui/use-toast";
 import { trackPrompt } from "@/lib/analytics";
 import { useAuth } from "@/context/auth-context";
+import { OAuthProvider } from "@/lib/tools/base";
 
 // Define message types
 interface UIElement {
@@ -57,6 +58,35 @@ export default function Chat({
   isReadonly = false,
   onNewChat,
 }: ChatProps) {
+  // Process initialMessages to ensure proper format
+  const processedInitialMessages = useMemo(() => {
+    return initialMessages.map((msg: ExtendedMessage) => {
+      // If the message has parts, ensure content is properly derived from them
+      if (msg.parts && msg.parts.length > 0) {
+        // Extract text content from parts to avoid showing raw JSON in the UI
+        const textContent = msg.parts
+          .map((part) => {
+            if (typeof part === "object" && part.type === "text") {
+              return part.text || "";
+            }
+            return "";
+          })
+          .filter(Boolean)
+          .join("\n");
+
+        return {
+          ...msg,
+          content: textContent || msg.content,
+          id: msg.id ? `db-${msg.id}` : msg.id, // Mark as coming from database
+        };
+      }
+      return {
+        ...msg,
+        id: msg.id ? `db-${msg.id}` : msg.id, // Mark all initial messages as from database
+      };
+    });
+  }, [initialMessages]);
+
   const {
     messages,
     input,
@@ -70,7 +100,8 @@ export default function Chat({
       id,
       selectedChatModel,
     },
-    initialMessages,
+    initialMessages: processedInitialMessages,
+    id: id || undefined, // Use id as key to reset chat when id changes
     onResponse: async (response) => {
       // Check for errors in the response
       if (response.status === 429) {
@@ -165,6 +196,23 @@ export default function Chat({
         });
       }
 
+      // Check for stream parsing errors
+      if (error.message && error.message.includes("Failed to parse stream")) {
+        console.warn("Stream parsing error detected:", error.message);
+
+        // If it's a parsing error related to connection_required, don't show an error toast
+        if (
+          error.message.includes("connection_required") ||
+          error.message.includes('"type"') ||
+          error.message.includes("Google Docs")
+        ) {
+          console.log(
+            "Connection requirement detected in failed stream, not showing error toast"
+          );
+          return;
+        }
+      }
+
       // Check for authentication errors
       if (error.message && error.message.includes("Unauthorized")) {
         toast({
@@ -191,20 +239,11 @@ export default function Chat({
         return;
       }
 
-      // Check for OAuth-related errors
-      if (
-        error.message &&
-        (error.message.includes("insufficient_scopes") ||
-          error.message.includes("connection_required") ||
-          error.message.includes("403"))
-      ) {
-        // The error response will be handled by the UI element in the message
-        return;
-      }
-
+      // Default error toast
       toast({
         title: "Error",
-        description: "Failed to get response from AI. Please try again.",
+        description:
+          "An error occurred while processing your request. Please try again.",
         variant: "destructive",
       });
     },
@@ -233,13 +272,42 @@ export default function Chat({
 
   // Filter out empty messages
   const filteredMessages = useMemo(() => {
-    return messages.filter((message) => {
-      // Skip empty messages
-      if (!message.content && (!message.parts || message.parts.length === 0)) {
-        return false;
-      }
-      return true;
-    });
+    return messages
+      .filter((message) => {
+        // Skip empty messages
+        if (
+          !message.content &&
+          (!message.parts || message.parts.length === 0)
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((message: ExtendedMessage) => {
+        // For messages with parts but no content, extract content from parts
+        if (
+          (!message.content || message.content === "") &&
+          message.parts &&
+          message.parts.length > 0
+        ) {
+          // Extract text content from parts to create proper content field
+          const textContent = message.parts
+            .map((part) => {
+              if (typeof part === "object" && part.type === "text") {
+                return part.text || "";
+              }
+              return "";
+            })
+            .filter(Boolean)
+            .join("\n");
+
+          return {
+            ...message,
+            content: textContent || message.content,
+          };
+        }
+        return message;
+      });
   }, [messages]);
 
   // Scroll to bottom when messages change
@@ -370,59 +438,121 @@ export default function Chat({
 
   // Function to render a connection prompt if needed
   const renderConnectionPrompt = (message: ExtendedMessage) => {
-    // Extract connection information from the message
-    const content = message.content.toLowerCase();
-    let service = "service";
+    let service: OAuthProvider = "google-calendar"; // Default
+    let requiredScopes: string[] = [];
+    let isReconnect = false;
+    let customMessage = "";
 
-    if (content.includes("crm")) service = "crm";
+    // 1. First check if message has structured UI element (preferred source)
+    if (message.ui) {
+      // Use the structured UI data if available
+      service = message.ui.service as OAuthProvider;
+      requiredScopes = message.ui.requiredScopes || [];
+      customMessage = message.ui.message;
+
+      // If message has requiredScopes, it's likely a reconnect flow
+      isReconnect = requiredScopes.length > 0;
+
+      return (
+        <InChatConnectionPrompt
+          service={service.replace("-", " ")}
+          message={customMessage}
+          connectButtonText={message.ui.connectButton.text}
+          connectButtonAction={message.ui.connectButton.action}
+          alternativeMessage={message.ui.alternativeMessage || ""}
+          chatId={id}
+          requiredScopes={requiredScopes}
+          currentScopes={message.ui.currentScopes || []}
+        />
+      );
+    }
+
+    // 2. Otherwise, extract from content as fallback
+    // Extract connection information from the message content
+    const content = message.content.toLowerCase();
+
+    // Determine the service type from content
+    if (content.includes("crm")) service = "custom-crm";
     if (content.includes("calendar")) service = "google-calendar";
     if (content.includes("docs")) service = "google-docs";
     if (content.includes("meet")) service = "google-meet";
+    if (content.includes("slack")) service = "slack";
+    if (content.includes("zoom")) service = "zoom";
 
     // Extract the action URL if available
     const actionMatch = message.content.match(
       /\[([^\]]+)\]\(connection:\/\/([^)]+)\)/
     );
-    const connectButtonText = actionMatch ? actionMatch[1] : "Connect";
+    const connectButtonText = actionMatch
+      ? actionMatch[1]
+      : `Connect ${getDisplayName(service)}`;
     const connectButtonAction = actionMatch
       ? `connection://${actionMatch[2]}`
       : `connection://${service}`;
 
-    // Check if we have UI element with scope information
-    const uiElement = message.ui;
-    const requiredScopes = uiElement?.requiredScopes || [];
-    const currentScopes = uiElement?.currentScopes || [];
-
-    // Build the message based on whether we have scope information
-    let messageText = `To continue, you need to connect your ${service.replace(
-      "-",
-      " "
-    )}.`;
-    let alternativeMessage =
-      "This will allow the assistant to access the necessary data to fulfill your request.";
-
-    if (requiredScopes.length > 0) {
-      messageText = `Additional permissions are required for ${service.replace(
-        "-",
-        " "
-      )}.`;
-      alternativeMessage = `The following permissions are needed: ${requiredScopes
-        .map((scope) => scope.split("/").pop() || scope)
-        .join(", ")}`;
+    // Handle specific scopes for Google services
+    if (service === "google-docs") {
+      requiredScopes.push("https://www.googleapis.com/auth/documents");
+      if (content.includes("drive")) {
+        requiredScopes.push("https://www.googleapis.com/auth/drive");
+      }
+    } else if (service === "google-calendar") {
+      requiredScopes.push("https://www.googleapis.com/auth/calendar");
+    } else if (service === "google-meet") {
+      requiredScopes.push(
+        "https://www.googleapis.com/auth/meetings.space.created"
+      );
     }
+
+    // Check if it's likely a reconnect message
+    isReconnect =
+      content.includes("additional permission") ||
+      content.includes("more permission") ||
+      content.includes("reconnect");
+
+    // Build the message based on whether it seems to be a reconnect
+    let messageText = isReconnect
+      ? `Additional permissions are required for ${getDisplayName(service)}.`
+      : `To continue, you need to connect your ${getDisplayName(service)}.`;
+
+    let alternativeMessage = isReconnect
+      ? `The following permissions are needed: ${requiredScopes
+          .map((scope) => scope.split("/").pop() || scope)
+          .join(", ")}`
+      : "This will allow the assistant to access the necessary data to fulfill your request.";
 
     return (
       <InChatConnectionPrompt
-        service={service.replace("-", " ")}
+        service={getDisplayName(service)}
         message={messageText}
         connectButtonText={connectButtonText}
         connectButtonAction={connectButtonAction}
         alternativeMessage={alternativeMessage}
         chatId={id}
         requiredScopes={requiredScopes}
-        currentScopes={currentScopes}
+        currentScopes={[]}
       />
     );
+  };
+
+  // Helper to format provider display names consistently
+  const getDisplayName = (provider: string): string => {
+    switch (provider) {
+      case "google-calendar":
+        return "Google Calendar";
+      case "google-docs":
+        return "Google Docs";
+      case "google-meet":
+        return "Google Meet";
+      case "custom-crm":
+        return "CRM";
+      case "slack":
+        return "Slack";
+      case "zoom":
+        return "Zoom";
+      default:
+        return provider.replace(/-/g, " ");
+    }
   };
 
   // Render a standard message bubble
@@ -436,14 +566,91 @@ export default function Chat({
     const hasActionCard = message.actionCard !== undefined;
     const hasToolActions =
       message.toolActions && message.toolActions.length > 0;
+
+    // Try to detect embedded connection UI in the message content
+    let connectionUI = null;
+    if (message.role === "assistant" && message.content) {
+      try {
+        // First check for simple connection text pattern
+        const simpleConnectionRegex = /Connection to ([\w-]+) required/i;
+        const simpleMatch = message.content.match(simpleConnectionRegex);
+
+        if (simpleMatch && simpleMatch[1]) {
+          // Create a UI element from the simple text
+          const serviceName = simpleMatch[1].toLowerCase();
+          let service: OAuthProvider = "google-docs";
+
+          // Map the service name
+          if (serviceName.includes("calendar")) service = "google-calendar";
+          else if (serviceName.includes("meet")) service = "google-meet";
+          else if (serviceName.includes("crm")) service = "custom-crm";
+          else if (serviceName.includes("slack")) service = "slack";
+          else if (serviceName.includes("zoom")) service = "zoom";
+
+          // Attach a UI element to the message
+          message = {
+            ...message,
+            ui: {
+              type: "connection_required",
+              service: service,
+              message: `Please connect your ${getDisplayName(
+                service
+              )} to continue.`,
+              connectButton: {
+                text: `Connect ${getDisplayName(service)}`,
+                action: `connection://${service}`,
+              },
+              alternativeMessage:
+                "This will allow the assistant to access the necessary data.",
+              requiredScopes:
+                service === "google-docs"
+                  ? ["https://www.googleapis.com/auth/documents"]
+                  : [],
+            },
+          };
+        }
+        // Then try the more complex JSON format
+        else {
+          const connectionUIRegex = /\{\"type\":\"connection_ui\"[^}]+\}/;
+          const match = message.content.match(connectionUIRegex);
+          if (match) {
+            connectionUI = JSON.parse(match[0]);
+            // If we found valid UI, pass it to the message
+            if (connectionUI && !message.ui) {
+              message = {
+                ...message,
+                ui: {
+                  type: "connection_required",
+                  service: connectionUI.service,
+                  message: connectionUI.message,
+                  connectButton: connectionUI.connectButton,
+                  alternativeMessage: connectionUI.alternativeMessage,
+                  requiredScopes: connectionUI.requiredScopes || [],
+                },
+              };
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore parse errors
+        console.log("Error parsing embedded connection UI:", e);
+      }
+    }
+
     const showConnectionPrompt =
       message.role === "assistant" &&
-      message.content &&
-      message.content.toLowerCase().includes("connect") &&
-      (message.content.toLowerCase().includes("calendar") ||
-        message.content.toLowerCase().includes("crm") ||
-        message.content.toLowerCase().includes("service") ||
-        message.content.includes("](connection:"));
+      (message.ui?.type === "connection_required" || // Structured UI
+        (message.content &&
+          ((message.content.toLowerCase().includes("connect") &&
+            (message.content.toLowerCase().includes("calendar") ||
+              message.content.toLowerCase().includes("crm") ||
+              message.content.toLowerCase().includes("service") ||
+              message.content.toLowerCase().includes("google docs") ||
+              message.content.toLowerCase().includes("documents"))) ||
+            message.content.includes("](connection:") ||
+            message.content.includes("connection_required") ||
+            message.content.includes("Connection to") ||
+            message.content.includes('type":"connection_ui'))));
 
     // Check what kind of streaming placeholder we have
     const isToolInvocation =
@@ -456,9 +663,47 @@ export default function Chat({
     const isStepStart =
       message.role === "assistant" &&
       message.content &&
-      message.content.includes('{"type":"step-start"}');
+      (message.content.includes('{"type":"step-start"}') ||
+        message.content.includes('{"type": "step-start"}') ||
+        message.content === '{"type":"step-start"}' ||
+        (message.content.startsWith("{") &&
+          (message.content.includes('"type":"step') ||
+            message.content.includes('"type": "step'))));
 
-    console.log("isStepStart", isStepStart);
+    console.log("isStepStart", isStepStart, message.content);
+
+    // When message content is ONLY a step marker, we should hide it entirely
+    if (
+      message.content &&
+      typeof message.content === "string" &&
+      message.content.trim().startsWith("{") &&
+      message.content.includes('"type"')
+    ) {
+      try {
+        const parsedJson = JSON.parse(message.content.trim());
+        if (
+          parsedJson &&
+          parsedJson.type &&
+          (parsedJson.type === "step-start" ||
+            parsedJson.type === "step-end" ||
+            parsedJson.type.startsWith("step"))
+        ) {
+          // This is ONLY a step marker with no other content
+          return isStepStart ? (
+            <div className="flex items-center py-2">
+              <div className="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div className="ml-3 text-sm text-gray-400">Thinking...</div>
+            </div>
+          ) : null;
+        }
+      } catch (e) {
+        // Not valid JSON, continue with normal rendering
+      }
+    }
 
     const isGeneralStreamingPlaceholder =
       message.role === "assistant" &&
@@ -522,7 +767,16 @@ export default function Chat({
               : "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 shadow-sm"
           }`}
         >
-          {isToolInvocation ? (
+          {isStepStart ? (
+            <div className="flex items-center py-2">
+              <div className="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div className="ml-3 text-sm text-gray-400">Thinking...</div>
+            </div>
+          ) : isToolInvocation ? (
             <div className="flex items-center py-2">
               <div className="tool-execution-indicator mr-3">
                 <svg
@@ -557,24 +811,6 @@ export default function Chat({
                 </div>
               </div>
             </div>
-          ) : isStepStart ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="flex space-x-1">
-                <div
-                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
-                  style={{ animationDelay: "0ms" }}
-                />
-                <div
-                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                />
-                <div
-                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                />
-              </div>
-              <span>Processing your request...</span>
-            </div>
           ) : isGeneralStreamingPlaceholder ? (
             <div className="flex items-center py-2">
               <div className="typing-indicator">
@@ -585,7 +821,21 @@ export default function Chat({
               <div className="ml-3 text-sm text-gray-400">Thinking...</div>
             </div>
           ) : (
-            <div className="prose prose-sm">{message.content}</div>
+            <div className="prose prose-sm">
+              {message.parts && message.parts.length > 0
+                ? // Handle messages that have been loaded from database with parts structure
+                  message.parts.map((part, idx) => {
+                    if (typeof part === "object" && part.type === "text") {
+                      return <div key={idx}>{part.text}</div>;
+                    } else if (typeof part === "string") {
+                      return <div key={idx}>{part}</div>;
+                    } else {
+                      return null;
+                    }
+                  })
+                : // Handle messages that come directly from the AI with content as string
+                  message.content}
+            </div>
           )}
 
           {/* Render connection prompt if needed */}

@@ -146,10 +146,10 @@ export class CRMContactsTool extends Tool<{
       }
 
       // Extract the actual token from the response
-      const accessToken = tokenResponse.token.accessToken;
+      const accessToken = tokenResponse.token?.accessToken;
 
       // Use our enhanced contact fetching function
-      const responseData = await fetchCRMContacts(accessToken, data.query);
+      const responseData = await fetchCRMContacts(accessToken!, data.query);
 
       return {
         success: true,
@@ -249,11 +249,11 @@ export class CRMDealsTool extends Tool<{
       }
 
       // Extract the actual token from the response
-      const accessToken = tokenResponse.token.accessToken;
+      const accessToken = tokenResponse.token?.accessToken;
 
       // Use our enhanced deals fetching function
       const responseData = await fetchCRMDeals(
-        accessToken,
+        accessToken!,
         data.dealId,
         data.contactId,
         data.stage,
@@ -351,11 +351,11 @@ export class DealStakeholdersTool extends Tool<{
       }
 
       // Extract the actual token from the response
-      const accessToken = tokenResponse.token.accessToken;
+      const accessToken = tokenResponse.token?.accessToken;
 
       // Use our enhanced deal stakeholders function
       const stakeholdersData = await fetchDealStakeholders(
-        accessToken,
+        accessToken!,
         data.dealId
       );
 
@@ -528,16 +528,6 @@ export async function fetchCRMDeals(
   stage?: string,
   companyName?: string
 ) {
-  console.log("==== CRM DEALS REQUEST ====");
-  console.log(
-    `Token length: ${token ? token.length : 0}, starts with: ${
-      token ? token.substring(0, 10) + "..." : "undefined"
-    }`
-  );
-  console.log(
-    `Parameters: dealId=${dealId}, contactId=${contactId}, stage=${stage}, companyName=${companyName}`
-  );
-
   try {
     const url = new URL("https://www.10x-crm.app/api/deals");
 
@@ -560,13 +550,6 @@ export async function fetchCRMDeals(
       url.searchParams.append("company", companyName);
     }
 
-    console.log(`CRM API Request URL: ${url.toString()}`);
-    console.log(
-      `Request headers: Authorization: Bearer ${
-        token ? "Present (hidden)" : "Missing!"
-      }`
-    );
-
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
@@ -574,17 +557,6 @@ export async function fetchCRMDeals(
         Authorization: `Bearer ${token}`,
       },
     });
-
-    console.log(
-      `CRM API Response Status: ${response.status} ${response.statusText}`
-    );
-    console.log(
-      `CRM API Response Headers:`,
-      Object.fromEntries([...response.headers.entries()])
-    );
-    console.log(
-      `CRM API Response Content-Type: ${response.headers.get("content-type")}`
-    );
 
     if (!response.ok) {
       console.error(

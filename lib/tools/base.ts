@@ -289,3 +289,95 @@ class ToolRegistry {
 }
 
 export const toolRegistry = new ToolRegistry();
+
+// Standard OAuth providers supported by the application
+export type OAuthProvider =
+  | "google-calendar"
+  | "google-docs"
+  | "google-meet"
+  | "custom-crm"
+  | "slack"
+  | "zoom";
+
+// Create standardized connection request for OAuth providers
+export function createConnectionRequest(options: {
+  provider: OAuthProvider;
+  isReconnect?: boolean;
+  requiredScopes?: string[];
+  currentScopes?: string[];
+  customMessage?: string;
+}): ToolResponse {
+  const {
+    provider,
+    isReconnect = false,
+    requiredScopes = [],
+    currentScopes = [],
+    customMessage,
+  } = options;
+
+  // Format provider name for display
+  const getDisplayName = (provider: OAuthProvider): string => {
+    switch (provider) {
+      case "google-calendar":
+        return "Google Calendar";
+      case "google-docs":
+        return "Google Docs";
+      case "google-meet":
+        return "Google Meet";
+      case "custom-crm":
+        return "CRM";
+      case "slack":
+        return "Slack";
+      case "zoom":
+        return "Zoom";
+      default:
+        return String(provider).replace(/-/g, " ");
+    }
+  };
+
+  const displayName = getDisplayName(provider);
+
+  // Create appropriate messages based on connection type
+  const primaryMessage =
+    customMessage ||
+    (isReconnect
+      ? `Additional permissions are required for ${displayName}.`
+      : `Please connect your ${displayName} account to continue.`);
+
+  let alternativeMessage =
+    "This will allow the assistant to access the necessary data to fulfill your request.";
+
+  // Add scope information if available
+  if (requiredScopes.length > 0) {
+    const scopeText = requiredScopes
+      .map((scope) => scope.split("/").pop() || scope)
+      .join(", ");
+
+    alternativeMessage = `The following permissions are needed: ${scopeText}`;
+  }
+
+  // Create the button text
+  const buttonText = isReconnect
+    ? `Reconnect ${displayName}`
+    : `Connect ${displayName}`;
+
+  return {
+    success: false,
+    status: "error",
+    error: isReconnect
+      ? `Additional ${displayName} permissions required`
+      : `${displayName} connection required`,
+    ui: {
+      type: "connection_required",
+      service: provider,
+      message: primaryMessage,
+      connectButton: {
+        text: buttonText,
+        action: `connection://${provider}`,
+      },
+      alternativeMessage,
+      requiredScopes: requiredScopes.length > 0 ? requiredScopes : undefined,
+      ...(currentScopes.length > 0 && { currentScopes }),
+    },
+  };
+}

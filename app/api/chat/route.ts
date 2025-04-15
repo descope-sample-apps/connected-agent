@@ -3,7 +3,6 @@ import "@/app/api/_init";
 
 import {
   UIMessage,
-  appendResponseMessages,
   createDataStreamResponse,
   smoothStream,
   streamText,
@@ -23,8 +22,7 @@ import {
   getTrailingMessageId,
   isCrmRelatedQuery,
 } from "@/lib/utils";
-import { createDocument } from "@/lib/ai/tools/create-document";
-import { getWeather } from "@/lib/ai/tools/get-weather";
+import { createDocumentWrapper } from "@/lib/tools/documents";
 import { myProvider } from "@/lib/ai/providers";
 import { getGoogleCalendarToken, getCRMToken } from "@/lib/descope";
 import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
@@ -110,22 +108,96 @@ function createStreamAdapter(dataStream: any) {
         // Format the data if needed
         let formattedData = data;
 
-        // If data is an object with a toolActivity property, format it correctly
-        if (data && typeof data === "object" && "toolActivity" in data) {
-          formattedData = {
-            type: "toolActivity",
-            text: data.toolActivity.text || JSON.stringify(data.toolActivity),
-          };
+        // Special handling for connection requirement markers
+        if (data && typeof data === "object") {
+          // Handle tool activities
+          if ("toolActivity" in data) {
+            if (
+              data.toolActivity &&
+              data.toolActivity.step === "connection_required"
+            ) {
+              // Special case for connection requirements - use simple text format
+              formattedData = {
+                type: "text",
+                text: `Connection to ${
+                  data.toolActivity.service || "Google Docs"
+                } required. Please connect to continue.`,
+              };
+            } else {
+              // Normal tool activity
+              formattedData = {
+                type: "toolActivity",
+                text:
+                  data.toolActivity.text || JSON.stringify(data.toolActivity),
+              };
+            }
+          }
+          // Handle step markers (like step-start)
+          else if (
+            "type" in data &&
+            (data.type === "step-start" ||
+              data.type === "step-end" ||
+              (typeof data.type === "string" && data.type.startsWith("step")))
+          ) {
+            formattedData = {
+              type: "text",
+              text: `${data.type === "step-start" ? "Thinking..." : "Done"}`,
+            };
+          }
+          // Handle connection_required UI elements - use simple text
+          else if (data.ui && data.ui.type === "connection_required") {
+            formattedData = {
+              type: "text",
+              text: `Connection to ${data.ui.service || "service"} required. ${
+                data.ui.message || "Please connect to continue."
+              }`,
+            };
+          }
+          // Handle direct connection error objects that might come from Google Docs tool
+          else if (
+            "error" in data &&
+            typeof data.error === "string" &&
+            (data.error.includes("connection") ||
+              data.error.includes("Google Docs")) &&
+            "provider" in data
+          ) {
+            formattedData = {
+              type: "text",
+              text: `Connection to ${data.provider || "service"} required. ${
+                data.customMessage || "Please connect to continue."
+              }`,
+            };
+          }
+        }
+
+        // Ensure we're sending a valid JSON string followed by a newline
+        let outputData =
+          typeof formattedData === "string"
+            ? formattedData
+            : JSON.stringify(formattedData);
+
+        // Add proper newline to ensure stream boundaries are clear
+        if (!outputData.endsWith("\n")) {
+          outputData += "\n";
         }
 
         // If dataStream has a write method, use that instead
         if (dataStream && typeof dataStream.write === "function") {
-          dataStream.write(JSON.stringify(formattedData) + "\n");
+          dataStream.write(outputData);
         } else {
           console.warn("dataStream does not have append or write method");
         }
       } catch (error) {
         console.error("Error appending to stream:", error);
+        // If there's an error, try to send a simplified error message
+        if (dataStream && typeof dataStream.write === "function") {
+          dataStream.write(
+            JSON.stringify({
+              type: "text",
+              text: "Error processing response",
+            }) + "\n"
+          );
+        }
       }
     },
     write: (data: string) => {
@@ -327,19 +399,23 @@ export async function POST(request: Request) {
       }
     }
 
-    // Save the user message
-    await saveMessages({
-      messages: [
-        {
-          id: nanoid(),
-          chatId: id,
-          role: "user",
-          parts: userMessage.parts,
-          attachments: userMessage.experimental_attachments ?? [],
-          createdAt: new Date(),
-        },
-      ],
-    });
+    // Only save the user message if it's a new one (not loaded from history)
+    // Check if this message has a unique client-generated ID and isn't already saved
+    if (userMessage.id && !userMessage.id.startsWith("db-")) {
+      // Save the user message
+      await saveMessages({
+        messages: [
+          {
+            id: nanoid(),
+            chatId: id,
+            role: "user",
+            parts: userMessage.parts,
+            attachments: userMessage.experimental_attachments ?? [],
+            createdAt: new Date(),
+          },
+        ],
+      });
+    }
 
     // Initialize CRM tools
     const crmDealsTool = new CRMDealsTool();
@@ -353,7 +429,6 @@ export async function POST(request: Request) {
 
     // Define the tools object
     const toolsObject: any = {
-      getWeather,
       parseDate: {
         description: "Parse a relative date into a formatted date and time",
         parameters: z.object({
@@ -988,11 +1063,51 @@ export async function POST(request: Request) {
         // Create a wrapper for the dataStream with proper append method
         const streamAdapter = createStreamAdapter(dataStream);
 
-        // Initialize the document tool with the proper stream adapter
-        toolsObject.createDocument = createDocument({
-          session: userSession,
-          dataStream: streamAdapter,
-        });
+        // Initialize the document tool with the proper stream adapter using our wrapper function
+        toolsObject.createDocument = {
+          description: "Create a Google Doc document",
+          parameters: z.object({
+            title: z.string().describe("Document title"),
+            content: z.string().describe("Document content"),
+          }),
+          execute: async ({
+            title,
+            content,
+          }: {
+            title: string;
+            content: string;
+          }) => {
+            try {
+              if (!userSession?.token?.sub) {
+                return {
+                  success: false,
+                  error: "User not authenticated",
+                  message: "You need to be signed in to create documents.",
+                };
+              }
+
+              // Import the documentsTool directly to avoid circular dependencies
+              const { documentsTool } = await import("@/lib/tools/documents");
+
+              // Use the documentsTool directly
+              return await documentsTool.execute(userSession.token.sub, {
+                title,
+                content,
+              });
+            } catch (error) {
+              console.error("Error creating document:", error);
+              return {
+                success: false,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to create document",
+                message:
+                  "There was an error creating your document. Please try again.",
+              };
+            }
+          },
+        };
 
         // Get system prompt
         const promptResult = systemPrompt({ selectedChatModel });
@@ -1014,11 +1129,11 @@ export async function POST(request: Request) {
                   if (typeof part === "object" && part !== null) {
                     return part.text || JSON.stringify(part);
                   }
-                  return String(part);
+                  return String(part || "");
                 })
                 .join(" ");
             } else if (msg.content) {
-              content = JSON.stringify(msg.content);
+              content = String(msg.content);
             }
 
             return {
@@ -1047,27 +1162,55 @@ export async function POST(request: Request) {
                   assistantMessages[assistantMessages.length - 1];
                 const assistantId = nanoid();
 
-                // Format assistant message for storage
+                // Ensure assistantMessage content is correctly formatted for saving
+                // The database expects parts to be an array of objects, e.g., { type: 'text', text: '...' }
                 let messageParts: any[] = [];
                 if (typeof assistantMessage.content === "string") {
+                  // If content is a simple string, wrap it in the standard part structure
                   messageParts = [
                     { type: "text", text: assistantMessage.content },
                   ];
                 } else if (Array.isArray(assistantMessage.content)) {
-                  messageParts = assistantMessage.content.map((part: any) => {
-                    if (typeof part === "object" && part.type === "text") {
-                      return { type: "text", text: part.text };
+                  // If content is already an array of parts, use it directly
+                  // Ensure the parts conform to the expected structure if necessary
+                  messageParts = assistantMessage.content.map((part) => {
+                    if (typeof part === "object" && part !== null) {
+                      if (part.type === "text") {
+                        return { type: "text", text: part.text || "" };
+                      } else {
+                        // For non-text parts, create a safe representation
+                        return {
+                          type: part.type || "unknown",
+                          text: JSON.stringify(part),
+                        };
+                      }
+                    } else if (typeof part === "string") {
+                      return { type: "text", text: part };
+                    } else {
+                      return { type: "text", text: String(part || "") };
                     }
-                    return { type: "text", text: JSON.stringify(part) };
                   });
+                } else {
+                  // Handle cases where content might be missing or in an unexpected format
+                  console.warn(
+                    "Assistant message content has unexpected format or is missing:",
+                    assistantMessage.content
+                  );
+                  messageParts = [
+                    { type: "text", text: "[AI response content unavailable]" },
+                  ];
                 }
 
-                // Check for connection UI elements
+                // Check for connection requirements
+                const messageText =
+                  typeof assistantMessage.content === "string"
+                    ? assistantMessage.content
+                    : messageParts.map((part) => part.text || "").join(" ");
+
+                // Extract UI elements if present
                 const uiElements =
                   extractUIElementsFromToolResponses(assistantMessage);
-                // Only add UI elements if they exist (not null/undefined)
-                if (uiElements !== null && uiElements !== undefined) {
-                  // Add the UI element to message parts
+                if (uiElements) {
                   messageParts.push({
                     type: "connection",
                     connection: uiElements,
@@ -1082,6 +1225,9 @@ export async function POST(request: Request) {
                       chatId: id,
                       role: "assistant",
                       parts: messageParts,
+                      attachments:
+                        (assistantMessage as any).experimental_attachments ||
+                        [],
                       createdAt: new Date(),
                     },
                   ],
@@ -1175,36 +1321,99 @@ function extractUIElementsFromToolResponses(message: any): any {
 
     // Also check if the message content contains any connection text markers
     if (message.content && typeof message.content === "string") {
-      const connectionRegex =
-        /connect your (Google Meet|Google Calendar|CRM|Slack) account/i;
-      const match = message.content.match(connectionRegex);
+      // More detailed regex to detect various connection patterns
+      const connectionPatterns = [
+        // Connect to service patterns
+        /connect(?:\s+your|\s+to)?\s+(Google Meet|Google Calendar|Google Docs|CRM|Slack|Zoom)\s+(?:account|to continue)/i,
+        // Additional permissions patterns
+        /additional\s+permissions\s+(?:for|required\s+for)\s+(Google Meet|Google Calendar|Google Docs|CRM|Slack|Zoom)/i,
+        // Need access patterns
+        /need\s+(?:to\s+)?(?:connect|access)\s+(?:to\s+)?(Google Meet|Google Calendar|Google Docs|CRM|Slack|Zoom)/i,
+      ];
+
+      // Try each pattern to find a match
+      let match = null;
+      let matchedPattern = null;
+
+      for (const pattern of connectionPatterns) {
+        const result = message.content.match(pattern);
+        if (result) {
+          match = result;
+          matchedPattern = pattern;
+          break;
+        }
+      }
 
       if (match) {
         // Determine the service type from the content
         let service = "unknown";
-        if (match[1].toLowerCase().includes("meet")) service = "google-meet";
-        else if (match[1].toLowerCase().includes("calendar"))
-          service = "google-calendar";
-        else if (match[1].toLowerCase().includes("crm")) service = "crm";
-        else if (match[1].toLowerCase().includes("slack")) service = "slack";
+        const serviceName = match[1].toLowerCase();
 
-        // Return a generic connection UI object
+        if (serviceName.includes("meet")) service = "google-meet";
+        else if (serviceName.includes("calendar")) service = "google-calendar";
+        else if (serviceName.includes("docs")) service = "google-docs";
+        else if (serviceName.includes("crm")) service = "custom-crm";
+        else if (serviceName.includes("slack")) service = "slack";
+        else if (serviceName.includes("zoom")) service = "zoom";
+
+        // Determine if this is a reconnect request
+        const isReconnect =
+          matchedPattern?.source.includes("additional") ||
+          message.content.toLowerCase().includes("additional permission") ||
+          message.content.toLowerCase().includes("more permission");
+
+        // Get appropriate display name
+        const displayName =
+          service === "google-calendar"
+            ? "Google Calendar"
+            : service === "google-docs"
+            ? "Google Docs"
+            : service === "google-meet"
+            ? "Google Meet"
+            : service === "custom-crm"
+            ? "CRM"
+            : service === "slack"
+            ? "Slack"
+            : service === "zoom"
+            ? "Zoom"
+            : service;
+
+        // Build appropriate message
+        const connectionMessage = isReconnect
+          ? `Additional permissions are required for ${displayName}.`
+          : `Please connect your ${displayName} account to continue.`;
+
+        // Set default required scopes based on service
+        let requiredScopes: string[] = [];
+        if (service === "google-calendar") {
+          requiredScopes = ["https://www.googleapis.com/auth/calendar"];
+        } else if (service === "google-docs") {
+          requiredScopes = ["https://www.googleapis.com/auth/documents"];
+        } else if (service === "google-meet") {
+          requiredScopes = [
+            "https://www.googleapis.com/auth/meetings.space.created",
+          ];
+        }
+
+        // Return a consistent connection UI object
         return {
           type: "connection_required",
           service,
-          message: `Please connect your ${match[1]} account to continue`,
+          message: connectionMessage,
           connectButton: {
-            text: `Connect ${
-              service === "google-calendar"
-                ? "Google Calendar"
-                : service === "google-meet"
-                ? "Google Meet"
-                : service === "slack"
-                ? "Slack"
-                : service
-            }`,
+            text: isReconnect
+              ? `Reconnect ${displayName}`
+              : `Connect ${displayName}`,
             action: `connection://${service}`,
           },
+          alternativeMessage:
+            requiredScopes.length > 0
+              ? `The following permissions are needed: ${requiredScopes
+                  .map((s) => s.split("/").pop())
+                  .join(", ")}`
+              : "This will allow the assistant to access the necessary data to fulfill your request.",
+          requiredScopes:
+            requiredScopes.length > 0 ? requiredScopes : undefined,
         };
       }
     }

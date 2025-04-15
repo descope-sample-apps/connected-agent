@@ -1,7 +1,6 @@
 import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
-import { getGoogleCalendarToken } from "@/lib/descope";
 import { getRequiredScopes } from "@/lib/openapi-utils";
 
 export interface GoogleMeetEvent {
@@ -104,7 +103,7 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
       // Set up Google Calendar API client
       const oauth2Client = new google.auth.OAuth2();
       oauth2Client.setCredentials({
-        access_token: tokenResponse.token.accessToken,
+        access_token: tokenResponse.token?.accessToken,
       });
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 

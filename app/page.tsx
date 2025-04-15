@@ -399,17 +399,23 @@ function ChatParamsHandler({
   reload: () => void;
 }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Reference to track if we've already processed the URL params
+  const processedRef = useRef(false);
 
   useEffect(() => {
-    if (!isAuthenticated || isHandlingChatChange) return;
+    // Skip if not authenticated, already handling a change, or if we've already processed
+    if (!isAuthenticated || isHandlingChatChange || processedRef.current)
+      return;
 
     const chatIdParam = searchParams?.get("chatId");
 
     if (chatIdParam) {
-      console.log(
-        "Found chatId in URL params, setting current chat:",
-        chatIdParam
-      );
+      console.log("Found chatId in URL params:", chatIdParam);
+
+      // Mark as processed to prevent duplicate handling
+      processedRef.current = true;
 
       // Set the handling flag to prevent multiple updates
       setIsHandlingChatChange(true);
@@ -418,21 +424,19 @@ function ChatParamsHandler({
       setCurrentChatId(chatIdParam);
       localStorage.setItem("currentChatId", chatIdParam);
 
-      // Manually load chat messages - the reload method will fetch messages for the chat ID
-      // The fetchChatMessages function will handle invalid chat IDs
-      setTimeout(() => {
-        console.log("Reloading chat messages for:", chatIdParam);
-        reload();
-        // Reset the handling flag after reload is called
-        setIsHandlingChatChange(false);
-      }, 100);
-
-      // Clean up URL (remove chatId parameter)
+      // Clean up URL (remove chatId parameter) before loading messages
       if (typeof window !== "undefined") {
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete("chatId");
         window.history.replaceState({}, "", newUrl.toString());
       }
+
+      // Delay reload to ensure state is updated
+      setTimeout(() => {
+        reload();
+        // Reset the handling flag after reload is called
+        setIsHandlingChatChange(false);
+      }, 300);
     }
   }, [
     searchParams,
@@ -456,23 +460,22 @@ export default function Home() {
   const [hasActivePrompt, setHasActivePrompt] = useState(false);
   const [showPromptExplanation, setShowPromptExplanation] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
-    // Initialize from localStorage if available
-    if (typeof window !== "undefined") {
-      // If we just redirected from a chat/[id] page, that ID will be in localStorage
-      const storedId = localStorage.getItem("currentChatId");
-
-      // If we have an ID, use it
-      if (storedId) {
-        return storedId;
-      }
-
-      // Otherwise, generate a new one
-      const newId = `chat-${nanoid()}`;
-      localStorage.setItem("currentChatId", newId);
-      return newId;
+    // Only execute this logic on the client side
+    if (typeof window === "undefined") {
+      return null; // Return null for server-side rendering
     }
-    // Server-side rendering case
-    return null;
+
+    // Check if we have an existing chat ID in localStorage
+    const storedId = localStorage.getItem("currentChatId");
+    if (storedId) {
+      return storedId;
+    }
+
+    // Generate a new ID once if needed
+    const newId = `chat-${nanoid()}`;
+    localStorage.setItem("currentChatId", newId);
+    console.log("Initialized new chat ID:", newId);
+    return newId;
   });
   const [lastScheduledMeeting, setLastScheduledMeeting] =
     useState<LastScheduledMeeting | null>(null);
@@ -1332,15 +1335,35 @@ export default function Home() {
 
   // Function to handle creating a new chat
   const handleNewChat = () => {
+    // Prevent multiple executions if already handling a change
+    if (isHandlingChatChange) return;
+
+    // Set handling flag to prevent URL updates during this operation
+    setIsHandlingChatChange(true);
+
+    // Generate a new chat ID once
     const newChatId = `chat-${nanoid()}`;
+    console.log("Creating new chat with ID:", newChatId);
+
+    // Update state and localStorage
     setCurrentChatId(newChatId);
     localStorage.setItem("currentChatId", newChatId);
     setMessages([]); // Clear messages to show the welcome screen
+
+    // Update URL manually once
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", `/chat/${newChatId}`);
+    }
 
     // Force a refresh of the chat history
     if (historySidebarRef.current) {
       historySidebarRef.current.fetchChatHistory();
     }
+
+    // Reset handling flag after a short delay
+    setTimeout(() => {
+      setIsHandlingChatChange(false);
+    }, 300);
   };
 
   // Function to handle chat deletion

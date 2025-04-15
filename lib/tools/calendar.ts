@@ -1,4 +1,11 @@
-import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import {
+  Tool,
+  ToolConfig,
+  ToolResponse,
+  toolRegistry,
+  createConnectionRequest,
+  OAuthProvider,
+} from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
 
@@ -109,25 +116,30 @@ export class CalendarTool extends Tool<CalendarEvent> {
       );
 
       if (!tokenResponse || "error" in tokenResponse) {
-        return {
-          success: false,
-          error: "Google Calendar access required",
-          ui: {
-            type: "connection_required",
-            service: "google-calendar",
-            message: "Please connect your Google Calendar to create events",
-            connectButton: {
-              text: "Connect Google Calendar",
-              action: "connection://google-calendar",
-            },
-          },
-        };
+        // Check if we have required scopes information
+        const requiredScopes =
+          "requiredScopes" in tokenResponse
+            ? tokenResponse.requiredScopes
+            : this.config.scopes;
+
+        const isReconnect =
+          "error" in tokenResponse &&
+          tokenResponse.error === "insufficient_scopes";
+
+        return createConnectionRequest({
+          provider: "google-calendar",
+          isReconnect,
+          requiredScopes,
+          customMessage: isReconnect
+            ? "Additional calendar permissions are needed to create events."
+            : "Please connect your Google Calendar to create events",
+        });
       }
 
       // Set up Google Calendar API client
       const oauth2Client = new google.auth.OAuth2();
       oauth2Client.setCredentials({
-        access_token: tokenResponse.token.accessToken,
+        access_token: tokenResponse.token?.accessToken,
       });
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 

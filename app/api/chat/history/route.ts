@@ -1,5 +1,6 @@
 import { session } from "@descope/nextjs-sdk/server";
 import { getRecentChatsWithLastMessage } from "@/lib/db/queries";
+import { z } from "zod";
 
 export async function GET() {
   try {

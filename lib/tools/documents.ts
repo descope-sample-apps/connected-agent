@@ -82,7 +82,7 @@ const documentsConfig: ToolConfig = {
   },
 };
 
-async function createDocument(
+export async function createDocument(
   token: string,
   content: DocumentContent
 ): Promise<GoogleDoc> {
@@ -96,7 +96,7 @@ async function createDocument(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        name: content.title,
+        name: content.title || "Untitled Document",
         mimeType: "application/vnd.google-apps.document",
       }),
     }
@@ -418,10 +418,13 @@ class DocumentsTool extends Tool<DocumentContent> {
       }
 
       // Create document
-      const document = await createDocument(tokenResponse.token.accessToken, {
-        ...data,
-        content,
-      });
+      const document = await createDocument(
+        tokenResponse.token?.accessToken ?? "",
+        {
+          ...data,
+          content,
+        }
+      );
 
       return {
         success: true,
@@ -448,3 +451,37 @@ toolRegistry.register(documentsTool);
 
 // Export the documents tool for direct use if needed
 export { documentsTool };
+
+// Export a wrapper function that matches the expected interface in chat/route.ts
+export function createDocumentWrapper({
+  session,
+  dataStream,
+}: {
+  session: any;
+  dataStream: any;
+}) {
+  return {
+    description: "Create a Google Doc document",
+    execute: async ({ title, content }: { title: string; content: string }) => {
+      try {
+        if (!session?.token?.sub) {
+          throw new Error("User not authenticated");
+        }
+
+        return await documentsTool.execute(session.token.sub, {
+          title,
+          content,
+        });
+      } catch (error) {
+        console.error("Error creating document:", error);
+        return {
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to create document",
+        };
+      }
+    },
+  };
+}
