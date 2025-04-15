@@ -63,6 +63,12 @@ import {
 import { availableModels } from "@/lib/ai/providers";
 import { useEffect as useClientEffect } from "react";
 import { disconnectOAuthProvider } from "@/lib/oauth-utils";
+import {
+  isConnected,
+  setConnected,
+  getAllConnectionStatuses,
+  OAuthProvider as ConnectionProvider,
+} from "@/lib/connection-manager";
 
 interface OAuthProvider {
   id: string;
@@ -242,11 +248,23 @@ export default function ProfileScreen({
   // Refresh chat history after a successful connection
   const handleConnectionSuccess = async (providerId: string) => {
     try {
-      // First refresh connections to get updated status
-      await fetchConnections();
+      console.log(`Updating connection status for ${providerId}`);
 
-      // Then refresh chat history
-      await fetchChatHistory();
+      // Update localStorage immediately
+      setConnected(providerId as ConnectionProvider, true);
+
+      // Update UI from localStorage
+      const localConnectionStatuses = getAllConnectionStatuses();
+      setOauthProviders((providers) =>
+        providers.map((provider) => ({
+          ...provider,
+          connected:
+            localConnectionStatuses[provider.id as ConnectionProvider] || false,
+        }))
+      );
+
+      // Now try to fetch from server to get token data
+      await fetchConnections();
 
       // Show success toast
       toast({
@@ -268,113 +286,122 @@ export default function ProfileScreen({
 
   const fetchConnections = async () => {
     try {
-      // Add a timestamp parameter to prevent any caching
-      const timestamp = new Date().getTime();
-      const response = await fetch(`/api/oauth/connections?_=${timestamp}`, {
-        // Add cache-busting headers
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-        // Explicitly tell fetch not to use cache
-        cache: "no-store",
-      });
+      // FIRST: Update the UI based on localStorage status
+      // This provides an immediate response from localStorage
+      const localConnectionStatuses = getAllConnectionStatuses();
 
-      // Log the full response details
-      console.log("Connections response status:", response.status);
       console.log(
-        "Connections response headers:",
-        Object.fromEntries([...response.headers.entries()])
+        "Local connection statuses from localStorage:",
+        localConnectionStatuses
       );
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch connections: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const data = await response.json();
-      if (!data.connections) {
-        throw new Error("No connections data in response");
-      }
-
-      // Force reset the connection status before updating
+      // Immediately update UI based on localStorage values
       setOauthProviders((providers) =>
         providers.map((provider) => ({
           ...provider,
-          connected: false,
-          tokenData: undefined,
+          connected:
+            localConnectionStatuses[provider.id as ConnectionProvider] || false,
         }))
       );
 
-      // After a brief delay, update the providers with connection data
-      setTimeout(() => {
-        setOauthProviders((providers) =>
-          providers.map((provider) => {
-            const connectionData = data.connections[provider.id];
-            if (!connectionData) {
-              console.log(
-                `No connection data for ${provider.id} - marking as disconnected`
-              );
-              return { ...provider, connected: false };
-            }
+      // SECOND: Still make the API call to verify server-side status
+      // But this won't block the UI update
+      const timestamp = new Date().getTime();
+      // const response = await fetch(`/api/oauth/connections?_=${timestamp}`, {
+      //   headers: {
+      //     "Cache-Control": "no-cache, no-store, must-revalidate",
+      //     Pragma: "no-cache",
+      //     Expires: "0",
+      //   },
+      //   cache: "no-store",
+      // });
 
-            if (
-              typeof connectionData === "object" &&
-              "error" in connectionData
-            ) {
-              console.error(
-                `Connection error for ${provider.id}:`,
-                connectionData.error
-              );
-              return { ...provider, connected: false };
-            }
+      // console.log("Connections response status:", response.status);
+      // console.log(
+      //   "Connections response headers:",
+      //   Object.fromEntries([...response.headers.entries()])
+      // );
 
-            // Check for the connected property from the API
-            if (!connectionData.connected) {
-              return { ...provider, connected: false };
-            }
+      // if (!response.ok) {
+      //   throw new Error(
+      //     `Failed to fetch connections: ${response.status} ${response.statusText}`
+      //   );
+      // }
 
-            // Only mark as connected if we have a token
-            if (connectionData.token) {
-              return {
-                ...provider,
-                connected: true,
-                tokenData: {
-                  scopes: connectionData.token.scopes || [],
-                  accessToken: connectionData.token.accessToken || "",
-                  expiresAt: connectionData.token.accessTokenExpiry || "",
-                },
-              };
-            }
+      // const data = await response.json();
+      // if (!data.connections) {
+      //   throw new Error("No connections data in response");
+      // }
 
-            return {
-              ...provider,
-              connected: connectionData.connected === true,
-            };
-          })
-        );
-      }, 100);
+      // Update providers with API connection data
+      // (only if it differs from localStorage to avoid UI flicker)
+      // setOauthProviders((providers) =>
+      //   providers.map((provider) => {
+      //     const connectionData = data.connections[provider.id];
+      //     const locallyConnected =
+      //       localConnectionStatuses[provider.id as ConnectionProvider] || false;
+
+      //     // If no connection data from API, use localStorage value
+      //     if (!connectionData) {
+      //       return { ...provider, connected: locallyConnected };
+      //     }
+
+      //     // If there's an error from API, still use localStorage value
+      //     if (typeof connectionData === "object" && "error" in connectionData) {
+      //       console.error(
+      //         `Connection error for ${provider.id}:`,
+      //         connectionData.error
+      //       );
+      //       return { ...provider, connected: locallyConnected };
+      //     }
+
+      //     // If API reports different status than localStorage, use API status but also update localStorage
+      //     if (connectionData.connected !== locallyConnected) {
+      //       // Update localStorage to match server status
+      //       setConnected(
+      //         provider.id as ConnectionProvider,
+      //         connectionData.connected === true
+      //       );
+      //     }
+
+      //     // Return object with complete data
+      //     if (connectionData.token) {
+      //       return {
+      //         ...provider,
+      //         connected: connectionData.connected === true,
+      //         tokenData: {
+      //           scopes: connectionData.token.scopes || [],
+      //           accessToken: connectionData.token.accessToken || "",
+      //           expiresAt: connectionData.token.accessTokenExpiry || "",
+      //         },
+      //       };
+      //     }
+
+      //   return {
+      //     ...provider,
+      //     connected: connectionData.connected === true,
+      //   };
+      // })
+      // );
     } catch (error) {
       console.error("Error fetching connections:", error);
       setError(
         error instanceof Error ? error.message : "Failed to fetch connections"
       );
-      // Reset all connections to disconnected on error
+      // On error, still use localStorage values
+      const localConnectionStatuses = getAllConnectionStatuses();
       setOauthProviders((providers) =>
         providers.map((provider) => ({
           ...provider,
-          connected: false,
-          tokenData: undefined,
+          connected:
+            localConnectionStatuses[provider.id as ConnectionProvider] || false,
         }))
       );
 
-      // Show error toast
       toast({
-        title: "Connection Error",
+        title: "Connection Status",
         description:
-          "Failed to verify connection status. All services have been marked as disconnected.",
+          "Using locally stored connection status. Server verification failed.",
         variant: "destructive",
       });
     }
@@ -663,31 +690,38 @@ export default function ProfileScreen({
       setIsLoading(true);
       setError(null);
 
-      // Immediately mark as disconnected in the UI for better UX
+      // Immediately update localStorage and UI for better UX
+      setConnected(providerId as ConnectionProvider, false);
+
+      // Update providers from localStorage
+      const localConnectionStatuses = getAllConnectionStatuses();
       setOauthProviders((providers) =>
-        providers.map((provider) =>
-          provider.id === providerId
-            ? { ...provider, connected: false, tokenData: undefined }
-            : provider
-        )
+        providers.map((provider) => ({
+          ...provider,
+          connected:
+            localConnectionStatuses[provider.id as ConnectionProvider] || false,
+          tokenData:
+            provider.id === providerId ? undefined : provider.tokenData,
+        }))
       );
 
-      // Call the disconnection function
+      // Call the disconnection function to update server state
       const success = await disconnectOAuthProvider({ providerId });
 
       if (success) {
         console.log(`Successfully disconnected ${providerId}`);
 
-        // Fetch the latest connection status with a delay to ensure Descope has time to update
+        // Show toast to confirm disconnect
+        toast({
+          title: "Disconnected",
+          description: `Successfully disconnected from ${
+            oauthProviders.find((p) => p.id === providerId)?.name || providerId
+          }`,
+        });
+
+        // Refresh connections to sync UI with server state
         setTimeout(async () => {
           await fetchConnections();
-          toast({
-            title: "Disconnected",
-            description: `Successfully disconnected from ${
-              oauthProviders.find((p) => p.id === providerId)?.name ||
-              providerId
-            }`,
-          });
         }, 500);
       } else {
         throw new Error("Failed to disconnect provider");
