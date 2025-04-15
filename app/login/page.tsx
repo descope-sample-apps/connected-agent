@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Descope } from "@descope/nextjs-sdk";
-import { useSession } from "@descope/nextjs-sdk/client";
+import { useSession, useUser } from "@descope/nextjs-sdk/client";
 import {
   Card,
   CardContent,
@@ -13,16 +13,31 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { nanoid } from "nanoid";
+import { identifyUser } from "@/lib/analytics";
 
 export default function LoginPage() {
   const { isAuthenticated, isSessionLoading } = useSession();
+  const { user: descopeUser } = useUser();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isDescopeReady, setIsDescopeReady] = useState(false);
 
   // Redirect to new chat if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && descopeUser) {
+      // Identify user on automatic login
+      identifyUser(descopeUser.userId, {
+        email: descopeUser.email,
+        name:
+          descopeUser.name ||
+          `${descopeUser.givenName || ""} ${
+            descopeUser.familyName || ""
+          }`.trim(),
+        firstName: descopeUser.givenName,
+        lastName: descopeUser.familyName,
+        loginAt: new Date().toISOString(),
+      });
+
       // Generate a new chat ID
       const newChatId = `chat-${nanoid()}`;
 
@@ -30,10 +45,24 @@ export default function LoginPage() {
       console.log(`Login: Redirecting to new chat: ${newChatId}`);
       router.push(`/chat/${newChatId}`);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, descopeUser]);
 
-  const onSuccess = () => {
+  const onSuccess = (user: any) => {
     setIsLoading(true);
+
+    // Identify the user in analytics when they log in
+    if (user) {
+      identifyUser(user.userId, {
+        email: user.email,
+        name:
+          user.name ||
+          `${user.givenName || ""} ${user.familyName || ""}`.trim(),
+        firstName: user.givenName,
+        lastName: user.familyName,
+        createdAt: new Date().toISOString(),
+        loginAt: new Date().toISOString(),
+      });
+    }
 
     // Generate a new chat ID
     const newChatId = `chat-${nanoid()}`;

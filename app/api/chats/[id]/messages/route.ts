@@ -4,9 +4,10 @@ import { getChatById, getChatMessages } from "@/lib/db/queries";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const id = params.id;
+  // Await the params object before accessing its properties
+  const { id } = await context.params;
   const userSession = await session();
 
   if (!userSession?.token?.sub) {
