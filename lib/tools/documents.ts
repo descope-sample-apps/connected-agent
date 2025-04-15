@@ -86,72 +86,95 @@ export async function createDocument(
   token: string,
   content: DocumentContent
 ): Promise<GoogleDoc> {
-  // First, create an empty document
-  const createResponse = await fetch(
-    "https://www.googleapis.com/drive/v3/files",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: content.title || "Untitled Document",
-        mimeType: "application/vnd.google-apps.document",
-      }),
-    }
-  );
-
-  if (!createResponse.ok) {
-    const error = await createResponse.json();
-    throw new Error(
-      `Failed to create document: ${
-        error.error?.message || createResponse.statusText
-      }`
+  try {
+    console.log("Creating document with Google Drive API");
+    // First, create an empty document using the Drive API
+    const createResponse = await fetch(
+      "https://www.googleapis.com/drive/v3/files",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: content.title || "Untitled Document",
+          mimeType: "application/vnd.google-apps.document",
+        }),
+      }
     );
-  }
 
-  const doc = await createResponse.json();
+    if (!createResponse.ok) {
+      const error = await createResponse.json();
+      const errorMessage = error.error?.message || createResponse.statusText;
 
-  // Then, update the document content
-  const updateResponse = await fetch(
-    `https://www.googleapis.com/docs/v1/documents/${doc.id}:batchUpdate`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        requests: [
-          {
-            insertText: {
-              location: {
-                index: 1,
+      // Mark this specifically as a Drive API error
+      throw new Error(
+        `Google Drive API Error: Failed to create document: ${errorMessage}`
+      );
+    }
+
+    const doc = await createResponse.json();
+    console.log("Document created in Drive with ID:", doc.id);
+
+    console.log("Updating document content with Google Docs API");
+    // Then, update the document content using the Docs API
+    const updateResponse = await fetch(
+      `https://www.googleapis.com/docs/v1/documents/${doc.id}:batchUpdate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              insertText: {
+                location: {
+                  index: 1,
+                },
+                text: content.content || "",
               },
-              text: content.content || "",
             },
-          },
-        ],
-      }),
-    }
-  );
-
-  if (!updateResponse.ok) {
-    const error = await updateResponse.json();
-    throw new Error(
-      `Failed to update document content: ${
-        error.error?.message || updateResponse.statusText
-      }`
+          ],
+        }),
+      }
     );
-  }
 
-  return {
-    id: doc.id,
-    title: doc.name,
-    content: content.content || "",
-    lastModified: doc.modifiedTime,
-  };
+    if (!updateResponse.ok) {
+      const error = await updateResponse.json();
+      const errorMessage = error.error?.message || updateResponse.statusText;
+
+      // Mark this specifically as a Docs API error
+      throw new Error(
+        `Google Docs API Error: Failed to update document content: ${errorMessage}`
+      );
+    }
+
+    return {
+      id: doc.id,
+      title: doc.name,
+      content: content.content || "",
+      lastModified: doc.modifiedTime,
+    };
+  } catch (error) {
+    // Re-throw with appropriate context for error identification
+    if (error instanceof Error) {
+      if (error.message.includes("Drive")) {
+        // This adds clarity about which scope is missing
+        throw new Error(
+          `${error.message} - You may need Google Drive access (https://www.googleapis.com/auth/drive scope)`
+        );
+      } else if (error.message.includes("Docs")) {
+        // This adds clarity about which scope is missing
+        throw new Error(
+          `${error.message} - You may need Google Docs access (https://www.googleapis.com/auth/documents scope)`
+        );
+      }
+    }
+    throw error;
+  }
 }
 
 function formatDealSummary(data: Record<string, any>): string {
@@ -351,8 +374,16 @@ class DocumentsTool extends Tool<DocumentContent> {
         getRequiredScopes("google-docs", "documents.batchUpdate"),
       ]);
 
-      // Combine scopes from both APIs
-      const scopes = [...new Set([...driveScopes, ...docsScopes])];
+      // Combine scopes from both APIs and ensure we have the critical drive scope
+      const scopes = [
+        ...new Set([
+          ...driveScopes,
+          ...docsScopes,
+          "https://www.googleapis.com/auth/drive", // Ensure we have the drive scope
+          "https://www.googleapis.com/auth/drive.file", // For file-specific access
+          "https://www.googleapis.com/auth/documents", // Ensure we have the docs scope
+        ]),
+      ];
 
       // Get OAuth token
       const tokenResponse = await getOAuthTokenWithScopeValidation(
@@ -376,15 +407,28 @@ class DocumentsTool extends Tool<DocumentContent> {
             ? tokenResponse.currentScopes
             : undefined;
 
+        // Check if this is specifically a Google Drive scope issue
+        const isDriveScope =
+          tokenResponse.error &&
+          (tokenResponse.error.includes("drive") ||
+            tokenResponse.error.includes("Drive") ||
+            (requiredScopes &&
+              requiredScopes.some((scope) => scope.includes("drive"))));
+
+        // Use appropriate service name based on the required scopes
+        const serviceDisplayName = isDriveScope
+          ? "Google Docs & Drive"
+          : "Google Docs";
+
         return {
           success: false,
           error: tokenResponse.error,
           ui: {
             type: "connection_required",
             service: "google-docs",
-            message: "Google Docs access is required to create documents.",
+            message: `${serviceDisplayName} access is required to create documents.`,
             connectButton: {
-              text: "Connect Google Docs",
+              text: `Connect ${serviceDisplayName}`,
               action: "connection://google-docs",
             },
             alternativeMessage:
@@ -459,9 +503,18 @@ class DocumentsTool extends Tool<DocumentContent> {
     } catch (error) {
       console.error("Error in documents tool:", error);
 
-      // Check if this is an authentication or permission error
+      // Extract error message
       const errorMsg =
         error instanceof Error ? error.message : "Failed to create document";
+      console.log("Document creation error:", errorMsg);
+
+      // Check if this is a scope-related issue with Drive
+      const isGoogleDriveError =
+        errorMsg.includes("drive") ||
+        errorMsg.includes("Drive") ||
+        errorMsg.includes("https://www.googleapis.com/auth/drive");
+
+      // Check if this is an authentication or permission error
       const isAuthError =
         errorMsg.includes("auth") ||
         errorMsg.includes("permission") ||
@@ -469,22 +522,34 @@ class DocumentsTool extends Tool<DocumentContent> {
         errorMsg.includes("unauthorized") ||
         errorMsg.includes("access") ||
         errorMsg.includes("403") ||
-        errorMsg.includes("401");
+        errorMsg.includes("401") ||
+        isGoogleDriveError;
 
       if (isAuthError) {
+        // Get required scopes based on the specific error
+        let scopes: string[] = ["https://www.googleapis.com/auth/documents"];
+        let serviceDisplayName = "Google Docs";
+
+        // If it's specifically a Drive error, make sure we include Drive scopes
+        if (isGoogleDriveError) {
+          scopes.push("https://www.googleapis.com/auth/drive");
+          serviceDisplayName = "Google Docs & Drive";
+        }
+
         return {
           success: false,
           error: errorMsg,
           ui: {
             type: "connection_required",
             service: "google-docs",
-            message: "Google Docs access is required to create documents.",
+            message: `${serviceDisplayName} access is required to create documents.`,
             connectButton: {
-              text: "Connect Google Docs",
+              text: `Connect ${serviceDisplayName}`,
               action: "connection://google-docs",
             },
             alternativeMessage:
               "This will allow the assistant to create and edit documents on your behalf.",
+            requiredScopes: scopes,
           },
         };
       }

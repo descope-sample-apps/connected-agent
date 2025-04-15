@@ -64,7 +64,7 @@ export async function getRequiredScopes(
     "google-calendar": {
       "events.list": ["https://www.googleapis.com/auth/calendar"],
       "events.create": ["https://www.googleapis.com/auth/calendar"],
-      connect: ["https://www.googleapis.com/auth/calendar"], // Full access for connection
+      connect: ["https://www.googleapis.com/auth/calendar"],
     },
     "google-docs": {
       "documents.get": ["https://www.googleapis.com/auth/documents"],
@@ -73,7 +73,7 @@ export async function getRequiredScopes(
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/drive.file",
       ],
-      connect: ["https://www.googleapis.com/auth/documents"], // Full access for connection
+      connect: ["https://www.googleapis.com/auth/documents"],
     },
     "google-meet": {
       "meetings.space": [

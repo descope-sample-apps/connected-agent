@@ -5,7 +5,7 @@ import { useChat, Message as AIMessage } from "ai/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import InChatConnectionPrompt from "@/components/in-chat-connection-prompt";
 import { useConnectionNotification } from "@/hooks/use-connection-notification";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { trackPrompt } from "@/lib/analytics";
 import { useAuth } from "@/context/auth-context";
 import { OAuthProvider } from "@/lib/tools/base";
+import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 
 // Define message types
 interface UIElement {
@@ -438,10 +439,43 @@ export default function Chat({
       },
     });
 
+  // Function to mark the last successful connection time in localStorage
+  const markServiceConnected = (service: string) => {
+    if (typeof window !== "undefined") {
+      const timestamp = Date.now();
+      localStorage.setItem(`last_connection_${service}`, timestamp.toString());
+      console.log(
+        `Marked ${service} as connected at ${new Date(timestamp).toISOString()}`
+      );
+    }
+  };
+
+  // Function to check if a service was recently connected
+  const wasRecentlyConnected = (service: string, maxAgeMs: number = 30000) => {
+    if (typeof window === "undefined") return false;
+
+    const lastConnectionTime = localStorage.getItem(
+      `last_connection_${service}`
+    );
+    if (!lastConnectionTime) return false;
+
+    const timestamp = parseInt(lastConnectionTime, 10);
+    const now = Date.now();
+    return now - timestamp < maxAgeMs;
+  };
+
   // Listen for connection success events
   useEffect(() => {
     const handleConnectionSuccess = (event: CustomEvent) => {
       console.log("Connection success event received:", event.detail);
+
+      // Mark this service as connected in localStorage
+      if (event.detail && event.detail.service) {
+        markServiceConnected(event.detail.service);
+      }
+
+      // See if we should retry immediately (set from UI button)
+      const retryImmediately = event.detail?.retryImmediately === true;
 
       // Resend the last user message to get a complete response after connection
       const lastUserMessage = [...messages]
@@ -453,21 +487,47 @@ export default function Chat({
           "Connection successful, resending message:",
           lastUserMessage.content
         );
-        // You could either submit the message again or reload the chat
-        // For simplicity, we'll do a very mild reload that preserves the current chat
-        if (id) {
-          // Optional: Show a loading state
-          setIsLoading(true);
 
-          // Check connections to refresh state
-          checkConnections().then(() => {
-            // Hide any connection prompts
-            hideNotification();
+        // Set a loading state to indicate we're retrying
+        setIsLoading(true);
 
-            // Reset loading state
-            setIsLoading(false);
-          });
-        }
+        // Hide any connection prompts
+        hideNotification();
+
+        // Check connections to refresh state
+        checkConnections().then(() => {
+          // For button-triggered reconnects, use a shorter delay
+          const delayTime = retryImmediately ? 100 : 1000;
+
+          // Introduce a small delay to ensure the connection state is updated
+          setTimeout(() => {
+            // Get the message we want to resend
+            const messageToResend = lastUserMessage.content;
+
+            // Set the input value first (for UI consistency)
+            handleInputChange({
+              target: { value: messageToResend },
+            } as React.ChangeEvent<HTMLInputElement>);
+
+            // Then manually trigger the submit with a proper event object
+            const event = {
+              preventDefault: () => {},
+            } as React.FormEvent<HTMLFormElement>;
+            chatHandleSubmit(event);
+
+            // Reset loading state after submission
+            setTimeout(() => {
+              setIsLoading(false);
+            }, 100);
+          }, delayTime);
+        });
+      } else {
+        // If no message to resend, just refresh the connection state
+        setIsLoading(true);
+        checkConnections().then(() => {
+          hideNotification();
+          setIsLoading(false);
+        });
       }
     };
 
@@ -536,6 +596,22 @@ export default function Chat({
     fetchUsage();
   }, []);
 
+  // Function to enhance connection details for Google Drive
+  const getEnhancedGoogleDocsConnectionDetails = () => {
+    return {
+      text: "Connect Google Docs & Drive",
+      message:
+        "Google Docs & Drive access is required to create and save documents.",
+      alternativeMessage:
+        "This will allow the assistant to create and edit documents and store them on your Google Drive.",
+      requiredScopes: [
+        "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/drive.file",
+      ],
+    };
+  };
+
   // Function to render a connection prompt if needed
   const renderConnectionPrompt = (message: ExtendedMessage) => {
     let service: OAuthProvider = "google-calendar"; // Default
@@ -579,22 +655,55 @@ export default function Chat({
     if (content.includes("slack")) service = "slack";
     if (content.includes("zoom")) service = "zoom";
 
+    // Check if it's likely a reconnect message
+    isReconnect =
+      content.includes("additional permission") ||
+      content.includes("more permission") ||
+      content.includes("reconnect");
+
     // Extract the action URL if available
     const actionMatch = message.content.match(
       /\[([^\]]+)\]\(connection:\/\/([^)]+)\)/
     );
-    const connectButtonText = actionMatch
+    let connectButtonText = actionMatch
       ? actionMatch[1]
       : `Connect ${getDisplayName(service)}`;
     const connectButtonAction = actionMatch
       ? `connection://${actionMatch[2]}`
       : `connection://${service}`;
 
-    // Handle specific scopes for Google services
+    // Handle specific scopes for different services
     if (service === "google-docs") {
-      requiredScopes.push("https://www.googleapis.com/auth/documents");
-      if (content.includes("drive")) {
-        requiredScopes.push("https://www.googleapis.com/auth/drive");
+      // Check if the error specifically mentions Drive
+      const isDriveError = content.includes("drive");
+
+      if (isDriveError) {
+        // Use enhanced details for Google Drive
+        const enhancedDetails = getEnhancedGoogleDocsConnectionDetails();
+        connectButtonText = enhancedDetails.text;
+        requiredScopes = enhancedDetails.requiredScopes;
+
+        // Build the message based on whether it seems to be a reconnect
+        let messageText = isReconnect
+          ? `Additional permissions are required for Google Docs & Drive.`
+          : enhancedDetails.message;
+
+        let alternativeMessage = enhancedDetails.alternativeMessage;
+
+        return (
+          <InChatConnectionPrompt
+            service="Google Docs & Drive"
+            message={messageText}
+            connectButtonText={connectButtonText}
+            connectButtonAction={connectButtonAction}
+            alternativeMessage={alternativeMessage}
+            chatId={id}
+            requiredScopes={requiredScopes}
+            currentScopes={[]}
+          />
+        );
+      } else {
+        requiredScopes.push("https://www.googleapis.com/auth/documents");
       }
     } else if (service === "google-calendar") {
       requiredScopes.push("https://www.googleapis.com/auth/calendar");
@@ -603,12 +712,6 @@ export default function Chat({
         "https://www.googleapis.com/auth/meetings.space.created"
       );
     }
-
-    // Check if it's likely a reconnect message
-    isReconnect =
-      content.includes("additional permission") ||
-      content.includes("more permission") ||
-      content.includes("reconnect");
 
     // Build the message based on whether it seems to be a reconnect
     let messageText = isReconnect
@@ -679,6 +782,39 @@ export default function Chat({
               connectionUI = action.output.ui;
               break;
             }
+          }
+        }
+
+        // Process errors that mention Google Drive specifically
+        if (!connectionUI && message.content) {
+          // Check for Google Drive specific errors
+          if (
+            message.content.toLowerCase().includes("drive") &&
+            (message.content.toLowerCase().includes("scope") ||
+              message.content.toLowerCase().includes("permission") ||
+              message.content.toLowerCase().includes("access"))
+          ) {
+            // Create a UI element for Google Drive error
+            message = {
+              ...message,
+              ui: {
+                type: "connection_required",
+                service: "google-docs",
+                message:
+                  "Google Docs & Drive access is required to create documents.",
+                connectButton: {
+                  text: "Connect Google Docs & Drive",
+                  action: "connection://google-docs",
+                },
+                alternativeMessage:
+                  "This will allow the assistant to create and manage documents on your behalf.",
+                requiredScopes: [
+                  "https://www.googleapis.com/auth/documents",
+                  "https://www.googleapis.com/auth/drive",
+                  "https://www.googleapis.com/auth/drive.file",
+                ],
+              },
+            };
           }
         }
 
@@ -761,10 +897,14 @@ export default function Chat({
               message.content.toLowerCase().includes("service") ||
               message.content.toLowerCase().includes("google docs") ||
               message.content.toLowerCase().includes("documents") ||
+              message.content.toLowerCase().includes("drive") ||
               message.content.toLowerCase().includes("google meet"))) ||
             message.content.includes("](connection:") ||
             message.content.includes("connection_required") ||
             message.content.includes("Connection to") ||
+            message.content.includes("access required") ||
+            message.content.includes("permissions") ||
+            message.content.includes("authorization") ||
             message.content.includes('type":"connection_ui') ||
             // Check for UI elements in tool responses
             (message.toolActions &&
@@ -980,20 +1120,100 @@ export default function Chat({
                 {message.ui.message}
               </p>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (
                     message.ui?.connectButton.action.startsWith("connection://")
                   ) {
-                    const service = message.ui.connectButton.action.replace(
-                      "connection://",
-                      ""
-                    );
-                    console.log(`Connecting to ${service}...`);
+                    try {
+                      const service = message.ui.connectButton.action.replace(
+                        "connection://",
+                        ""
+                      );
+                      console.log(`Connecting to ${service}...`);
+
+                      // Show loading state
+                      setIsLoading(true);
+
+                      // Get the redirect URL
+                      const redirectUrl = `${window.location.origin}/api/oauth/callback`;
+
+                      // Get auth URL with any required scopes
+                      const authUrl = await connectToOAuthProvider({
+                        appId: service,
+                        redirectUrl,
+                        scopes: message.ui.requiredScopes,
+                        state: {
+                          chatId: id,
+                          originalUrl: window.location.href,
+                        },
+                      });
+
+                      // Open popup for connection
+                      await handleOAuthPopup(authUrl, {
+                        onSuccess: () => {
+                          // Show success toast
+                          toast({
+                            title: "Connected successfully",
+                            description: `Successfully connected to ${message.ui?.service}`,
+                          });
+
+                          // Mark the service as connected in localStorage
+                          markServiceConnected(service);
+
+                          // Dispatch a custom event that triggers retry of the last message
+                          const event = new CustomEvent("connection-success", {
+                            detail: {
+                              service: service,
+                              retryImmediately: true,
+                            },
+                          });
+                          window.dispatchEvent(event);
+
+                          // Reset loading state
+                          setIsLoading(false);
+                        },
+                        onError: (error) => {
+                          // Show error toast
+                          toast({
+                            title: "Connection failed",
+                            description:
+                              error.message || "Failed to connect to service",
+                            variant: "destructive",
+                          });
+
+                          // Reset loading state
+                          setIsLoading(false);
+                        },
+                      });
+                    } catch (error) {
+                      console.error("Error connecting:", error);
+
+                      // Show error toast
+                      toast({
+                        title: "Connection failed",
+                        description:
+                          error instanceof Error
+                            ? error.message
+                            : "Failed to connect to service",
+                        variant: "destructive",
+                      });
+
+                      // Reset loading state
+                      setIsLoading(false);
+                    }
                   }
                 }}
                 className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg shadow-sm transition-colors"
+                disabled={isLoading}
               >
-                {message.ui.connectButton.text}
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Connecting...
+                  </div>
+                ) : (
+                  message.ui.connectButton.text
+                )}
               </button>
               {message.ui.alternativeMessage && (
                 <p className="text-gray-500 dark:text-gray-400 text-sm mt-3">

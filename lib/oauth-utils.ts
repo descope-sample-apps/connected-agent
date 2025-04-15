@@ -1,7 +1,6 @@
 import { getOAuthToken } from "@/lib/descope";
 import { trackOAuthEvent, trackError } from "./analytics";
 import { getRequiredScopes } from "./openapi-utils";
-import { setConnected, isConnected } from "@/lib/connection-manager";
 
 interface OAuthConnectParams {
   appId: string;

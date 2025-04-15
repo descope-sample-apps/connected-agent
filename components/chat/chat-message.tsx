@@ -42,30 +42,41 @@ interface ChatMessageProps {
 const findToolInfo = (
   message: ExtendedMessage
 ): ToolResult | ToolCall | null => {
-  // Prioritize finding a result with a UI object within tool_results
+  // 1. Check direct ui property if it exists
+  if (message.ui && message.ui.type === "connection_required") {
+    console.log("Found UI directly on message:", message.ui);
+    return { ui: message.ui };
+  }
+
+  // 2. Check in tool_results
   if (message.tool_results && Array.isArray(message.tool_results)) {
+    // Find any result with a UI object
     const uiResult = message.tool_results.find(
       (result) =>
         result && result.ui && result.ui.type === "connection_required"
     );
+
     if (uiResult) {
       console.log("Found tool result with UI:", uiResult);
       return uiResult;
     }
-    // If no specific UI result found, return the first tool_result if any exist
-    if (message.tool_results.length > 0) {
-      console.log(
-        "Found tool result (no specific UI):",
-        message.tool_results[0]
-      );
-      return message.tool_results[0];
-    }
   }
 
-  // Fallback to the first tool call if no relevant tool_result found
-  if (message.tool_calls && message.tool_calls.length > 0) {
-    console.log("Falling back to tool call:", message.tool_calls[0]);
-    return message.tool_calls[0];
+  // 3. Check for UI in tool_calls response
+  if (message.tool_calls && Array.isArray(message.tool_calls)) {
+    for (const call of message.tool_calls) {
+      if (call.function?.arguments) {
+        try {
+          const args = JSON.parse(call.function.arguments);
+          if (args.ui && args.ui.type === "connection_required") {
+            console.log("Found UI in tool call arguments:", args.ui);
+            return { ui: args.ui };
+          }
+        } catch (e) {
+          // Skip if not parseable JSON
+        }
+      }
+    }
   }
 
   return null;
@@ -184,6 +195,9 @@ export function ChatMessage({
     }
     return message.content;
   }, [message.content, contentBasedToolInfo]);
+
+  console.log("Message with tool results:", message);
+  console.log("Parsed tool info:", finalToolInfo);
 
   return (
     <div

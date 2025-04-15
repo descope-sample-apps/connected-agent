@@ -894,7 +894,6 @@ export async function POST(request: Request) {
 
             // Use the client's timezone if no timeZone was specified
             if (!data.timeZone && timezone !== "UTC") {
-              console.log(`Using client timezone for Google Meet: ${timezone}`);
               data.timeZone = timezone;
             }
 
@@ -1486,7 +1485,6 @@ function extractUIElementsFromToolResponses(message: any): any {
           ];
         }
 
-        // Return a consistent connection UI object
         return {
           type: "connection_required",
           service,

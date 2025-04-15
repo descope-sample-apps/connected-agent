@@ -139,6 +139,8 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
         conferenceDataVersion: 1, // Required to create a Meet link
       });
 
+      console.log("Google Meet response:", response);
+
       // Extract Meet link from the response
       const meetLink = response.data.conferenceData?.entryPoints?.find(
         (entry) => entry.entryPointType === "video"

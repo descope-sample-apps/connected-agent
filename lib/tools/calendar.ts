@@ -4,7 +4,6 @@ import {
   ToolResponse,
   toolRegistry,
   createConnectionRequest,
-  OAuthProvider,
 } from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
