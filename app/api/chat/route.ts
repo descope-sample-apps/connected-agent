@@ -454,6 +454,57 @@ export async function POST(request: Request) {
               `Parsing date: "${dateString}" at time: "${timeString}" with timezone: ${timezone}`
             );
 
+            // Check if the date string is too vague
+            const lowerDateString = dateString.toLowerCase().trim();
+
+            // If just "next week" without a specific day, we need more details
+            if (lowerDateString === "next week") {
+              console.log(
+                "Date string 'next week' is too vague, requesting more details"
+              );
+              return {
+                success: false,
+                needsMoreDetails: true,
+                error: "Date specification is too vague",
+                message:
+                  "Could you specify which day next week? For example, 'next Monday' or 'next Wednesday at 2pm'.",
+                dateContext: getCurrentDateContext(),
+                originalInput: { dateString, timeString },
+              };
+            }
+
+            // For other vague terms that need time specification
+            const vagueTimeTerms = ["morning", "afternoon", "evening", "night"];
+            if (
+              !timeString ||
+              timeString === "12:00" ||
+              vagueTimeTerms.includes(timeString.toLowerCase().trim())
+            ) {
+              // If specific day but no specific time and it's not a vagueTimeTerm
+              if (
+                (lowerDateString.includes("monday") ||
+                  lowerDateString.includes("tuesday") ||
+                  lowerDateString.includes("wednesday") ||
+                  lowerDateString.includes("thursday") ||
+                  lowerDateString.includes("friday") ||
+                  lowerDateString.includes("saturday") ||
+                  lowerDateString.includes("sunday")) &&
+                !vagueTimeTerms.includes(timeString?.toLowerCase().trim() || "")
+              ) {
+                console.log(
+                  "Date has specific day but needs time clarification"
+                );
+                return {
+                  success: false,
+                  needsMoreDetails: true,
+                  error: "Time specification needed",
+                  message: `What time on ${dateString} would you like to schedule this for?`,
+                  dateContext: getCurrentDateContext(),
+                  originalInput: { dateString, timeString },
+                };
+              }
+            }
+
             // Always use a fresh current date
             const now = new Date();
             console.log(`Current timestamp: ${now.toISOString()}`);
@@ -1014,7 +1065,45 @@ export async function POST(request: Request) {
               data.timeZone = timezone;
             }
 
-            return await calendarTool.execute(userId, data);
+            // Execute the calendar tool
+            console.log("Executing calendar tool with data:", {
+              title: data.title,
+              startTime: data.startTime,
+              endTime: data.endTime,
+              attendees: data.attendees?.length || 0,
+            });
+
+            const calendarResult = await calendarTool.execute(userId, data);
+
+            // If successful, enhance the response with formatted content
+            if (calendarResult.success && calendarResult.data) {
+              console.log("Calendar event created successfully:", {
+                eventId: calendarResult.data.calendarEventId,
+                eventLink: calendarResult.data.calendarEventLink,
+              });
+
+              // If the tool returned a formatted message, use it
+              if (calendarResult.data.formattedMessage) {
+                return {
+                  ...calendarResult,
+                  message: calendarResult.data.formattedMessage,
+                };
+              }
+
+              // Otherwise, create our own formatted response
+              const startDate = new Date(calendarResult.data.startTime);
+              const formattedStartDate = format(
+                startDate,
+                "MMMM d, yyyy 'at' h:mm a"
+              );
+
+              return {
+                ...calendarResult,
+                message: `Calendar event "${calendarResult.data.title}" created successfully for ${formattedStartDate}. [View in Google Calendar](${calendarResult.data.calendarEventLink})`,
+              };
+            }
+
+            return calendarResult;
           } catch (error) {
             console.error("Error in calendar tool execution:", error);
             return {

@@ -132,8 +132,6 @@ export async function getOAuthTokenWithScopeValidation(
         currentScopes: token.currentScopes,
       };
     }
-
-    console.log("[OAuth] Successfully validated token", token);
     return {
       token: token.token,
       provider: options.appId,

@@ -103,6 +103,14 @@ export class CalendarTool extends Tool<CalendarEvent> {
 
   async execute(userId: string, data: CalendarEvent): Promise<ToolResponse> {
     try {
+      console.log("Creating calendar event:", {
+        title: data.title,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        attendees: data.attendees,
+        timezone: data.timeZone,
+      });
+
       // Get OAuth token for Google Calendar
       const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
@@ -160,16 +168,42 @@ export class CalendarTool extends Tool<CalendarEvent> {
       };
 
       // Create the calendar event
+      console.log("Sending calendar event creation request to Google API");
       const response = await calendar.events.insert({
         calendarId: "primary",
         requestBody: event,
+        // Add this for better link handling
+        conferenceDataVersion: 1,
       });
+
+      // Log the successful response from Google Calendar API
+      console.log("Calendar event created successfully:", {
+        eventId: response.data.id,
+        eventLink: response.data.htmlLink,
+        summary: response.data.summary,
+        status: response.status,
+      });
+
+      // Extract event links
+      const htmlLink = response.data.htmlLink || null;
+      const hangoutLink = response.data.hangoutLink || null;
+
+      // Create a formatted response with a working link
+      const eventLink =
+        htmlLink ||
+        `https://calendar.google.com/calendar/event?eid=${response.data.id}`;
+
+      // Create a formatted message for displaying in chat
+      const formattedMessage = `Calendar event "${response.data.summary}" created successfully! [View in Google Calendar](${eventLink})`;
 
       return {
         success: true,
         data: {
           calendarEventId: response.data.id,
-          calendarEventLink: response.data.htmlLink,
+          calendarEventLink: eventLink,
+          conferenceLink: hangoutLink,
+          htmlLink: htmlLink,
+          formattedMessage: formattedMessage,
           title: response.data.summary,
           startTime: response.data.start?.dateTime,
           endTime: response.data.end?.dateTime,
