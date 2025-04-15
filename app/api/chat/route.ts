@@ -919,8 +919,9 @@ export async function POST(request: Request) {
         });
 
         // Get system prompt
+        const promptResult = systemPrompt({ selectedChatModel });
         const systemPromptString =
-          systemPrompt({ selectedChatModel }) || undefined;
+          typeof promptResult === "string" ? promptResult : undefined;
 
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),

@@ -12,6 +12,7 @@ import { Descope } from "@descope/nextjs-sdk";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bot } from "lucide-react";
+import { trackOAuthEvent } from "@/lib/analytics";
 
 export default function AuthModal() {
   const { showAuthModal, setShowAuthModal } = useAuth();
@@ -32,6 +33,21 @@ export default function AuthModal() {
   // Handle successful authentication
   const handleSuccess = () => {
     setShowAuthModal(false);
+
+    // Track successful sign-in
+    if (typeof window !== "undefined" && window.analytics) {
+      window.analytics.track("user_signin_success", {
+        timestamp: new Date().toISOString(),
+        method: "descope",
+      });
+    }
+
+    // Also track using the OAuth tracking function for consistency
+    trackOAuthEvent("signin_successful", {
+      method: "descope",
+      timestamp: new Date().toISOString(),
+    });
+
     // Clean up the URL by removing any redirect parameters
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.delete("code");

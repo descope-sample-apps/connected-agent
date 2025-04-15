@@ -26,7 +26,6 @@ import PromptTrigger from "@/components/prompt-trigger";
 import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import {
-  Briefcase,
   Calendar,
   FileText,
   Video,
@@ -1633,9 +1632,6 @@ export default function Home() {
                 >
                   {messages.length === 0 && !isHandlingChatChange ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/40">
-                        <Briefcase className="h-8 w-8 text-indigo-500" />
-                      </div>
                       <h2 className="text-2xl font-bold mb-2">
                         Welcome to CRM Assistant
                       </h2>

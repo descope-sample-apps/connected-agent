@@ -326,6 +326,49 @@ export default function Chat({
         message.content.toLowerCase().includes("service") ||
         message.content.includes("](connection:"));
 
+    // Check what kind of streaming placeholder we have
+    const isToolInvocation =
+      message.role === "assistant" &&
+      message.content &&
+      (message.content.includes('{"type":"tool-invocation"}') ||
+        message.content.includes('{"type":"function-execution"}') ||
+        message.content.includes('"name":"'));
+
+    const isGeneralStreamingPlaceholder =
+      message.role === "assistant" &&
+      message.content &&
+      (message.content.includes('{"type":"step-start"}') ||
+        message.content.includes('{"type":"step-end"}') ||
+        (message.content.startsWith("{") &&
+          message.content.includes('"type":')));
+
+    // Extract tool name if available
+    let toolName = "";
+    if (isToolInvocation) {
+      try {
+        const match = message.content.match(/"name"\s*:\s*"([^"]+)"/);
+        if (match && match[1]) {
+          toolName = match[1];
+        }
+      } catch (e) {
+        console.error("Error parsing tool name:", e);
+      }
+    }
+
+    // Format the tool name for display
+    const formatToolName = (name: string) => {
+      if (!name) return "";
+      return name
+        .replace(/([A-Z])/g, " $1")
+        .replace(/^./, (str) => str.toUpperCase())
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/_/g, " ")
+        .replace(/get/i, "")
+        .replace(/create/i, "")
+        .replace(/send/i, "")
+        .trim();
+    };
+
     return (
       <div
         className={`flex ${
@@ -339,7 +382,53 @@ export default function Chat({
               : "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 shadow-sm"
           }`}
         >
-          <div className="prose prose-sm">{message.content}</div>
+          {isToolInvocation ? (
+            <div className="flex items-center py-2">
+              <div className="tool-execution-indicator mr-3">
+                <svg
+                  className="animate-spin h-4 w-4 text-indigo-500"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              </div>
+              <div className="flex flex-col">
+                <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                  {toolName
+                    ? `Using ${formatToolName(toolName)}...`
+                    : "Using tools..."}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  Accessing external data
+                </div>
+              </div>
+            </div>
+          ) : isGeneralStreamingPlaceholder ? (
+            <div className="flex items-center py-2">
+              <div className="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div className="ml-3 text-sm text-gray-400">Thinking...</div>
+            </div>
+          ) : (
+            <div className="prose prose-sm">{message.content}</div>
+          )}
 
           {/* Render connection prompt if needed */}
           {showConnectionPrompt && renderConnectionPrompt(message)}
@@ -408,6 +497,53 @@ export default function Chat({
       });
     }
   };
+
+  useEffect(() => {
+    // Add CSS for the typing indicator
+    const style = document.createElement("style");
+    style.innerHTML = `
+      .typing-indicator {
+        display: flex;
+        align-items: center;
+      }
+      
+      .typing-indicator span {
+        height: 8px;
+        width: 8px;
+        margin: 0 2px;
+        background-color: #6366f1;
+        border-radius: 50%;
+        display: inline-block;
+        opacity: 0.7;
+      }
+      
+      .typing-indicator span:nth-of-type(1) {
+        animation: bounce 1.5s infinite 0.3s;
+      }
+      
+      .typing-indicator span:nth-of-type(2) {
+        animation: bounce 1.5s infinite 0.6s;
+      }
+      
+      .typing-indicator span:nth-of-type(3) {
+        animation: bounce 1.5s infinite 0.9s;
+      }
+      
+      @keyframes bounce {
+        0%, 80%, 100% {
+          transform: translateY(0);
+        }
+        40% {
+          transform: translateY(-8px);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full relative bg-muted/20">
