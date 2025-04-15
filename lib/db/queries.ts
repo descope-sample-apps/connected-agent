@@ -440,8 +440,14 @@ export async function getRecentChatsWithLastMessage({
       return [];
     }
 
+    // Use a Map to ensure unique chat IDs
+    const uniqueChats = new Map<
+      string,
+      { chat: Chat; lastMessage?: ChatMessage }
+    >();
+
     // For each chat, get the last message
-    const results = await Promise.all(
+    await Promise.all(
       chats.map(async (chat) => {
         const messages = await getChatMessages({ chatId: chat.id });
 
@@ -454,22 +460,26 @@ export async function getRecentChatsWithLastMessage({
         const lastMessage =
           sortedMessages.length > 0 ? sortedMessages[0] : undefined;
 
-        return {
-          chat,
-          lastMessage,
-        };
+        // Only add to the Map if we don't already have this chat
+        if (!uniqueChats.has(chat.id)) {
+          uniqueChats.set(chat.id, {
+            chat,
+            lastMessage,
+          });
+        }
       })
     );
 
-    // Sort by lastMessageAt or createdAt in descending order
-    return results
-      .sort((a, b) => {
-        const aDate = a.chat.lastMessageAt || a.chat.createdAt || new Date();
-        const bDate = b.chat.lastMessageAt || b.chat.createdAt || new Date();
+    // Convert Map to array and sort by lastMessageAt or createdAt
+    const results = Array.from(uniqueChats.values()).sort((a, b) => {
+      const aDate = a.chat.lastMessageAt || a.chat.createdAt || new Date();
+      const bDate = b.chat.lastMessageAt || b.chat.createdAt || new Date();
 
-        return new Date(bDate).getTime() - new Date(aDate).getTime();
-      })
-      .slice(0, limit); // Limit the number of results
+      return new Date(bDate).getTime() - new Date(aDate).getTime();
+    });
+
+    // Return the limited number of results
+    return results.slice(0, limit);
   } catch (error) {
     console.error("Error getting recent chats with last message:", error);
     throw error;

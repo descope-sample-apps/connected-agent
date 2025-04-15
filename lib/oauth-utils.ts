@@ -164,7 +164,9 @@ export async function connectToOAuthProvider({
     }
 
     // Create a state parameter that includes the redirectTo and any other state
-    let stateObject = { redirectTo: "chat" };
+    let stateObject: { redirectTo: string; chatId?: string } = {
+      redirectTo: "chat",
+    };
 
     // If we have a chat ID, include it in the state for returning to the same chat
     if (chatId) {
@@ -302,27 +304,6 @@ export async function handleOAuthPopup(
         resolve();
         return;
       }
-
-      // Check for error message
-      if (event.data?.type === "oauth-error") {
-        console.log(
-          "Received oauth-error message from popup:",
-          event.data.error
-        );
-        isHandled = true;
-        window.removeEventListener("message", messageHandler);
-        clearInterval(checkInterval);
-
-        // Close the popup if it's still open
-        if (popup && !popup.closed) {
-          popup.close();
-        }
-
-        const error = new Error(event.data.error || "Authentication failed");
-        if (callbacks?.onError) callbacks.onError(error);
-        reject(error);
-        return;
-      }
     };
 
     window.addEventListener("message", messageHandler);
@@ -335,8 +316,10 @@ export async function handleOAuthPopup(
           clearInterval(checkInterval);
           isHandled = true;
 
-          // Simply resolve without error or callbacks
-          // This prevents the error from bubbling up to UI
+          // Treat a closed popup without an explicit error as a success
+          // This handles cases where the popup closed automatically after auth
+          console.log("Popup closed - treating as success");
+          if (callbacks?.onSuccess) callbacks.onSuccess();
           resolve();
           return;
         }
@@ -347,34 +330,26 @@ export async function handleOAuthPopup(
         // Check if we're back on our origin - this is a fallback check
         // in case the postMessage doesn't work for some reason
         if (popup.location.origin === appOrigin) {
-          const params = new URLSearchParams(popup.location.search);
-          const oauthStatus = params.get("oauth");
+          // Check if we're on the oauth-redirect page - this means OAuth is complete
+          if (popup.location.pathname.includes("/oauth-redirect")) {
+            console.log(
+              "Detected popup on oauth-redirect page - OAuth completed by Descope"
+            );
 
-          if (oauthStatus === "success" || oauthStatus === "error") {
-            // Only process if not already handled by the message listener
+            // If not already handled, mark as successful immediately
             if (!isHandled) {
               isHandled = true;
               window.removeEventListener("message", messageHandler);
               clearInterval(checkInterval);
 
-              // Get error message if present
-              const errorMsg = params.get("error");
-
               // Close the popup
               if (popup && !popup.closed) {
+                console.log("Closing popup from parent");
                 popup.close();
               }
 
-              if (oauthStatus === "success") {
-                console.log("OAuth completed successfully (fallback)");
-                if (callbacks?.onSuccess) callbacks.onSuccess();
-                resolve();
-              } else {
-                console.log("OAuth failed with error:", errorMsg);
-                const error = new Error(errorMsg || "OAuth error");
-                if (callbacks?.onError) callbacks.onError(error);
-                reject(error);
-              }
+              if (callbacks?.onSuccess) callbacks.onSuccess();
+              resolve();
             }
           }
         }

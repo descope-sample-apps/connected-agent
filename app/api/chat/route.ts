@@ -1053,8 +1053,50 @@ function extractUIElementsFromToolResponses(message: any): any {
 
     // Look for connection_required UI elements in any tool response
     for (const response of toolResponses) {
+      // Check for connection_required UI type
       if (response?.output?.ui?.type === "connection_required") {
         return response.output.ui;
+      }
+
+      // Check for error responses that might indicate insufficient permissions
+      if (
+        response?.output?.status === "error" &&
+        (response?.output?.error?.includes("Insufficient Permission") ||
+          response?.output?.error?.includes("403"))
+      ) {
+        // Extract the provider from the tool name or error message
+        let provider = "unknown";
+        if (response?.output?.name) {
+          if (response.output.name.includes("google-meet"))
+            provider = "google-meet";
+          else if (response.output.name.includes("calendar"))
+            provider = "google-calendar";
+          else if (response.output.name.includes("docs"))
+            provider = "google-docs";
+          else if (response.output.name.includes("slack")) provider = "slack";
+        }
+
+        // Create a connection UI object
+        return {
+          type: "connection_required",
+          service: provider,
+          message: `You need additional permissions for ${provider}. Please reconnect with the required scopes.`,
+          requiredScopes: response?.output?.ui?.requiredScopes || [],
+          connectButton: {
+            text: `Reconnect ${
+              provider === "google-calendar"
+                ? "Google Calendar"
+                : provider === "google-meet"
+                ? "Google Meet"
+                : provider === "google-docs"
+                ? "Google Docs"
+                : provider === "slack"
+                ? "Slack"
+                : provider
+            }`,
+            action: `connection://${provider}`,
+          },
+        };
       }
     }
 

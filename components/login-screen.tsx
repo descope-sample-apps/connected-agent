@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Briefcase, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export default function LoginScreen() {
   const { isAuthenticated, isSessionLoading } = useSession();

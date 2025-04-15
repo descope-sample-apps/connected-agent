@@ -1,6 +1,8 @@
 import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
+import { getGoogleCalendarToken } from "@/lib/descope";
+import { getRequiredScopes } from "@/lib/openapi-utils";
 
 export interface GoogleMeetEvent {
   title: string;
@@ -161,8 +163,43 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
       };
     } catch (error) {
       console.error("Error creating Google Meet:", error);
+
+      // Check if this is an insufficient permissions error
+      const isInsufficientPermissions =
+        error instanceof Error &&
+        (error.message.includes("Insufficient Permission") ||
+          error.message.includes("403") ||
+          (error as any).code === 403);
+
+      if (isInsufficientPermissions) {
+        // Get the required scopes from the OpenAPI spec
+        const requiredScopes = await getRequiredScopes(
+          "google-meet",
+          "meetings.space"
+        );
+
+        return {
+          success: false,
+          status: "error",
+          error: "Insufficient permissions to create Google Meet",
+          ui: {
+            type: "connection_required",
+            service: "google-meet",
+            message:
+              "You need additional permissions to create Google Meet meetings. Please reconnect with the required scopes.",
+            requiredScopes: requiredScopes,
+            connectButton: {
+              text: "Reconnect Google Meet",
+              action: "connection://google-meet",
+            },
+          },
+        };
+      }
+
+      // Default error response
       return {
         success: false,
+        status: "error",
         error:
           error instanceof Error
             ? error.message

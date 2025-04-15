@@ -2,6 +2,7 @@ import { toolLogger } from "../logger";
 
 export interface ToolResponse {
   success: boolean;
+  status?: "success" | "error";
   data?: any;
   error?: string;
   needsInput?: {
@@ -19,6 +20,7 @@ export interface ToolResponse {
       action: string;
     };
     alternativeMessage?: string;
+    requiredScopes?: string[];
   };
 }
 

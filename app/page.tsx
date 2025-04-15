@@ -26,7 +26,6 @@ import PromptTrigger from "@/components/prompt-trigger";
 import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import {
-  Briefcase,
   Calendar,
   FileText,
   Video,
@@ -96,10 +95,10 @@ interface MeetingDetails {
 
 interface UIMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
-  parts: any[];
-  chatId?: string; // Add optional chatId property
+  parts?: any[];
+  chatId?: string; // Add chatId property
 }
 
 const promptExplanations: Record<PromptType, PromptExplanation> = {
@@ -678,7 +677,7 @@ export default function Home() {
     };
 
     fetchChatMessages();
-  }, [currentChatId, isAuthenticated]); // Remove unnecessary dependencies
+  }, [currentChatId, isAuthenticated]);
 
   // Helper function to extract message content from different message formats
   const extractMessageContent = (msg: any): string => {
@@ -1297,26 +1296,20 @@ export default function Home() {
     if (!chatId || chatId === currentChatId) return;
 
     try {
-      // Update state first
+      // Update state first - this will trigger the useEffect to load messages
       setCurrentChatId(chatId);
       localStorage.setItem("currentChatId", chatId);
+
+      // Clear messages to avoid showing old messages while loading
       setMessages([]);
 
-      // Fetch messages for the selected chat
-      const response = await fetch(`/api/chat/messages?chatId=${chatId}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch chat messages");
-      }
-      const data = await response.json();
-
-      if (data.messages && Array.isArray(data.messages)) {
-        setMessages(data.messages);
-      }
+      // No need to fetch messages here - the useEffect will handle it
+      // when currentChatId changes
     } catch (error) {
-      console.error("Error loading chat messages:", error);
+      console.error("Error selecting chat:", error);
       toast({
         title: "Error",
-        description: "Failed to load chat messages",
+        description: "Failed to select chat",
         variant: "destructive",
       });
     }
@@ -1431,6 +1424,9 @@ export default function Home() {
   }, [messages.length, isChatLoading]);
 
   const [isScrolling, setIsScrolling] = useState(false);
+
+  // Add a new state to track if we're loading chat history
+  const [isLoadingChatHistory, setIsLoadingChatHistory] = useState(false);
 
   if (isLoading) {
     return (
@@ -1631,11 +1627,8 @@ export default function Home() {
                   className="flex-1 p-6 pb-24"
                   style={{ overflowAnchor: "auto" }}
                 >
-                  {messages.length === 0 && !isHandlingChatChange ? (
+                  {messages.length === 0 && !isLoadingChatHistory ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/40">
-                        <Briefcase className="h-8 w-8 text-indigo-500" />
-                      </div>
                       <h2 className="text-2xl font-bold mb-2">
                         Welcome to CRM Assistant
                       </h2>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { trackOAuthEvent, trackError } from "@/lib/analytics";
+import { getRequiredScopes } from "@/lib/openapi-utils";
 
 export const runtime = "nodejs";
 
@@ -46,8 +47,49 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if scopes are provided in the request
+    let scopes = options.scopes || [];
+
+    // If no scopes are provided, try to get them from the OpenAPI spec
+    if (!scopes || scopes.length === 0) {
+      try {
+        // Extract the provider from the appId (e.g., "google-calendar" -> "google-calendar")
+        const provider = appId;
+        console.log(
+          `No scopes provided, fetching from OpenAPI spec for ${provider}`
+        );
+
+        // Get scopes from OpenAPI spec
+        const openApiScopes = await getRequiredScopes(provider, "connect");
+        if (openApiScopes && openApiScopes.length > 0) {
+          console.log(
+            `Using scopes from OpenAPI spec: ${openApiScopes.join(", ")}`
+          );
+          scopes = openApiScopes;
+        }
+      } catch (error) {
+        console.error("Error getting scopes from OpenAPI spec:", error);
+        // Continue without scopes if there's an error
+      }
+    }
+
     const baseUrl = process.env.DESCOPE_BASE_URL || "https://api.descope.com";
     const projectId = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID || "";
+
+    // Prepare the request body with the provider field
+    const requestBody = {
+      appId,
+      provider: appId, // Add the provider field required by Descope
+      options: {
+        ...options,
+        ...(scopes.length > 0 && { scopes }),
+      },
+    };
+
+    console.log(
+      "Sending request to Descope:",
+      JSON.stringify(requestBody, null, 2)
+    );
 
     const response = await fetch(`${baseUrl}/v1/outbound/oauth/connect`, {
       method: "POST",
@@ -55,10 +97,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${projectId}:${refreshToken}`,
       },
-      body: JSON.stringify({
-        appId,
-        options,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     console.log(
