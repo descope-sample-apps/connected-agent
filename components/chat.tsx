@@ -105,12 +105,36 @@ export default function Chat({
     onResponse: async (response) => {
       // Check for errors in the response
       if (response.status === 429) {
-        toast({
-          title: "Service Temporarily Unavailable",
-          description:
-            "We've received too many requests recently. Descope outbound apps is currently experiencing high usage, please try again later.",
-          variant: "destructive",
-        });
+        try {
+          const errorData = await response.json();
+
+          // Check if this is a monthly usage limit exceeded error
+          if (errorData?.error?.includes("Monthly usage limit exceeded")) {
+            toast({
+              title: "Monthly Usage Limit Reached",
+              description:
+                errorData?.message ||
+                "You've reached your monthly usage limit for this service. Please check your subscription or try again next month.",
+              variant: "destructive",
+            });
+          } else {
+            // Generic rate limit message for other 429 errors
+            toast({
+              title: "Service Temporarily Unavailable",
+              description:
+                "We've received too many requests recently. Please try again later.",
+              variant: "destructive",
+            });
+          }
+        } catch (error) {
+          // If we can't parse the response, use a generic message
+          toast({
+            title: "Rate Limit Exceeded",
+            description:
+              "The service is experiencing high demand. Please try again later.",
+            variant: "destructive",
+          });
+        }
         return;
       }
 
@@ -228,15 +252,91 @@ export default function Chat({
         error.message &&
         (error.message.includes("429") ||
           error.message.includes("Too Many Requests") ||
-          error.message.includes("rate limit"))
+          error.message.includes("rate limit") ||
+          error.message.includes("Rate limit") ||
+          error.message.includes("ratelimit"))
       ) {
+        // Determine if this is a monthly limit or general rate limit
+        const isMonthlyLimit = error.message.includes("Monthly usage limit");
+
         toast({
-          title: "Service Temporarily Unavailable",
-          description:
-            "We've received too many requests recently. Descope outbound apps is currently experiencing high usage, please try again later.",
+          title: isMonthlyLimit
+            ? "Monthly Usage Limit Reached"
+            : "Rate Limit Exceeded",
+          description: isMonthlyLimit
+            ? "You've reached your monthly usage limit for this service. Please check your subscription or try again next month."
+            : "The service is currently experiencing high demand. Please try again in a few moments.",
           variant: "destructive",
         });
         return;
+      }
+
+      // Try to parse the error message as JSON if it's in that format
+      try {
+        if (
+          error.message &&
+          (error.message.includes('{"error"') ||
+            error.message.includes('{"message"'))
+        ) {
+          // Extract the JSON part from the error message
+          let jsonStr = error.message;
+
+          // Find the first { and last } to extract JSON
+          const startIndex = jsonStr.indexOf("{");
+          const endIndex = jsonStr.lastIndexOf("}") + 1;
+
+          if (startIndex >= 0 && endIndex > startIndex) {
+            jsonStr = jsonStr.substring(startIndex, endIndex);
+
+            const errorObject = JSON.parse(jsonStr);
+
+            // Extract status code if present
+            const statusCode =
+              errorObject.status ||
+              (errorObject.error && errorObject.error.status);
+            const isRateLimit =
+              statusCode === 429 ||
+              (errorObject.error &&
+                (errorObject.error.includes("rate limit") ||
+                  errorObject.error.includes("Rate limit") ||
+                  errorObject.error.includes("429")));
+
+            // Handle rate limit errors specifically
+            if (isRateLimit) {
+              const isMonthlyLimit =
+                (errorObject.error &&
+                  errorObject.error.includes("Monthly usage limit")) ||
+                (errorObject.message &&
+                  errorObject.message.includes("Monthly usage limit"));
+
+              toast({
+                title: isMonthlyLimit
+                  ? "Monthly Usage Limit Reached"
+                  : "Rate Limit Exceeded",
+                description:
+                  errorObject.message ||
+                  (isMonthlyLimit
+                    ? "You've reached your monthly usage limit for this service."
+                    : "The service is currently experiencing high demand. Please try again in a few moments."),
+                variant: "destructive",
+              });
+              return;
+            }
+
+            // For other error types
+            if (errorObject.error || errorObject.message) {
+              toast({
+                title: "Service Error",
+                description: errorObject.message || errorObject.error,
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+        }
+      } catch (parseError) {
+        // Parsing failed, continue to default error handling
+        console.error("Error parsing error message:", parseError);
       }
 
       // Default error toast
@@ -569,54 +669,68 @@ export default function Chat({
 
     // Try to detect embedded connection UI in the message content
     let connectionUI = null;
-    if (message.role === "assistant" && message.content) {
+    if (message.role === "assistant") {
       try {
-        // First check for simple connection text pattern
-        const simpleConnectionRegex = /Connection to ([\w-]+) required/i;
-        const simpleMatch = message.content.match(simpleConnectionRegex);
-
-        if (simpleMatch && simpleMatch[1]) {
-          // Create a UI element from the simple text
-          const serviceName = simpleMatch[1].toLowerCase();
-          let service: OAuthProvider = "google-docs";
-
-          // Map the service name
-          if (serviceName.includes("calendar")) service = "google-calendar";
-          else if (serviceName.includes("meet")) service = "google-meet";
-          else if (serviceName.includes("crm")) service = "custom-crm";
-          else if (serviceName.includes("slack")) service = "slack";
-          else if (serviceName.includes("zoom")) service = "zoom";
-
-          // Attach a UI element to the message
-          message = {
-            ...message,
-            ui: {
-              type: "connection_required",
-              service: service,
-              message: `Please connect your ${getDisplayName(
-                service
-              )} to continue.`,
-              connectButton: {
-                text: `Connect ${getDisplayName(service)}`,
-                action: `connection://${service}`,
-              },
-              alternativeMessage:
-                "This will allow the assistant to access the necessary data.",
-              requiredScopes:
-                service === "google-docs"
-                  ? ["https://www.googleapis.com/auth/documents"]
-                  : [],
-            },
-          };
+        // First check for UI elements in tool responses
+        if (message.toolActions && message.toolActions.length > 0) {
+          for (const action of message.toolActions) {
+            if (action.output?.ui?.type === "connection_required") {
+              // Extract the UI element
+              connectionUI = action.output.ui;
+              break;
+            }
+          }
         }
-        // Then try the more complex JSON format
-        else {
+
+        // Then check for simple connection text pattern if no UI element found
+        if (!connectionUI && message.content) {
+          const simpleConnectionRegex = /Connection to ([\w-]+) required/i;
+          const simpleMatch = message.content.match(simpleConnectionRegex);
+
+          if (simpleMatch && simpleMatch[1]) {
+            // Create a UI element from the simple text
+            const serviceName = simpleMatch[1].toLowerCase();
+            let service: OAuthProvider = "google-docs";
+
+            // Map the service name
+            if (serviceName.includes("calendar")) service = "google-calendar";
+            else if (serviceName.includes("meet")) service = "google-meet";
+            else if (serviceName.includes("crm")) service = "custom-crm";
+            else if (serviceName.includes("slack")) service = "slack";
+            else if (serviceName.includes("zoom")) service = "zoom";
+
+            // Attach a UI element to the message
+            message = {
+              ...message,
+              ui: {
+                type: "connection_required",
+                service: service,
+                message: `Please connect your ${getDisplayName(
+                  service
+                )} to continue.`,
+                connectButton: {
+                  text: `Connect ${getDisplayName(service)}`,
+                  action: `connection://${service}`,
+                },
+                alternativeMessage:
+                  "This will allow the assistant to access the necessary data.",
+                requiredScopes:
+                  service === "google-docs"
+                    ? ["https://www.googleapis.com/auth/documents"]
+                    : [],
+              },
+            };
+          }
+        }
+
+        // Finally try the more complex JSON format if still no UI found
+        if (!connectionUI && !message.ui && message.content) {
           const connectionUIRegex = /\{\"type\":\"connection_ui\"[^}]+\}/;
           const match = message.content.match(connectionUIRegex);
           if (match) {
             connectionUI = JSON.parse(match[0]);
             // If we found valid UI, pass it to the message
-            if (connectionUI && !message.ui) {
+            if (connectionUI) {
               message = {
                 ...message,
                 ui: {
@@ -646,11 +760,17 @@ export default function Chat({
               message.content.toLowerCase().includes("crm") ||
               message.content.toLowerCase().includes("service") ||
               message.content.toLowerCase().includes("google docs") ||
-              message.content.toLowerCase().includes("documents"))) ||
+              message.content.toLowerCase().includes("documents") ||
+              message.content.toLowerCase().includes("google meet"))) ||
             message.content.includes("](connection:") ||
             message.content.includes("connection_required") ||
             message.content.includes("Connection to") ||
-            message.content.includes('type":"connection_ui'))));
+            message.content.includes('type":"connection_ui') ||
+            // Check for UI elements in tool responses
+            (message.toolActions &&
+              message.toolActions.some(
+                (action) => action.output?.ui?.type === "connection_required"
+              )))));
 
     // Check what kind of streaming placeholder we have
     const isToolInvocation =

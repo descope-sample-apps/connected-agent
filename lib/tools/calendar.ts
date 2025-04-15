@@ -111,37 +111,48 @@ export class CalendarTool extends Tool<CalendarEvent> {
         timezone: data.timeZone,
       });
 
-      // Get OAuth token for Google Calendar
+      // Get OAuth token for the user
       const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "google-calendar",
         {
           appId: "google-calendar",
           userId,
-          scopes: this.config.scopes,
+          scopes: ["https://www.googleapis.com/auth/calendar"],
           operation: "tool_calling",
         }
       );
 
+      // Check for token error
       if (!tokenResponse || "error" in tokenResponse) {
-        // Check if we have required scopes information
+        // Safely extract any available scopes information
         const requiredScopes =
           "requiredScopes" in tokenResponse
             ? tokenResponse.requiredScopes
-            : this.config.scopes;
+            : ["https://www.googleapis.com/auth/calendar"];
+        const currentScopes =
+          "currentScopes" in tokenResponse
+            ? tokenResponse.currentScopes
+            : undefined;
 
-        const isReconnect =
-          "error" in tokenResponse &&
-          tokenResponse.error === "insufficient_scopes";
-
-        return createConnectionRequest({
-          provider: "google-calendar",
-          isReconnect,
-          requiredScopes,
-          customMessage: isReconnect
-            ? "Additional calendar permissions are needed to create events."
-            : "Please connect your Google Calendar to create events",
-        });
+        return {
+          success: false,
+          error: tokenResponse
+            ? tokenResponse.error
+            : "Calendar access required",
+          ui: {
+            type: "connection_required",
+            service: "google-calendar",
+            message: "Google Calendar access is required to create events.",
+            connectButton: {
+              text: "Connect Google Calendar",
+              action: "connection://google-calendar",
+            },
+            alternativeMessage:
+              "This will allow the assistant to create and manage calendar events on your behalf.",
+            requiredScopes: requiredScopes,
+          },
+        };
       }
 
       // Set up Google Calendar API client
@@ -214,21 +225,46 @@ export class CalendarTool extends Tool<CalendarEvent> {
       };
     } catch (error) {
       console.error("Error creating calendar event:", error);
+
+      // Check if this is an authentication or permission error
+      const errorMsg =
+        error instanceof Error
+          ? error.message
+          : "Failed to create calendar event";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("unauthorized") ||
+        errorMsg.includes("access") ||
+        errorMsg.includes("403") ||
+        errorMsg.includes("401");
+
+      if (isAuthError) {
+        return {
+          success: false,
+          error: errorMsg,
+          ui: {
+            type: "connection_required",
+            service: "google-calendar",
+            message: "Google Calendar access is required to create events.",
+            connectButton: {
+              text: "Connect Google Calendar",
+              action: "connection://google-calendar",
+            },
+            alternativeMessage:
+              "This will allow the assistant to create and manage calendar events on your behalf.",
+          },
+        };
+      }
+
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to create calendar event",
+        error: errorMsg,
         ui: {
-          type: "connection_required",
-          service: "google-calendar",
+          type: "error",
           message:
             "There was an error creating your calendar event. Please try again.",
-          connectButton: {
-            text: "Retry",
-            action: "retry",
-          },
         },
       };
     }

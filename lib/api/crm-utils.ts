@@ -441,7 +441,6 @@ export async function createContact(
       },
     };
   } catch (error) {
-    console.error("[CRM Utils] Error creating contact:", error);
     return {
       success: false,
       error:

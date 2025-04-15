@@ -910,7 +910,6 @@ export async function POST(request: Request) {
 
             return result;
           } catch (error) {
-            console.error("Error creating Google Meet:", error);
             return {
               success: false,
               error:
@@ -1139,7 +1138,11 @@ export async function POST(request: Request) {
         error.message === "Monthly usage limit exceeded"
       ) {
         return Response.json(
-          { error: "Monthly usage limit exceeded" },
+          {
+            error: "Monthly usage limit exceeded",
+            message:
+              "You've reached your monthly usage limit for this service. Please check your subscription or try again next month.",
+          },
           { status: 429 }
         );
       }
@@ -1184,7 +1187,6 @@ export async function POST(request: Request) {
                 content,
               });
             } catch (error) {
-              console.error("Error creating document:", error);
               return {
                 success: false,
                 error:

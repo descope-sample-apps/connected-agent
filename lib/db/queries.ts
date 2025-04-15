@@ -319,8 +319,6 @@ export async function getChatMessages({
 }: {
   chatId: string;
 }): Promise<ChatMessage[]> {
-  console.log("Getting messages for chat:", chatId);
-
   try {
     const result = await db.query.messages.findMany({
       where: eq(messages.chatId, chatId),

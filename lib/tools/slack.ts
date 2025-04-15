@@ -340,7 +340,6 @@ export class SlackTool extends Tool<any> {
         },
       };
     } catch (error) {
-      console.error("Error creating Slack channel:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

@@ -580,15 +580,6 @@ export async function fetchCRMDeals(
     const responseClone = response.clone();
 
     try {
-      // Log the first part of the response before attempting to parse
-      const textPreview = await responseClone.clone().text();
-      console.log(
-        `Response preview before parsing (first 200 chars): ${textPreview.substring(
-          0,
-          200
-        )}`
-      );
-
       const data = await response.json();
       console.log(
         `CRM API Response Success - data received with ${

@@ -366,9 +366,31 @@ class DocumentsTool extends Tool<DocumentContent> {
       );
 
       if ("error" in tokenResponse) {
+        // Safely extract any available scopes information
+        const requiredScopes =
+          "requiredScopes" in tokenResponse
+            ? tokenResponse.requiredScopes
+            : scopes;
+        const currentScopes =
+          "currentScopes" in tokenResponse
+            ? tokenResponse.currentScopes
+            : undefined;
+
         return {
           success: false,
           error: tokenResponse.error,
+          ui: {
+            type: "connection_required",
+            service: "google-docs",
+            message: "Google Docs access is required to create documents.",
+            connectButton: {
+              text: "Connect Google Docs",
+              action: "connection://google-docs",
+            },
+            alternativeMessage:
+              "This will allow the assistant to create and edit documents on your behalf.",
+            requiredScopes: requiredScopes,
+          },
         };
       }
 
@@ -436,10 +458,40 @@ class DocumentsTool extends Tool<DocumentContent> {
       };
     } catch (error) {
       console.error("Error in documents tool:", error);
+
+      // Check if this is an authentication or permission error
+      const errorMsg =
+        error instanceof Error ? error.message : "Failed to create document";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("unauthorized") ||
+        errorMsg.includes("access") ||
+        errorMsg.includes("403") ||
+        errorMsg.includes("401");
+
+      if (isAuthError) {
+        return {
+          success: false,
+          error: errorMsg,
+          ui: {
+            type: "connection_required",
+            service: "google-docs",
+            message: "Google Docs access is required to create documents.",
+            connectButton: {
+              text: "Connect Google Docs",
+              action: "connection://google-docs",
+            },
+            alternativeMessage:
+              "This will allow the assistant to create and edit documents on your behalf.",
+          },
+        };
+      }
+
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to create document",
+        error: errorMsg,
       };
     }
   }
@@ -473,7 +525,6 @@ export function createDocumentWrapper({
           content,
         });
       } catch (error) {
-        console.error("Error creating document:", error);
         return {
           success: false,
           error:

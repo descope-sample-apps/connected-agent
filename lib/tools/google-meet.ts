@@ -161,8 +161,6 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
         },
       };
     } catch (error) {
-      console.error("Error creating Google Meet:", error);
-
       // Check if this is an insufficient permissions error
       const isInsufficientPermissions =
         error instanceof Error &&
