@@ -15,9 +15,10 @@ import ReactMarkdown from "react-markdown";
 
 // Service logo mapping
 const SERVICE_LOGOS = {
-  "google-meet": "/logos/google-meet-logo.svg",
+  "google-meet": "/logos/google-meet-logo.png",
   "google-calendar": "/logos/google-calendar.png",
   crm: "/logos/crm-logo.png",
+  slack: "/logos/slack-logo.svg",
 };
 
 // Service display names

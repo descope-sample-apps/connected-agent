@@ -64,6 +64,26 @@ export default function Chat({
       selectedChatModel,
     },
     initialMessages,
+    onResponse: (response) => {
+      // Log streaming response for debugging
+      console.log("Streaming response received:", response);
+      // Ensure we scroll to bottom when new content arrives
+      scrollToBottom();
+    },
+    onFinish: (message) => {
+      // Log when streaming is complete
+      console.log("Streaming finished:", message);
+      // Final scroll to bottom after completion
+      scrollToBottom();
+    },
+    onError: (error) => {
+      console.error("Streaming error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to get response from AI. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const { toast } = useToast();
@@ -245,6 +265,11 @@ export default function Chat({
 
   // Render a standard message bubble
   const renderMessage = (message: ExtendedMessage) => {
+    // Skip rendering if message content is empty
+    if (!message.content && (!message.parts || message.parts.length === 0)) {
+      return null;
+    }
+
     // Check if this message has an action card
     const hasActionCard = message.actionCard !== undefined;
     const hasToolActions =

@@ -17,7 +17,7 @@ const services = [
   {
     id: "google-meet",
     name: "Google Meet",
-    icon: "/logos/google-meet-logo.svg",
+    icon: "/logos/google-meet-logo.png",
   },
   {
     id: "custom-crm",

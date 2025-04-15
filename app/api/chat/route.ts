@@ -7,6 +7,8 @@ import {
   createDataStreamResponse,
   smoothStream,
   streamText,
+  Message,
+  CoreMessage,
 } from "ai";
 import { session } from "@descope/nextjs-sdk/server";
 import { systemPrompt } from "@/lib/ai/prompts";
@@ -21,26 +23,18 @@ import {
   generateUUID,
   getMostRecentUserMessage,
   getTrailingMessageId,
-  isCrmRelatedQuery,
 } from "@/lib/utils";
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { myProvider } from "@/lib/ai/providers";
-import { getGoogleCalendarToken, getCRMToken } from "@/lib/descope";
+import { getCRMToken } from "@/lib/descope";
 import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
 import { isProductionEnvironment } from "@/lib/constants";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import {
-  CRMDealsTool,
-  fetchCRMContacts,
-  fetchCRMDeals,
-  fetchDealStakeholders,
-} from "@/lib/tools/crm";
+import { CRMDealsTool } from "@/lib/tools/crm";
 import { toolRegistry } from "@/lib/tools/base";
-import { CalendarTool } from "@/lib/tools/calendar";
-import { CalendarListTool } from "@/lib/tools/calendar-list";
 import { searchContact } from "@/lib/api/crm-utils";
 
 // Add this interface definition
@@ -90,18 +84,39 @@ function extractTitle(message: UIMessage): string {
 
 // Create a wrapper for dataStream that handles the append method
 function createStreamAdapter(dataStream: any) {
+  // Check if dataStream already has an append method
+  if (dataStream && typeof dataStream.append === "function") {
+    console.log("Using existing append method");
+    return dataStream;
+  }
+
+  // Create a wrapper with append method
   return {
     append: (data: any) => {
       try {
-        dataStream.append(data);
+        // If dataStream has a write method, use that instead
+        if (dataStream && typeof dataStream.write === "function") {
+          console.log("Using write method for stream");
+          dataStream.write(JSON.stringify(data) + "\n");
+        } else if (dataStream && typeof dataStream.append === "function") {
+          console.log("Using append method for stream");
+          dataStream.append(data);
+        } else {
+          console.warn("dataStream does not have append or write method");
+          // Try to use the dataStream directly if it's a function
+          if (typeof dataStream === "function") {
+            console.log("Using dataStream as function");
+            dataStream(data);
+          }
+        }
       } catch (error) {
         console.error("Error appending to stream:", error);
       }
     },
     close: () => {
-      // Add a close method to match the DataStreamWithAppend interface
       try {
-        if (typeof dataStream.close === "function") {
+        if (dataStream && typeof dataStream.close === "function") {
+          console.log("Closing stream");
           dataStream.close();
         }
       } catch (error) {
@@ -232,6 +247,18 @@ const dealStakeholdersSchema = {
     },
   },
 };
+
+interface MessagePart {
+  type: string;
+  text?: string;
+  content?: any;
+}
+
+interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string | MessagePart[] | any;
+  parts?: MessagePart[];
+}
 
 export async function POST(request: Request) {
   try {
@@ -875,6 +902,12 @@ export async function POST(request: Request) {
         // Create a wrapper for the dataStream with proper append method
         const streamAdapter = createStreamAdapter(dataStream);
 
+        // Add debug logging for stream adapter
+        console.log("Stream adapter created:", {
+          hasAppend: typeof streamAdapter.append === "function",
+          hasClose: typeof streamAdapter.close === "function",
+        });
+
         // Initialize the document tool with the proper stream adapter
         toolsObject.createDocument = createDocument({
           session: userSession,
@@ -885,9 +918,8 @@ export async function POST(request: Request) {
         let systemPromptString: string | undefined;
         const promptResult = systemPrompt({ selectedChatModel });
         if (typeof promptResult === "string") {
-          systemPromptString = promptResult || undefined; // Use undefined if it's an empty string
+          systemPromptString = promptResult || undefined;
         } else {
-          // Fallback if the type is unexpectedly not a string
           console.warn(
             "System prompt function did not return a string as expected. Using undefined prompt."
           );
@@ -896,15 +928,79 @@ export async function POST(request: Request) {
 
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
-          // Pass the validated system prompt string
           system: systemPromptString,
-          messages,
+          messages: (messages as ChatMessage[]).map((msg) => {
+            // Ensure content is a string
+            let content = "";
+            if (typeof msg.content === "string") {
+              content = msg.content;
+            } else if (Array.isArray(msg.content)) {
+              content = msg.content
+                .map((part: MessagePart) =>
+                  typeof part === "string"
+                    ? part
+                    : part.text || JSON.stringify(part)
+                )
+                .join(" ");
+            } else if (msg.content) {
+              content = JSON.stringify(msg.content);
+            }
+
+            // Create a properly formatted message based on role
+            const baseMessage: Partial<CoreMessage> = {
+              content: content,
+              ...(msg.parts && {
+                parts: msg.parts.map((part) => {
+                  if (typeof part === "string") {
+                    return { type: "text", text: part };
+                  }
+                  if (typeof part === "object" && part !== null) {
+                    // Handle tool activity messages
+                    if (part.type === "toolActivity") {
+                      return {
+                        type: "toolActivity",
+                        text: part.text || part.content || JSON.stringify(part),
+                      };
+                    }
+                    // Handle standard text messages
+                    if ("type" in part && "text" in part) {
+                      return { type: part.type, text: part.text };
+                    }
+                    // Handle other message types
+                    return {
+                      type: "text",
+                      text: JSON.stringify(part),
+                    };
+                  }
+                  return { type: "text", text: String(part) };
+                }),
+              }),
+            };
+
+            // Return the appropriate message type based on role
+            switch (msg.role) {
+              case "system":
+                return {
+                  ...baseMessage,
+                  role: "system" as const,
+                } as CoreMessage;
+              case "user":
+                return { ...baseMessage, role: "user" as const } as CoreMessage;
+              case "assistant":
+                return {
+                  ...baseMessage,
+                  role: "assistant" as const,
+                } as CoreMessage;
+              default:
+                return { ...baseMessage, role: "user" as const } as CoreMessage;
+            }
+          }),
           maxSteps: 5,
-          // @ts-ignore - Type compatibility issue with smoothStream and the AI SDK
           experimental_transform: smoothStream({ chunking: "word" }),
           experimental_generateMessageId: generateUUID,
           tools: toolsObject,
           onFinish: async ({ response }) => {
+            console.log("Stream finished, saving response...");
             if (userId) {
               try {
                 // Get the assistant messages with type assertion
@@ -992,8 +1088,12 @@ export async function POST(request: Request) {
           },
         });
 
+        // Add debug logging for stream consumption
+        console.log("Starting stream consumption...");
         result.consumeStream();
-        result.mergeIntoDataStream(dataStream, { sendReasoning: true });
+        result.mergeIntoDataStream(dataStream, {
+          sendReasoning: true,
+        });
       },
       onError: (error) => {
         console.error("Error in chat processing:", error);

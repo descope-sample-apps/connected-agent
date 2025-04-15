@@ -266,7 +266,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     title: "Create Google Meet",
     description:
       "Generate Google Meet video conference links for scheduled calendar events",
-    logo: "/logos/google-meet-logo.svg",
+    logo: "/logos/google-meet-logo.png",
     examples: [
       "Create a Google Meet for my meeting with John Doe",
       "Add video conferencing to my call with Jane Lane from Globex Corp",
@@ -631,29 +631,29 @@ export default function Home() {
 
   const fetchChatMessages = useCallback(
     async (chatId: string) => {
-      if (!chatId || chatId === "new") {
-        setMessages([]);
-        setIsLoadingChatHistory(false);
+      if (!chatId || chatId === "new" || isHandlingChatChange) {
+        return;
+      }
+
+      // Check if this is a newly created chat
+      const isNewChat = localStorage.getItem("isNewChat") === "true";
+      if (isNewChat) {
+        localStorage.removeItem("isNewChat");
         return;
       }
 
       // Check if we already have messages for this chat
       if (messages.length > 0 && messages[0].chatId === chatId) {
-        setIsLoadingChatHistory(false);
         return;
       }
 
       try {
         setIsLoadingChatHistory(true);
-        console.log("Fetching messages for chat:", chatId);
-
         const response = await fetch(`/api/chats/${chatId}/messages`);
+
         if (!response.ok) {
           if (response.status === 404) {
-            // If chat not found, treat it as a new chat
-            console.log("Chat not found, treating as new chat");
             setMessages([]);
-            setIsLoadingChatHistory(false);
             return;
           }
           throw new Error(
@@ -666,7 +666,6 @@ export default function Home() {
           throw new Error("No messages found in response");
         }
 
-        // Transform the messages to match the expected format
         const transformedMessages = data.messages.map((msg: any) => ({
           id: msg.id,
           content: msg.parts?.[0]?.text || "",
@@ -675,10 +674,6 @@ export default function Home() {
           chatId: chatId,
         }));
 
-        console.log(
-          "Successfully loaded messages:",
-          transformedMessages.length
-        );
         setMessages(transformedMessages);
       } catch (error) {
         console.error("Error fetching chat messages:", error);
@@ -693,15 +688,15 @@ export default function Home() {
         setIsLoadingChatHistory(false);
       }
     },
-    [messages, toast]
+    [messages, toast, isHandlingChatChange]
   );
 
-  // Effect to fetch chat messages when chatId changes
+  // Update the effect to be more efficient
   useEffect(() => {
-    if (currentChatId) {
+    if (currentChatId && !isHandlingChatChange) {
       fetchChatMessages(currentChatId);
     }
-  }, [currentChatId, fetchChatMessages]);
+  }, [currentChatId, fetchChatMessages, isHandlingChatChange]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView();
@@ -858,32 +853,67 @@ export default function Home() {
     if (matchedPrompt) {
       const [key, category] = matchedPrompt;
       // Add the user's message and system context in a single append call
-      append({
+      const userMessage: UIMessage = {
+        id: nanoid(),
         role: "user",
         content: value,
+        createdAt: new Date(),
+        chatId: currentChatId || "",
         parts: [
-          { type: "text", text: value },
+          {
+            type: "text",
+            content: value,
+          },
           {
             type: "reasoning",
-            reasoning:
+            content:
               category.context?.systemPrompt ||
               `This is a ${category.title} request. Please provide specific guidance.`,
             details: [
               {
                 type: "text",
-                text:
+                content:
                   category.context?.systemPrompt ||
                   `This is a ${category.title} request. Please provide specific guidance.`,
               },
             ],
           },
         ],
-      });
-    } else {
-      // Regular message handling
+      };
+
+      // Optimistically update UI
+      setMessages((prev) => [...prev, userMessage]);
+
+      // Then append to chat
       append({
         role: "user",
         content: value,
+        parts: userMessage.parts,
+      });
+    } else {
+      // Regular message handling
+      const userMessage: UIMessage = {
+        id: nanoid(),
+        role: "user",
+        content: value,
+        createdAt: new Date(),
+        chatId: currentChatId || "",
+        parts: [
+          {
+            type: "text",
+            content: value,
+          },
+        ],
+      };
+
+      // Optimistically update UI
+      setMessages((prev) => [...prev, userMessage]);
+
+      // Then append to chat
+      append({
+        role: "user",
+        content: value,
+        parts: userMessage.parts,
       });
     }
 
@@ -1002,7 +1032,7 @@ export default function Home() {
       id: "create-google-meet",
       title: "Create Google Meet",
       description: "Create a Google Meet for a scheduled event",
-      logo: "/logos/google-meet-logo.svg",
+      logo: "/logos/google-meet-logo.png",
       action: () =>
         usePredefinedPrompt(
           "Create a Google Meet for my meeting with Jane",
@@ -1141,9 +1171,10 @@ export default function Home() {
     try {
       if (!isAuthenticated || !chatId) return;
 
-      // Extract title from the first user message's parts
+      // Extract title from the first user message's parts or use default for new chats
       let title = "New Chat";
       const initialUserMessage = messages.find((m) => m.role === "user");
+
       if (initialUserMessage?.parts?.[0]) {
         const firstPart = initialUserMessage.parts[0];
         if (typeof firstPart === "string") {
@@ -1153,6 +1184,9 @@ export default function Home() {
         }
         // Limit title length
         title = title.substring(0, 50);
+      } else if (messages.length > 0 && messages[0].content) {
+        // Fallback to content if parts are not properly structured
+        title = messages[0].content.substring(0, 50);
       }
 
       // Format messages for saving
@@ -1305,18 +1339,46 @@ export default function Home() {
   };
 
   // Function to handle creating a new chat
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     const newChatId = `chat-${nanoid()}`;
-    setCurrentChatId(newChatId);
-    localStorage.setItem("currentChatId", newChatId);
-    setMessages([]); // Clear messages to show the welcome screen
-    setIsLoadingChatHistory(false); // Ensure loading state is reset
 
-    // Force a refresh of the chat history
-    if (historySidebarRef.current) {
-      historySidebarRef.current.fetchChatHistory();
+    // Set handling flag to prevent multiple updates
+    setIsHandlingChatChange(true);
+
+    // Batch all state updates together
+    const updates = () => {
+      // Update URL first
+      if (typeof window !== "undefined") {
+        window.history.pushState({}, "", `/chat/${newChatId}`);
+      }
+
+      // Update localStorage
+      localStorage.setItem("currentChatId", newChatId);
+      localStorage.setItem("isNewChat", "true");
+
+      // Update React state in a single batch
+      setCurrentChatId(newChatId);
+      setMessages([]);
+      setIsLoadingChatHistory(false);
+    };
+
+    // Execute updates in the next frame to ensure smooth transition
+    requestAnimationFrame(updates);
+
+    // Save to database if authenticated
+    if (isAuthenticated) {
+      saveChatToDatabase(newChatId).catch((error) => {
+        console.error("Error saving new chat:", error);
+      });
     }
-  };
+
+    // Reset handling flag after a short delay to ensure all updates are complete
+    setTimeout(() => {
+      setIsHandlingChatChange(false);
+    }, 100);
+
+    return newChatId;
+  }, [isAuthenticated, setIsHandlingChatChange]);
 
   // Function to handle chat deletion
   const handleChatDeleted = (deletedChatId: string) => {

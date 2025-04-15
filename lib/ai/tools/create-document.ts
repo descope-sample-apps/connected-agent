@@ -12,13 +12,26 @@ interface SessionUser {
 // Update the interface to match the one from the AI SDK
 interface DataStreamWithAppend {
   append: (data: any) => void;
-  close: () => void;
+  close?: () => void;
 }
 
 // Replace with a more compatible type
 interface CreateDocumentProps {
   session: SessionUser | null;
   dataStream: DataStreamWithAppend;
+}
+
+// Helper function to safely append to dataStream
+function safeAppend(dataStream: DataStreamWithAppend, data: any) {
+  try {
+    if (dataStream && typeof dataStream.append === "function") {
+      dataStream.append(data);
+    } else {
+      console.warn("dataStream does not have append method");
+    }
+  } catch (error) {
+    console.error("Error appending to dataStream:", error);
+  }
 }
 
 export function createDocument({ session, dataStream }: CreateDocumentProps) {
@@ -37,7 +50,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
         }
 
         // Update UI with progress
-        dataStream.append({
+        safeAppend(dataStream, {
           toolActivity: {
             step: "starting",
             tool: "createDocument",
@@ -73,7 +86,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
 
           console.error(errorMessage);
 
-          dataStream.append({
+          safeAppend(dataStream, {
             toolActivity: {
               step: "error",
               tool: "createDocument",
@@ -110,7 +123,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
         }
 
         // Update progress
-        dataStream.append({
+        safeAppend(dataStream, {
           toolActivity: {
             step: "processing",
             tool: "createDocument",
@@ -138,18 +151,61 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
 
         if (!createResponse.ok) {
           const error = await createResponse.json();
-          throw new Error(
-            `Failed to create document: ${
-              error.error?.message || createResponse.statusText
-            }`
-          );
+          const errorMessage =
+            error.error?.message || createResponse.statusText;
+
+          // Check if this is an insufficient permissions error
+          const isInsufficientPermissions =
+            errorMessage.includes("insufficient authentication scopes") ||
+            errorMessage.includes("Insufficient Permission") ||
+            errorMessage.includes("403");
+
+          if (isInsufficientPermissions) {
+            // Get the required scopes from the OpenAPI spec
+            const requiredScopes = [
+              "https://www.googleapis.com/auth/documents",
+              "https://www.googleapis.com/auth/drive",
+              "https://www.googleapis.com/auth/drive.file",
+            ];
+
+            safeAppend(dataStream, {
+              toolActivity: {
+                step: "error",
+                tool: "createDocument",
+                title: "Google Docs Connection Required",
+                description:
+                  "You need additional permissions to create Google Docs. Please reconnect with the required scopes.",
+              },
+            });
+
+            return {
+              success: false,
+              error: "Insufficient permissions to create Google Docs",
+              needsConnection: true,
+              provider: "google-docs",
+              requiredScopes,
+              ui: {
+                type: "connection_required",
+                service: "google-docs",
+                message:
+                  "You need additional permissions to create Google Docs. Please reconnect with the required scopes.",
+                requiredScopes,
+                connectButton: {
+                  text: "Reconnect Google Docs",
+                  action: "connection://google-docs",
+                },
+              },
+            };
+          }
+
+          throw new Error(`Failed to create document: ${errorMessage}`);
         }
 
         const doc = await createResponse.json();
         const documentId = doc.id;
 
         // Update progress
-        dataStream.append({
+        safeAppend(dataStream, {
           toolActivity: {
             step: "processing",
             tool: "createDocument",
@@ -195,7 +251,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
         const documentLink = `https://docs.google.com/document/d/${documentId}/edit`;
 
         // Final update showing success
-        dataStream.append({
+        safeAppend(dataStream, {
           toolActivity: {
             step: "complete",
             tool: "createDocument",
@@ -220,7 +276,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
         console.error("Error creating document:", error);
 
         // Show error in UI
-        dataStream.append({
+        safeAppend(dataStream, {
           toolActivity: {
             step: "error",
             tool: "createDocument",

@@ -296,8 +296,6 @@ export async function getChatById({
 }: {
   id: string;
 }): Promise<Chat | null> {
-  console.log("Getting chat by ID:", id);
-
   try {
     // Early return if id is undefined, null, or empty
     if (!id) {
@@ -351,8 +349,6 @@ export async function getUserChats({
 }: {
   userId: string;
 }): Promise<Chat[]> {
-  console.log("Getting chats for user:", userId);
-
   try {
     const result = await db.query.chats.findMany({
       where: eq(chats.userId, userId),

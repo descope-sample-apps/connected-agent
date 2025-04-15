@@ -149,7 +149,7 @@ export default function ProfileScreen({
     {
       id: "google-meet",
       name: "Google Meet",
-      icon: "/logos/google-meet-logo.svg",
+      icon: "/logos/google-meet-logo.png",
       connected: false,
     },
     {
@@ -1105,36 +1105,6 @@ export default function ProfileScreen({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">Sidebar Default</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Show quick actions sidebar by default
-                  </p>
-                </div>
-                <Switch
-                  checked={sidebarDefault}
-                  onCheckedChange={handleSidebarDefaultChange}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">Auto-Save Chats</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically save all chat conversations
-                  </p>
-                </div>
-                <Switch
-                  checked={autoSaveChats}
-                  onCheckedChange={handleAutoSaveChange}
-                />
               </div>
             </CardContent>
           </Card>

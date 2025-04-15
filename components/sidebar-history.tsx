@@ -44,7 +44,7 @@ interface SidebarHistoryProps {
 }
 
 export const SidebarHistory = forwardRef<
-  { fetchChatHistory: () => void },
+  { fetchChatHistory: (showLoading?: boolean) => void },
   SidebarHistoryProps
 >(
   (
@@ -206,13 +206,11 @@ export const SidebarHistory = forwardRef<
     };
 
     const handleNewChat = () => {
+      // Call the parent's onNewChat function
       onNewChat();
-      // Update URL without reload
-      if (typeof window !== "undefined") {
-        const newUrl = new URL(window.location.href);
-        newUrl.pathname = "/";
-        window.history.pushState({}, "", newUrl.toString());
-      }
+
+      // Don't update the URL here as this is handled by the parent component
+      // This prevents potential conflicts with competing URL updates
     };
 
     return (

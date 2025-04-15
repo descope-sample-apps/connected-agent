@@ -11,6 +11,7 @@ interface ModelConfig {
   paid?: boolean;
 }
 
+// Feel free to add more models to this list if you clone this repo
 export const availableModels: Record<string, ModelConfig> = {
   "gpt-3.5-turbo": {
     name: "GPT-3.5 Turbo",
@@ -18,22 +19,6 @@ export const availableModels: Record<string, ModelConfig> = {
     maxTokens: 4096,
     supportsFunctions: true,
     supportsVision: false,
-  },
-  "gpt-4-turbo": {
-    name: "GPT-4 Turbo",
-    provider: "OpenAI",
-    maxTokens: 128000,
-    supportsFunctions: true,
-    supportsVision: true,
-    paid: true,
-  },
-  "gpt-4o": {
-    name: "GPT-4o",
-    provider: "OpenAI",
-    maxTokens: 128000,
-    supportsFunctions: true,
-    supportsVision: true,
-    paid: true,
   },
 };
 

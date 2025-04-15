@@ -31,8 +31,9 @@ export const OAUTH_PROVIDERS = {
     scopes: ["https://www.googleapis.com/auth/documents"],
   },
   "google-meet": {
+    id: "google-meet",
     name: "Google Meet",
-    icon: "/logos/google-meet-logo.svg",
+    icon: "/logos/google-meet-logo.png",
     scopes: ["https://www.googleapis.com/auth/meetings.space.created"],
   },
   "custom-crm": {
