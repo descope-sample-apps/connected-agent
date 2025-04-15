@@ -270,6 +270,12 @@ const dealStakeholdersSchema = {
   },
 };
 
+interface ParsedDate {
+  date: Date;
+  formatted: string;
+  time: string;
+}
+
 export async function POST(request: Request) {
   try {
     const {
@@ -364,10 +370,20 @@ export async function POST(request: Request) {
             const dateContext = getCurrentDateContext();
             const parsedDate = parseRelativeDate(dateString, timeString);
 
+            // Format the date for calendar event creation
+            const formattedDate = {
+              iso: parsedDate.date.toISOString(),
+              display: parsedDate.formatted,
+              time: parsedDate.time,
+              date: parsedDate.date,
+            };
+
             return {
               success: true,
               dateContext,
-              parsedDate,
+              parsedDate: formattedDate,
+              instructions:
+                "Use the 'iso' field when creating calendar events to ensure proper date formatting.",
             };
           } catch (error) {
             console.error(
@@ -899,7 +915,11 @@ export async function POST(request: Request) {
         error.message === "Monthly usage limit exceeded"
       ) {
         return Response.json(
-          { error: "Monthly usage limit exceeded" },
+          {
+            error: "Too Many Requests",
+            message:
+              "We've received too many requests recently. Descope outbound apps is currently experiencing high usage, please try again later.",
+          },
           { status: 429 }
         );
       }

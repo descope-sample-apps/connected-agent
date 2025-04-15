@@ -11,6 +11,8 @@ import { useConnectionNotification } from "@/hooks/use-connection-notification";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import ActionCard from "@/components/action-card";
 import { useToast } from "@/components/ui/use-toast";
+import { trackPrompt } from "@/lib/analytics";
+import { useAuth } from "@/context/auth-context";
 
 // Define message types
 interface UIElement {
@@ -22,6 +24,8 @@ interface UIElement {
     action: string;
   };
   alternativeMessage?: string;
+  requiredScopes?: string[];
+  currentScopes?: string[];
 }
 
 // Extend the AIMessage type for our custom properties
@@ -67,12 +71,13 @@ export default function Chat({
       selectedChatModel,
     },
     initialMessages,
-    onResponse: (response) => {
+    onResponse: async (response) => {
       // Check for errors in the response
       if (response.status === 429) {
         toast({
-          title: "Usage Limit Exceeded",
-          description: "You have reached your monthly usage limit.",
+          title: "Service Temporarily Unavailable",
+          description:
+            "We've received too many requests recently. Descope outbound apps is currently experiencing high usage, please try again later.",
           variant: "destructive",
         });
         return;
@@ -88,6 +93,19 @@ export default function Chat({
         return;
       }
 
+      // Check for OAuth-related errors
+      if (response.status === 403) {
+        try {
+          const errorData = await response.json();
+          if (errorData?.error === "insufficient_scopes") {
+            // The error response will be handled by the UI element in the message
+            return;
+          }
+        } catch (error) {
+          console.error("Error parsing error response:", error);
+        }
+      }
+
       // Ensure we scroll to bottom when new content arrives
       scrollToBottom();
     },
@@ -95,10 +113,57 @@ export default function Chat({
       setIsLoading(false);
       // Final scroll to bottom after completion
       scrollToBottom();
+
+      // Track prompt completion in analytics
+      trackPrompt("prompt_completed", {
+        chatId: id,
+        modelName: selectedChatModel,
+        success: true,
+        responseTime: Date.now() - (promptStartTime || Date.now()),
+      });
+
+      // Also track directly with Segment for consistency
+      if (
+        typeof window !== "undefined" &&
+        window.analytics &&
+        typeof window.analytics.track === "function"
+      ) {
+        window.analytics.track("prompt_completed", {
+          chatId: id,
+          modelName: selectedChatModel,
+          success: true,
+          responseTime: Date.now() - (promptStartTime || Date.now()),
+          timestamp: new Date().toISOString(),
+        });
+      }
     },
     onError: (error) => {
       console.error("Streaming error:", error);
       setIsLoading(false);
+
+      // Track prompt error in analytics
+      trackPrompt("prompt_completed", {
+        chatId: id,
+        modelName: selectedChatModel,
+        success: false,
+        responseTime: Date.now() - (promptStartTime || Date.now()),
+      });
+
+      // Also track directly with Segment for consistency
+      if (
+        typeof window !== "undefined" &&
+        window.analytics &&
+        typeof window.analytics.track === "function"
+      ) {
+        window.analytics.track("prompt_completed", {
+          chatId: id,
+          modelName: selectedChatModel,
+          success: false,
+          errorMessage: error.message || "Unknown error",
+          responseTime: Date.now() - (promptStartTime || Date.now()),
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       // Check for authentication errors
       if (error.message && error.message.includes("Unauthorized")) {
@@ -107,6 +172,33 @@ export default function Chat({
           description: "Your session has expired. Please log in again.",
           variant: "destructive",
         });
+        return;
+      }
+
+      // Check for rate limiting errors
+      if (
+        error.message &&
+        (error.message.includes("429") ||
+          error.message.includes("Too Many Requests") ||
+          error.message.includes("rate limit"))
+      ) {
+        toast({
+          title: "Service Temporarily Unavailable",
+          description:
+            "We've received too many requests recently. Descope outbound apps is currently experiencing high usage, please try again later.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check for OAuth-related errors
+      if (
+        error.message &&
+        (error.message.includes("insufficient_scopes") ||
+          error.message.includes("connection_required") ||
+          error.message.includes("403"))
+      ) {
+        // The error response will be handled by the UI element in the message
         return;
       }
 
@@ -119,10 +211,14 @@ export default function Chat({
   });
 
   const { toast } = useToast();
+  const { user } = useAuth();
   const [usage, setUsage] = useState<{
     messageCount: number;
     monthlyLimit: number;
   } | null>(null);
+
+  // Track when prompt started for timing
+  const [promptStartTime, setPromptStartTime] = useState<number | null>(null);
 
   // Messages that have action cards to display
   const [messagesWithActions, setMessagesWithActions] = useState<string[]>([]);
@@ -281,6 +377,7 @@ export default function Chat({
     if (content.includes("crm")) service = "crm";
     if (content.includes("calendar")) service = "google-calendar";
     if (content.includes("docs")) service = "google-docs";
+    if (content.includes("meet")) service = "google-meet";
 
     // Extract the action URL if available
     const actionMatch = message.content.match(
@@ -291,23 +388,46 @@ export default function Chat({
       ? `connection://${actionMatch[2]}`
       : `connection://${service}`;
 
+    // Check if we have UI element with scope information
+    const uiElement = message.ui;
+    const requiredScopes = uiElement?.requiredScopes || [];
+    const currentScopes = uiElement?.currentScopes || [];
+
+    // Build the message based on whether we have scope information
+    let messageText = `To continue, you need to connect your ${service.replace(
+      "-",
+      " "
+    )}.`;
+    let alternativeMessage =
+      "This will allow the assistant to access the necessary data to fulfill your request.";
+
+    if (requiredScopes.length > 0) {
+      messageText = `Additional permissions are required for ${service.replace(
+        "-",
+        " "
+      )}.`;
+      alternativeMessage = `The following permissions are needed: ${requiredScopes
+        .map((scope) => scope.split("/").pop() || scope)
+        .join(", ")}`;
+    }
+
     return (
       <InChatConnectionPrompt
         service={service.replace("-", " ")}
-        message={`To continue, you need to connect your ${service.replace(
-          "-",
-          " "
-        )}.`}
+        message={messageText}
         connectButtonText={connectButtonText}
         connectButtonAction={connectButtonAction}
-        alternativeMessage="This will allow the assistant to access the necessary data to fulfill your request."
+        alternativeMessage={alternativeMessage}
         chatId={id}
+        requiredScopes={requiredScopes}
+        currentScopes={currentScopes}
       />
     );
   };
 
   // Render a standard message bubble
   const renderMessage = (message: ExtendedMessage) => {
+    console.log("renderMessage", message);
     // Skip rendering if message content is empty
     if (!message.content && (!message.parts || message.parts.length === 0)) {
       return null;
@@ -315,8 +435,6 @@ export default function Chat({
 
     // Check if this message has an action card
     const hasActionCard = message.actionCard !== undefined;
-    const hasToolActions =
-      message.toolActions && message.toolActions.length > 0;
     const showConnectionPrompt =
       message.role === "assistant" &&
       message.content &&
@@ -334,11 +452,17 @@ export default function Chat({
         message.content.includes('{"type":"function-execution"}') ||
         message.content.includes('"name":"'));
 
+    const isStepStart =
+      message.role === "assistant" &&
+      message.content &&
+      message.content.includes('{"type":"step-start"}');
+
     const isGeneralStreamingPlaceholder =
       message.role === "assistant" &&
       message.content &&
-      (message.content.includes('{"type":"step-start"}') ||
-        message.content.includes('{"type":"step-end"}') ||
+      !isToolInvocation && // Don't treat tool activity as a placeholder
+      !isStepStart && // Don't treat step-start as a general placeholder
+      (message.content.includes('{"type":"step-end"}') ||
         (message.content.startsWith("{") &&
           message.content.includes('"type":')));
 
@@ -368,6 +492,19 @@ export default function Chat({
         .replace(/send/i, "")
         .trim();
     };
+
+    let parsedContent: any = null;
+    let toolActivity: any = null;
+    if (message.content && typeof message.content === "string") {
+      try {
+        parsedContent = JSON.parse(message.content);
+        if (parsedContent.type === "toolActivity") {
+          toolActivity = parsedContent;
+        }
+      } catch (e) {
+        // Not a JSON message, use as is
+      }
+    }
 
     return (
       <div
@@ -416,6 +553,24 @@ export default function Chat({
                   Accessing external data
                 </div>
               </div>
+            </div>
+          ) : isStepStart ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex space-x-1">
+                <div
+                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <div
+                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <div
+                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </div>
+              <span>Processing your request...</span>
             </div>
           ) : isGeneralStreamingPlaceholder ? (
             <div className="flex items-center py-2">
@@ -483,6 +638,32 @@ export default function Chat({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    // Set prompt start time for analytics
+    setPromptStartTime(Date.now());
+
+    // Track prompt submission in analytics
+    trackPrompt("prompt_submitted", {
+      userId: user?.id,
+      promptText: input.trim(),
+      chatId: id,
+      modelName: selectedChatModel,
+    });
+
+    // Also track directly with Segment for consistency
+    if (
+      typeof window !== "undefined" &&
+      window.analytics &&
+      typeof window.analytics.track === "function"
+    ) {
+      window.analytics.track("prompt_submitted", {
+        userId: user?.id,
+        promptText: input.trim(),
+        chatId: id,
+        modelName: selectedChatModel,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     setIsLoading(true);
     try {

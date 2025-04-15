@@ -34,8 +34,12 @@ export default function AuthModal() {
   const handleSuccess = () => {
     setShowAuthModal(false);
 
-    // Track successful sign-in
-    if (typeof window !== "undefined" && window.analytics) {
+    // Track successful sign-in directly with Segment
+    if (
+      typeof window !== "undefined" &&
+      window.analytics &&
+      typeof window.analytics.track === "function"
+    ) {
       window.analytics.track("user_signin_success", {
         timestamp: new Date().toISOString(),
         method: "descope",
@@ -43,10 +47,14 @@ export default function AuthModal() {
     }
 
     // Also track using the OAuth tracking function for consistency
-    trackOAuthEvent("signin_successful", {
-      method: "descope",
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      trackOAuthEvent("signin_successful", {
+        method: "descope",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error("Error tracking sign-in event:", e);
+    }
 
     // Clean up the URL by removing any redirect parameters
     const currentUrl = new URL(window.location.href);

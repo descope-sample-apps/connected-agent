@@ -21,6 +21,8 @@ import {
 import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 import { useToast } from "./ui/use-toast";
 import { Loader2 } from "lucide-react";
+import { trackOAuthEvent } from "@/lib/analytics";
+import { useAuth } from "@/context/auth-context";
 
 interface InChatConnectionPromptProps {
   service: string;
@@ -29,6 +31,8 @@ interface InChatConnectionPromptProps {
   connectButtonAction: string;
   alternativeMessage?: string;
   chatId?: string;
+  requiredScopes?: string[];
+  currentScopes?: string[];
 }
 
 export default function InChatConnectionPrompt({
@@ -38,9 +42,12 @@ export default function InChatConnectionPrompt({
   connectButtonAction,
   alternativeMessage,
   chatId,
+  requiredScopes = [],
+  currentScopes = [],
 }: InChatConnectionPromptProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Extract the provider ID from the connection action
   const getProviderId = () => {
@@ -59,13 +66,41 @@ export default function InChatConnectionPrompt({
       // Extract the provider ID
       const providerId = getProviderId();
 
+      // Track connection attempt in Segment
+      if (
+        typeof window !== "undefined" &&
+        window.analytics &&
+        typeof window.analytics.track === "function"
+      ) {
+        window.analytics.track("connection_initiated", {
+          provider: providerId,
+          service: service,
+          userId: user?.id,
+          chatId: chatId,
+          requiredScopes,
+          currentScopes,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Also track using the OAuth tracking function for consistency
+      trackOAuthEvent("connection_initiated", {
+        provider: providerId,
+        service: service,
+        userId: user?.id,
+        chatId: chatId,
+        requiredScopes,
+        currentScopes,
+      });
+
       // Simple redirect URL without query parameters
       const redirectUrl = `${window.location.origin}/api/oauth/callback`;
 
-      // Get the authorization URL
+      // Get the authorization URL with required scopes
       const url = await connectToOAuthProvider({
         appId: providerId,
         redirectUrl,
+        scopes: requiredScopes.length > 0 ? requiredScopes : undefined,
         state: {
           chatId,
           originalUrl: window.location.href,
@@ -79,6 +114,29 @@ export default function InChatConnectionPrompt({
           toast({
             title: "Connected successfully",
             description: `Successfully connected to ${service}`,
+          });
+
+          // Track successful connection in Segment
+          if (
+            typeof window !== "undefined" &&
+            window.analytics &&
+            typeof window.analytics.track === "function"
+          ) {
+            window.analytics.track("connection_successful", {
+              provider: providerId,
+              service: service,
+              userId: user?.id,
+              chatId: chatId,
+              timestamp: new Date().toISOString(),
+            });
+          }
+
+          // Also track using the OAuth tracking function
+          trackOAuthEvent("connection_successful", {
+            provider: providerId,
+            service: service,
+            userId: user?.id,
+            chatId: chatId,
           });
 
           // Don't reload, instead update the UI to indicate connection is successful
@@ -97,6 +155,31 @@ export default function InChatConnectionPrompt({
             description: error.message || "Failed to connect to service",
             variant: "destructive",
           });
+
+          // Track failed connection in Segment
+          if (
+            typeof window !== "undefined" &&
+            window.analytics &&
+            typeof window.analytics.track === "function"
+          ) {
+            window.analytics.track("connection_failed", {
+              provider: providerId,
+              service: service,
+              userId: user?.id,
+              chatId: chatId,
+              error: error.message || "Unknown error",
+              timestamp: new Date().toISOString(),
+            });
+          }
+
+          // Also track using the OAuth tracking function
+          trackOAuthEvent("connection_failed", {
+            provider: providerId,
+            service: service,
+            userId: user?.id,
+            chatId: chatId,
+            error: error.message || "Unknown error",
+          });
         },
       });
     } catch (error) {
@@ -109,6 +192,31 @@ export default function InChatConnectionPrompt({
             ? error.message
             : "Failed to connect to service",
         variant: "destructive",
+      });
+
+      // Track connection error in analytics
+      if (
+        typeof window !== "undefined" &&
+        window.analytics &&
+        typeof window.analytics.track === "function"
+      ) {
+        window.analytics.track("connection_failed", {
+          provider: getProviderId(),
+          service: service,
+          userId: user?.id,
+          chatId: chatId,
+          error: error instanceof Error ? error.message : "Unknown error",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Also track using the OAuth tracking function
+      trackOAuthEvent("connection_failed", {
+        provider: getProviderId(),
+        service: service,
+        userId: user?.id,
+        chatId: chatId,
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   };
@@ -129,39 +237,50 @@ export default function InChatConnectionPrompt({
   };
 
   return (
-    <Card className="border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-all">
-      <div className="flex items-center justify-between p-4">
-        <div className="flex items-center gap-3 flex-1 mr-4">
-          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center">
-            {getIcon()}
+    <Card className="w-full max-w-2xl mx-auto my-4 border-2 border-yellow-500/20 bg-yellow-500/5">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-yellow-500">
+          <Lock className="h-5 w-5" />
+          {message}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground mb-4">
+          {alternativeMessage}
+        </p>
+        {requiredScopes.length > 0 && (
+          <div className="mt-2 text-sm">
+            <p className="font-medium text-yellow-500">Required Permissions:</p>
+            <ul className="list-disc list-inside mt-1 space-y-1">
+              {requiredScopes.map((scope, index) => (
+                <li key={index} className="text-muted-foreground">
+                  {scope.split("/").pop() || scope}
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium">
-              {message || `Connect your ${service} to continue`}
-            </p>
-            {alternativeMessage && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {alternativeMessage}
-              </p>
-            )}
-          </div>
-        </div>
+        )}
+      </CardContent>
+      <CardFooter>
         <Button
-          size="sm"
           onClick={handleConnect}
           disabled={isLoading}
-          className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm whitespace-nowrap"
+          className="w-full"
+          variant="default"
         >
           {isLoading ? (
-            <span className="flex items-center">
-              <span className="mr-1.5 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-              Connecting
-            </span>
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Connecting...
+            </>
           ) : (
-            <>Connect</>
+            <>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              {connectButtonText}
+            </>
           )}
         </Button>
-      </div>
+      </CardFooter>
     </Card>
   );
 }

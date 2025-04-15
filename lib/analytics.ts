@@ -11,9 +11,15 @@ export type EventType =
   | "tool_action"
   | "connect_initiated"
   | "disconnect_initiated"
-  | "disconnect_successful";
+  | "disconnect_successful"
+  | "signin_successful"
+  | "signin_failed"
+  | "prompt_submitted"
+  | "prompt_completed";
 
+// Extended SegmentAnalytics interface that includes the initialization properties
 interface SegmentAnalytics {
+  // Core methods
   load: (writeKey: string, options?: any) => void;
   identify: (userId: string, traits?: any, options?: any) => void;
   track: (event: string, properties?: any, options?: any) => void;
@@ -23,6 +29,22 @@ interface SegmentAnalytics {
     properties?: any,
     options?: any
   ) => void;
+
+  // Initialization properties
+  initialize?: boolean;
+  invoked?: boolean;
+  methods?: string[];
+  factory?: (method: string) => (...args: any[]) => any;
+  push?: (args: any[]) => any;
+  SNIPPET_VERSION?: string;
+
+  // Other methods from analytics.methods array
+  [key: string]: any;
+}
+
+// Define a custom type for the analytics global
+interface AnalyticsWindow extends Window {
+  analytics: SegmentAnalytics;
 }
 
 declare global {
@@ -45,11 +67,23 @@ export function initAnalytics() {
     });
 
     // Initialize Segment
-    const segmentKey = process.env.NEXT_PUBLIC_SEGMENT_KEY;
+    const segmentKey = process.env.NEXT_PUBLIC_SEGEMENT_WRITE_KEY;
     if (segmentKey) {
+      // Log the initialization with the write key (truncated for security)
+      console.log(
+        `[Analytics] Initializing Segment with key: ${segmentKey.substring(
+          0,
+          4
+        )}...`
+      );
+
       // Load the Segment analytics.js snippet
-      const analytics = (window.analytics = window.analytics || []);
-      if (!analytics.initialize) {
+      const analytics = ((window as unknown as AnalyticsWindow).analytics =
+        (window as unknown as AnalyticsWindow).analytics || []);
+
+      // Safely check if analytics.initialize exists
+      if (typeof analytics.initialize === "undefined") {
+        // Safely check if analytics.invoked exists
         if (analytics.invoked) {
           console.error("Segment snippet included twice");
         } else {
@@ -80,18 +114,35 @@ export function initAnalytics() {
             return function () {
               const args = Array.prototype.slice.call(arguments);
               args.unshift(method);
-              analytics.push(args);
+              // Type assertion for analytics.push
+              if (typeof analytics.push === "function") {
+                analytics.push(args);
+              }
               return analytics;
             };
           };
-          for (let i = 0; i < analytics.methods.length; i++) {
-            const key = analytics.methods[i];
-            analytics[key] = analytics.factory(key);
+
+          // Safely assign methods to analytics object
+          if (analytics.methods && Array.isArray(analytics.methods)) {
+            for (let i = 0; i < analytics.methods.length; i++) {
+              const key = analytics.methods[i];
+              // Use type assertion to avoid TypeScript errors
+              if (analytics.factory) {
+                (analytics as any)[key] = analytics.factory(key);
+              }
+            }
           }
+
           analytics.SNIPPET_VERSION = "4.13.2";
-          analytics.load(segmentKey);
+          if (typeof analytics.load === "function") {
+            analytics.load(segmentKey);
+          }
         }
       }
+    } else {
+      console.warn(
+        "[Analytics] Segment write key not found. Segment analytics disabled."
+      );
     }
 
     console.log("[Analytics] Initialized");
@@ -156,8 +207,13 @@ export function trackOAuthEvent(
   });
 
   // Send to Segment if available
-  if (typeof window !== "undefined" && window.analytics) {
-    window.analytics.track(`oauth_${event}`, {
+  if (
+    typeof window !== "undefined" &&
+    window.analytics &&
+    typeof window.analytics.track === "function"
+  ) {
+    // Use type assertion to avoid TypeScript errors
+    window.analytics.track(`oauth_${event}` as string, {
       ...data,
       timestamp: new Date().toISOString(),
     });
@@ -227,6 +283,40 @@ export function trackError(error: Error, context: Record<string, any> = {}) {
       error_message: error.message,
       error_stack: error.stack,
       ...context,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+/**
+ * Track a user prompt submission or completion
+ */
+export function trackPrompt(
+  event: "prompt_submitted" | "prompt_completed",
+  data: {
+    userId?: string;
+    promptText?: string;
+    chatId?: string;
+    modelName?: string;
+    success?: boolean;
+    responseTime?: number;
+  }
+) {
+  // In development, log to console
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[Analytics] Prompt Event: ${event}`, data);
+  }
+
+  // In production, send to PostHog
+  posthog.capture(`prompt_${event}`, {
+    ...data,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Send to Segment if available
+  if (typeof window !== "undefined" && window.analytics) {
+    window.analytics.track(`prompt_${event}`, {
+      ...data,
       timestamp: new Date().toISOString(),
     });
   }

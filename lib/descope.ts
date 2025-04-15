@@ -28,7 +28,10 @@ type TokenResponse =
       };
     }
   | {
-      error: "connection_required" | "insufficient_scopes";
+      error:
+        | "connection_required"
+        | "insufficient_scopes"
+        | "Too Many Requests";
       provider: string;
       requiredScopes: string[];
       currentScopes?: string[];
@@ -121,6 +124,31 @@ export async function getOAuthToken(
         `Failed to get OAuth token for ${appId}: ${response.statusText}`
       );
 
+      // Handle rate limit errors specifically
+      if (response.status === 429) {
+        trackToolAction(
+          userId,
+          {
+            action: "token_request",
+            provider: appId,
+            parameters: { scopes, options },
+          },
+          {
+            success: false,
+            details: {
+              error: "Too Many Requests",
+              errorCode: "429",
+            },
+          }
+        );
+
+        return {
+          error: "Too Many Requests",
+          provider: appId,
+          requiredScopes: scopes || [],
+        };
+      }
+
       trackToolAction(
         userId,
         {
@@ -132,6 +160,7 @@ export async function getOAuthToken(
           success: false,
           details: {
             error: response.statusText,
+            errorCode: response.status.toString(),
           },
         }
       );

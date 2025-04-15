@@ -21,7 +21,7 @@ interface OAuthDisconnectParams {
 }
 
 interface TokenResponse {
-  token: {
+  token?: {
     id: string;
     appId: string;
     userId: string;
@@ -35,6 +35,7 @@ interface TokenResponse {
     lastRefreshError: string;
     scopes: string[];
   };
+  error?: string;
 }
 
 interface OAuthErrorResponse {
@@ -113,26 +114,30 @@ export async function getOAuthTokenWithScopeValidation(
 
     // If token is null, return error response
     if (!token) {
-      console.error("[OAuth] No token received");
+      console.error(`No token received for ${options.appId}`);
       return {
-        error: "Failed to get OAuth token",
-        provider,
-        requiredScopes: options.scopes,
+        error: "connection_required",
+        provider: options.appId,
+        requiredScopes: options.scopes || [],
       };
     }
 
     // Check if token has an error property
-    if (typeof token === "object" && "error" in token) {
-      console.error("[OAuth] Token error:", token.error);
+    if ("error" in token) {
+      console.error(`Token error for ${options.appId}: ${token.error}`);
       return {
         error: token.error,
-        provider,
-        requiredScopes: options.scopes,
+        provider: options.appId,
+        requiredScopes: token.requiredScopes || options.scopes || [],
+        currentScopes: token.currentScopes,
       };
     }
 
     console.log("[OAuth] Successfully validated token", token);
-    return token;
+    return {
+      token: token.token,
+      provider: options.appId,
+    };
   } catch (error) {
     console.error(`[OAuth] Error getting token for ${provider}:`, error);
     return {
