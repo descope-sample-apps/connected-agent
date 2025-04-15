@@ -1,89 +1,107 @@
-# CRM Assistant
+# Connected Agent
 
-<div align="center">
-  <img src="/public/crm-assistant-logo.png" alt="CRM Assistant Logo" width="200" />
-  <h3>AI-Powered Customer Relationship Management Assistant</h3>
-  <p>Streamline your CRM workflow with intelligent automation and seamless integrations</p>
-</div>
+A powerful, extensible AI-powered CRM assistant built with Next.js and Descope for secure authentication and OAuth management.
 
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#tech-stack">Tech Stack</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#configuration">Configuration</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#license">License</a>
-</p>
+![CRM Assistant](public/logos/crm-logo.png)
 
 ## Overview
 
-CRM Assistant is an AI-powered tool that enhances your customer relationship management processes by seamlessly integrating with your existing CRM tools and providing intelligent automation. It combines natural language processing with powerful integrations to help sales professionals manage customer relationships, schedule meetings, create documentation, and more—all from a single, intuitive interface.
+CRM Assistant is a modern, AI-powered application that helps users manage their customer relationships more effectively. It integrates with various third-party services like Google Calendar, Google Docs, Google Meet, and custom CRM systems to provide a seamless experience for managing contacts, deals, and communications.
 
-<div align="center">
-  <img src="/public/crm-assistant-screenshot.png" alt="CRM Assistant Screenshot" width="800" />
-</div>
+The application is built with Next.js and uses Descope for authentication and OAuth token management, making it secure and easy to extend with additional functionality.
 
-## Features
+## Key Features
 
-### 🤖 Intelligent Chat Interface
+- **AI-Powered Conversations**: Natural language interface for interacting with your CRM data
+- **OAuth Integration**: Connect to multiple services (Google Calendar, Google Docs, Google Meet, Slack, etc.)
+- **Progressive Scoping**: Automatically request additional permissions as needed
+- **Usage Tracking**: Monitor and limit usage with built-in analytics
+- **Extensible Tool Registry**: Easily add new tools and capabilities
+- **Secure Token Management**: Descope handles OAuth tokens securely
+- **Modern UI**: Built with Tailwind CSS and Radix UI components
 
-- Natural language interaction with AI-powered responses
-- Context-aware suggestions and recommendations
-- Quick action shortcuts for common CRM tasks
+## Architecture
 
-### 🔄 Seamless Integrations
+### Authentication & Authorization
 
-- CRM data access and management (customer information, deal history)
-- Calendar integration for meeting scheduling
-- Video conferencing with Zoom meeting creation
-- Document generation with Google Docs
+The application uses Descope for authentication and authorization. Descope provides:
 
-### 🔒 OAuth Provider Management
+- User authentication (sign-up, sign-in, password reset)
+- Session management
+- OAuth token management through Outbound Apps
 
-- Connect and manage third-party service integrations
-- Transparent permission control
-- Secure authentication flows
+### OAuth Integration
 
-### 📊 Comprehensive Dashboard
+The application uses Descope's Outbound Apps feature to securely manage OAuth tokens for various providers:
 
-- Profile management with personal information
-- Connected services overview
-- Application preferences
+- Google Calendar
+- Google Docs
+- Google Meet
+- Slack
+- Custom CRM
 
-### 📝 Chat History Management
+Outbound Apps provide a secure way to store and manage OAuth tokens, with automatic token refresh and scope management.
 
-- Save important conversations
-- Organize and star priority discussions
-- Search through past interactions
+### Tool Registry
 
-### 🔗 Sharing Capabilities
+The application includes a registry of tools that can be used by the AI to perform various actions:
 
-- Generate shareable links to conversations
-- Control access permissions
-- Collaborate with team members
+- Calendar management (schedule meetings, check availability)
+- Document creation and management
+- CRM operations (contacts, deals, activities)
+- Meeting scheduling
+- Weather information
+- Date parsing and formatting
 
-### 🔍 Transparency Features
+Each tool is defined with a clear interface and can be easily extended or modified.
 
-- Visual explanations of API interactions
-- Clear documentation of data flows
-- Detailed process breakdowns
+### Progressive Scoping
 
-## Tech Stack
+The application implements progressive scoping, which means it only requests the permissions it needs for a specific operation. For example:
 
-- **Frontend**: Next.js, React, TypeScript
-- **Styling**: Tailwind CSS, shadcn/ui components
-- **AI**: OpenAI GPT-4o, AI SDK
-- **Authentication**: OAuth 2.0
-- **Integrations**: Google Calendar, Zoom, CRM systems
+1. When a user first connects to Google Calendar, it requests basic calendar access
+2. If the user later tries to schedule a meeting, it automatically requests additional permissions
+3. The application tracks which permissions have been granted and only requests new ones as needed
+
+This approach improves the user experience by minimizing permission requests and only asking for what's necessary.
+
+### OpenAPI Integration
+
+The application can fetch scopes from OpenAPI specifications for supported providers:
+
+- Google Calendar
+- Google Docs
+- Google Drive
+- Zoom
+
+This allows for automatic scope determination based on the API operations being performed.
+
+### Analytics & Usage Tracking
+
+The application includes built-in analytics and usage tracking:
+
+- OAuth connection events
+- Tool usage
+- Error tracking
+- User activity
+
+Analytics can be sent to PostHog or any other analytics provider by configuring the appropriate environment variables.
+
+### Database
+
+The application uses PostgreSQL for data storage, with Drizzle ORM for database operations. The database schema includes:
+
+- Usage tracking
+- Chat history
+- User preferences
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18.x or higher
-- npm or yarn
-- Vercel account (for deployment)
+- Node.js 18+
+- PostgreSQL database
+- Descope account and project
 
 ### Installation
 
@@ -92,173 +110,177 @@ CRM Assistant is an AI-powered tool that enhances your customer relationship man
    ```bash
    git clone https://github.com/yourusername/crm-assistant.git
    cd crm-assistant
-
    ```
 
 2. Install dependencies:
 
-```shellscript
-npm install
-# or
-yarn install
-```
+   ```bash
+   npm install
+   # or
+   yarn install
+   # or
+   pnpm install
+   ```
 
 3. Set up environment variables:
 
-```shellscript
-cp .env.example .env.local
+   ```bash
+   cp .env.example .env.local
+   ```
+
+4. Configure your environment variables in `.env.local`:
+
+   ```
+   # Descope
+   NEXT_PUBLIC_DESCOPE_PROJECT_ID=your-project-id
+   DESCOPE_MANAGEMENT_KEY=your-management-key
+
+   # Database
+   DATABASE_URL=postgres://username:password@localhost:5432/crm_assistant
+
+   # Analytics (optional)
+   NEXT_PUBLIC_POSTHOG_KEY=your-posthog-key
+   NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+
+   # API Keys
+   CRM_API_KEY=your-crm-api-key
+   ```
+
+5. Run database migrations:
+
+   ```bash
+   npm run migrate
+   ```
+
+6. Start the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+7. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Extending the Application
+
+### Adding New Tools
+
+To add a new tool to the application:
+
+1. Create a new file in `lib/ai/tools/` with your tool implementation
+2. Define the tool interface using Zod for parameter validation
+3. Implement the tool's functionality
+4. Register the tool in the appropriate registry
+
+Example:
+
+```typescript
+// lib/ai/tools/my-tool.ts
+import { z } from "zod";
+
+export function myTool({
+  userId,
+  dataStream,
+}: {
+  userId: string;
+  dataStream: DataStreamProps;
+}) {
+  return {
+    description: "Description of what the tool does",
+    parameters: z.object({
+      param1: z.string().describe("Description of param1"),
+      param2: z.number().describe("Description of param2"),
+    }),
+    execute: async ({ param1, param2 }) => {
+      // Tool implementation
+      return {
+        success: true,
+        result: "Tool execution result",
+      };
+    },
+  };
+}
 ```
 
-Then edit `.env.local` with your API keys and configuration.
+### Adding New OAuth Providers
 
-4. Run the development server:
+To add a new OAuth provider:
 
-```shellscript
-npm run dev
-# or
-yarn dev
-```
+1. Configure the provider in your Descope project
+2. Add the provider to the `DEFAULT_SCOPES` in `lib/oauth-utils.ts`
+3. Add the provider to the `specUrls` in `lib/openapi-utils.ts` if it has an OpenAPI spec
+4. Add the provider to the connections list in the UI
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+### Using Different LLM Models
 
-## Usage
+The application supports multiple LLM providers through the AI SDK:
 
-### Authentication
+- OpenAI
+- Anthropic
+- Groq
 
-CRM Assistant uses OAuth for authentication. Users can sign in with:
+To use a different model:
 
-- Email/password
-- Google
-- Microsoft
-- Other OAuth providers
+1. Configure the model in your environment variables
+2. Update the model configuration in `lib/ai/models.ts`
 
-### Quick Actions
+### Connecting to a Different Database
 
-The sidebar provides quick access to common tasks:
+The application uses Drizzle ORM, which supports multiple databases. To use a different database:
 
-- CRM Lookup: Get customer information and deal history
-- Schedule Meeting: Create calendar events with contacts
-- Create Zoom Meeting: Set up video conferences
-- Summarize Deal: Generate deal summaries and save to Google Docs
+1. Update the `DATABASE_URL` in your environment variables
+2. Modify the database configuration in `lib/db/migrate.ts` if needed
 
-### Chat Interface
+## Descope Outbound Apps
 
-The main chat interface allows natural language interaction:
+Descope Outbound Apps provide a secure way to manage OAuth tokens for third-party services. In this application, they are used to:
 
-1. Type your request in the input field
-2. The AI will process your request and respond accordingly
-3. For complex tasks, the AI may use integrations to fetch data or perform actions
-4. Explanations are provided for API interactions
+1. Securely store OAuth tokens
+2. Automatically refresh expired tokens
+3. Manage token scopes
+4. Associate tokens with specific users
 
-### Managing Connections
+### How Outbound Apps Work
 
-In the Profile section, you can:
+1. When a user connects to a service (e.g., Google Calendar), the application redirects them to the service's OAuth page
+2. After authorization, the service redirects back to the application with an authorization code
+3. The application sends the code to Descope, which exchanges it for access and refresh tokens
+4. Descope securely stores the tokens and associates them with the user
+5. When the application needs to make API calls, it requests the token from Descope
+6. Descope handles token refresh automatically when tokens expire
 
-1. Connect third-party services via OAuth
-2. Manage permissions for connected services
-3. Refresh connections when needed
-4. Disconnect services you no longer want to use
+This approach ensures that:
 
-### Chat History
+- Tokens are stored securely
+- Token refresh is handled automatically
+- Tokens are associated with specific users
+- The application never directly handles sensitive tokens
 
-Access your chat history in the Profile section:
+## Analytics Integration
 
-1. View past conversations
-2. Star important chats
-3. Share conversations with colleagues
-4. Delete unwanted history
+The application includes built-in analytics tracking for:
 
-## Configuration
+- OAuth connections and disconnections
+- Tool usage
+- Errors
+- User activity
 
-### Environment Variables
+To use your own analytics provider:
 
-The following environment variables are required:
-
-```plaintext
-# Descope
-NEXT_PUBLIC_DESCOPE_PROJECT_ID=your-descope-project-id
-DESCOPE_MANAGEMENT_KEY=your-descope-management-key
-
-# OpenAI
-OPENAI_API_KEY=your-openai-api-key
-```
-
-### Customization
-
-You can customize the appearance and behavior of CRM Assistant by modifying:
-
-- `tailwind.config.ts` for theme customization
-- `components/ui` for UI component styling
-- `app/api` for backend API behavior
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Update the analytics configuration in `lib/analytics.ts`
+2. Set the appropriate environment variables
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Calendar Tools
+## Acknowledgements
 
-The CRM Assistant includes powerful calendar integration tools:
-
-### Google Calendar Integration
-
-- **Create Calendar Events**: Schedule meetings and events directly from the assistant
-- **List Calendar Events**: View your upcoming calendar events
-- **Add Attendees**: Automatically add attendees to your calendar events
-- **CRM Contact Integration**: Look up contact emails from your CRM when scheduling meetings
-
-## Usage Examples
-
-### Scheduling a Meeting
-
-```
-Schedule a meeting with John Smith tomorrow at 2pm for 1 hour
-```
-
-### Viewing Upcoming Events
-
-```
-Show me my upcoming calendar events for this week
-```
-
-### Creating a Meeting with Multiple Attendees
-
-```
-Schedule a team meeting with Sarah, Michael, and David next Monday at 10am for 2 hours
-```
-
-## Development
-
-### Tools Structure
-
-The calendar tools are built using a clean, modular architecture:
-
-- `lib/tools/calendar.ts`: Tool for creating calendar events
-- `lib/tools/calendar-list.ts`: Tool for listing calendar events
-
-Each tool follows a consistent pattern:
-
-- Clear interface definitions
-- Proper validation
-- Error handling with user-friendly messages
-- OAuth token management
-- Google Calendar API integration
-
-### Adding New Calendar Features
-
-To add new calendar features:
-
-1. Create a new tool class in the `lib/tools` directory
-2. Extend the base `Tool` class
-3. Implement the required methods: `validate` and `execute`
-4. Register the tool with the `toolRegistry`
-5. Add the tool to the chat route in `app/api/chat/route.ts`
+- [Next.js](https://nextjs.org/)
+- [Descope](https://www.descope.com/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Radix UI](https://www.radix-ui.com/)
+- [Drizzle ORM](https://orm.drizzle.team/)
+- [PostgreSQL](https://www.postgresql.org/)
+- [OpenAI](https://openai.com/)
+- [Anthropic](https://www.anthropic.com/)
+- [Groq](https://groq.com/)

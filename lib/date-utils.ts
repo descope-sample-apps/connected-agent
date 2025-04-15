@@ -14,6 +14,12 @@ import {
   nextSunday,
   parseISO,
   isValid,
+  setHours,
+  setMinutes,
+  isBefore,
+  startOfDay,
+  endOfDay,
+  addHours,
 } from "date-fns";
 
 export interface ParsedDate {
@@ -23,15 +29,27 @@ export interface ParsedDate {
   isoString: string;
 }
 
+// Helper function to determine if a time is morning, afternoon, or evening
+function getTimeOfDay(timeString: string): { hour: number; minute: number } {
+  const lowerTimeString = timeString.toLowerCase();
+
+  // Default times for different parts of the day
+  if (lowerTimeString === "morning") return { hour: 9, minute: 0 };
+  if (lowerTimeString === "afternoon") return { hour: 14, minute: 0 };
+  if (lowerTimeString === "evening") return { hour: 18, minute: 0 };
+  if (lowerTimeString === "night") return { hour: 20, minute: 0 };
+
+  return { hour: 12, minute: 0 }; // Default to noon
+}
+
 export function parseRelativeDate(
   dateString: string,
-  timeString: string,
+  timeString: string = "12:00",
   baseDate: Date = new Date()
 ): ParsedDate {
   try {
-    // Set base date to midnight to avoid timezone issues
-    const base = new Date(baseDate);
-    base.setHours(0, 0, 0, 0);
+    // Set base date to start of day to avoid timezone issues
+    const base = startOfDay(new Date(baseDate));
 
     let targetDate: Date;
     const lowerDateString = dateString.toLowerCase().trim();
@@ -48,45 +66,57 @@ export function parseRelativeDate(
     } else if (lowerDateString === "next year") {
       targetDate = addYears(base, 1);
     }
-    // Handle specific days of the week
+    // Handle days of the week with "this" or "next"
     else if (lowerDateString.includes("monday") || lowerDateString === "mon") {
-      targetDate = nextMonday(base);
+      targetDate = lowerDateString.includes("this")
+        ? nextMonday(addDays(base, -7))
+        : nextMonday(base);
     } else if (
       lowerDateString.includes("tuesday") ||
       lowerDateString === "tue"
     ) {
-      targetDate = nextTuesday(base);
+      targetDate = lowerDateString.includes("this")
+        ? nextTuesday(addDays(base, -7))
+        : nextTuesday(base);
     } else if (
       lowerDateString.includes("wednesday") ||
       lowerDateString === "wed"
     ) {
-      targetDate = nextWednesday(base);
+      targetDate = lowerDateString.includes("this")
+        ? nextWednesday(addDays(base, -7))
+        : nextWednesday(base);
     } else if (
       lowerDateString.includes("thursday") ||
       lowerDateString === "thu"
     ) {
-      targetDate = nextThursday(base);
+      targetDate = lowerDateString.includes("this")
+        ? nextThursday(addDays(base, -7))
+        : nextThursday(base);
     } else if (
       lowerDateString.includes("friday") ||
       lowerDateString === "fri"
     ) {
-      targetDate = nextFriday(base);
+      targetDate = lowerDateString.includes("this")
+        ? nextFriday(addDays(base, -7))
+        : nextFriday(base);
     } else if (
       lowerDateString.includes("saturday") ||
       lowerDateString === "sat"
     ) {
-      targetDate = nextSaturday(base);
+      targetDate = lowerDateString.includes("this")
+        ? nextSaturday(addDays(base, -7))
+        : nextSaturday(base);
     } else if (
       lowerDateString.includes("sunday") ||
       lowerDateString === "sun"
     ) {
-      targetDate = nextSunday(base);
+      targetDate = lowerDateString.includes("this")
+        ? nextSunday(addDays(base, -7))
+        : nextSunday(base);
     }
-    // Try to parse as a formatted date (YYYY-MM-DD, MM/DD/YYYY, etc.)
+    // Try to parse as a formatted date
     else {
-      // Try different date formats
       const formats = ["yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy", "MMM d, yyyy"];
-
       let parsedDate: Date | null = null;
 
       // Try each format until one works
@@ -126,43 +156,52 @@ export function parseRelativeDate(
     let minute = 0;
 
     try {
-      // Handle various time formats
       const lowerTimeString = timeString.toLowerCase().trim();
 
-      // Check for AM/PM
-      const isPM = lowerTimeString.includes("pm");
-
-      // Try to parse "HH:MM" format first
-      if (lowerTimeString.includes(":")) {
+      // Handle time of day descriptions
+      if (
+        ["morning", "afternoon", "evening", "night"].includes(lowerTimeString)
+      ) {
+        const timeOfDay = getTimeOfDay(lowerTimeString);
+        hour = timeOfDay.hour;
+        minute = timeOfDay.minute;
+      }
+      // Handle AM/PM format
+      else if (lowerTimeString.includes(":")) {
+        const isPM = lowerTimeString.includes("pm");
         const [hours, minutes] = lowerTimeString.split(":");
         hour = parseInt(hours, 10);
-        // Extract just the number part from minutes (in case it includes AM/PM)
         minute = parseInt(minutes.replace(/[^0-9]/g, ""), 10);
+
+        if (isPM && hour !== 12) hour += 12;
+        if (!isPM && hour === 12) hour = 0;
       }
       // Handle "X PM" or "X AM" format
       else if (
         lowerTimeString.includes("am") ||
         lowerTimeString.includes("pm")
       ) {
+        const isPM = lowerTimeString.includes("pm");
         hour = parseInt(lowerTimeString.replace(/[^0-9]/g, ""), 10);
         minute = 0;
+
+        if (isPM && hour !== 12) hour += 12;
+        if (!isPM && hour === 12) hour = 0;
       }
       // Just a number, assume it's the hour
       else if (!isNaN(parseInt(lowerTimeString, 10))) {
         hour = parseInt(lowerTimeString, 10);
+        // If hour is between 1-7, assume PM
+        if (hour >= 1 && hour <= 7) hour += 12;
         minute = 0;
       }
-
-      // Apply AM/PM conversion
-      if (isPM && hour !== 12) hour += 12;
-      if (!isPM && hour === 12) hour = 0;
 
       // Validate hour and minute
       if (isNaN(hour) || hour < 0 || hour > 23) {
         console.warn(
-          `Invalid hour in time string "${timeString}", defaulting to 0`
+          `Invalid hour in time string "${timeString}", defaulting to 12`
         );
-        hour = 0;
+        hour = 12;
       }
 
       if (isNaN(minute) || minute < 0 || minute > 59) {
@@ -173,13 +212,27 @@ export function parseRelativeDate(
       }
     } catch (e) {
       console.error(`Error parsing time string "${timeString}":`, e);
-      // Default to midnight if there's an error
-      hour = 0;
+      // Default to noon if there's an error
+      hour = 12;
       minute = 0;
     }
 
     // Set the time on the target date
-    targetDate.setHours(hour, minute, 0, 0);
+    targetDate = setHours(setMinutes(targetDate, minute), hour);
+
+    // If the resulting date is in the past, add appropriate time
+    if (isBefore(targetDate, new Date())) {
+      if (lowerDateString.includes("today")) {
+        // If it's today but the time is past, default to 1 hour from now
+        targetDate = addHours(new Date(), 1);
+      } else if (
+        !lowerDateString.includes("this") &&
+        !lowerDateString.includes("last")
+      ) {
+        // For other dates in the past, assume next occurrence
+        targetDate = addWeeks(targetDate, 1);
+      }
+    }
 
     return {
       date: targetDate,

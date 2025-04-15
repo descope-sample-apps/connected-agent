@@ -48,85 +48,43 @@ export async function POST(request: Request) {
     let success = false;
     let errorDetails = null;
 
+    const baseUrl = process.env.DESCOPE_BASE_URL || "https://api.descope.com";
+
     try {
-      // First, try to get the token to see if it exists (to determine if we need to really delete)
-      const tokenResponse = await fetch(
-        `https://api.descope.com/v1/mgmt/outbound/app/user/token?appId=${encodeURIComponent(
-          providerId
-        )}&userId=${encodeURIComponent(userId)}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${projectId}:${managementKey}`,
-          },
-        }
+      // Call Descope API to revoke the token using the correct endpoint with query parameters
+      const url = `${baseUrl}/v1/mgmt/outbound/user/tokens?appId=${encodeURIComponent(
+        providerId
+      )}&userId=${encodeURIComponent(userId)}`;
+
+      console.log(`Making disconnect request to Descope: ${url}`);
+
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${projectId}:${managementKey}`,
+        },
+      });
+
+      // Log the response
+      console.log(
+        `Descope disconnect response status: ${response.status} ${response.statusText}`
       );
 
-      console.log(`Descope token existence check: ${tokenResponse.status}`);
-      const tokenExists = tokenResponse.status === 200;
-
-      // Log the token response for debugging
-      if (tokenExists) {
-        try {
-          const tokenData = await tokenResponse.json();
-          console.log(
-            `Found existing token for ${providerId}:`,
-            JSON.stringify({
-              tokenId: tokenData.token?.id,
-              expired: tokenData.token?.accessTokenExpiry
-                ? parseInt(tokenData.token.accessTokenExpiry) <
-                  Math.floor(Date.now() / 1000)
-                : false,
-            })
-          );
-        } catch (e) {
-          console.error("Error parsing token response:", e);
-        }
+      try {
+        const responseText = await response.text();
+        console.log(
+          `Descope disconnect response body: ${
+            responseText || "Empty response"
+          }`
+        );
+      } catch (e) {
+        console.log("No response body available");
       }
 
-      // If token exists, proceed with deletion
-      if (tokenExists) {
-        // Call Descope API to revoke the token using the correct endpoint with query parameters
-        const url = `https://api.descope.com/v1/mgmt/outbound/user/tokens?appId=${encodeURIComponent(
-          providerId
-        )}&userId=${encodeURIComponent(userId)}`;
-
-        console.log(`Making disconnect request to Descope: ${url}`);
-
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${projectId}:${managementKey}`,
-          },
-        });
-
-        // Log the response
-        console.log(
-          `Descope disconnect response status: ${response.status} ${response.statusText}`
-        );
-
-        try {
-          const responseText = await response.text();
-          console.log(
-            `Descope disconnect response body: ${
-              responseText || "Empty response"
-            }`
-          );
-        } catch (e) {
-          console.log("No response body available");
-        }
-
-        if (response.ok || response.status === 404) {
-          success = true;
-        } else {
-          errorDetails = `API error: ${response.status} ${response.statusText}`;
-        }
-      } else {
-        // If token doesn't exist, consider disconnection successful
-        console.log(
-          `No token found for ${providerId} and user ${userId}, considered already disconnected`
-        );
+      if (response.ok || response.status === 404) {
         success = true;
+      } else {
+        errorDetails = `API error: ${response.status} ${response.statusText}`;
       }
     } catch (error) {
       console.error("Error in disconnect API call:", error);

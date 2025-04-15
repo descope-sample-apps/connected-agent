@@ -75,18 +75,17 @@ export async function getOAuthToken(
     options,
   };
 
+  const baseUrl = process.env.DESCOPE_BASE_URL || "https://api.descope.com";
+
   try {
-    const response = await fetch(
-      "https://api.descope.com/v1/mgmt/outbound/app/user/token",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${projectId}:${managementKey}`,
-        },
-        body: JSON.stringify(requestBody),
-      }
-    );
+    const response = await fetch(`${baseUrl}/v1/mgmt/outbound/app/user/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${projectId}:${managementKey}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
 
     // Clone the response to read the body without consuming it
     const clonedResponse = response.clone();

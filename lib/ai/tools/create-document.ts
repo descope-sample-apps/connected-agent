@@ -56,11 +56,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
           hasError: tokenData && "error" in tokenData,
           scopes:
             tokenData && !("error" in tokenData) ? tokenData.token.scopes : [],
-          requiredScopes: [
-            "https://www.googleapis.com/auth/documents",
-            "https://www.googleapis.com/auth/drive",
-            "https://www.googleapis.com/auth/drive.file",
-          ],
+          requiredScopes: ["https://www.googleapis.com/auth/documents"],
         });
 
         if (!tokenData || "error" in tokenData) {
@@ -95,11 +91,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
             requiredScopes:
               tokenData && "requiredScopes" in tokenData
                 ? tokenData.requiredScopes
-                : [
-                    "https://www.googleapis.com/auth/documents",
-                    "https://www.googleapis.com/auth/drive",
-                    "https://www.googleapis.com/auth/drive.file",
-                  ],
+                : ["https://www.googleapis.com/auth/documents"],
             ui: {
               type: "connection_required",
               service: "google-docs",
@@ -108,11 +100,7 @@ export function createDocument({ session, dataStream }: CreateDocumentProps) {
               requiredScopes:
                 tokenData && "requiredScopes" in tokenData
                   ? tokenData.requiredScopes
-                  : [
-                      "https://www.googleapis.com/auth/documents",
-                      "https://www.googleapis.com/auth/drive",
-                      "https://www.googleapis.com/auth/drive.file",
-                    ],
+                  : ["https://www.googleapis.com/auth/documents"],
               connectButton: {
                 text: "Connect Google Docs",
                 action: "connection://google-docs",

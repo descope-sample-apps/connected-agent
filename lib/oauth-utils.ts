@@ -57,11 +57,7 @@ interface OAuthOptions {
 // Add default scopes for providers when none are specified
 export const DEFAULT_SCOPES: Record<string, string[]> = {
   "google-calendar": ["https://www.googleapis.com/auth/calendar"],
-  "google-docs": [
-    "https://www.googleapis.com/auth/documents",
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/drive.file",
-  ],
+  "google-docs": ["https://www.googleapis.com/auth/documents"],
   "google-meet": ["https://www.googleapis.com/auth/meetings.space.created"],
   "custom-crm": ["openid", "contacts:read", "deals:read"],
 };
@@ -403,7 +399,7 @@ export async function handleOAuthPopup(
         if (callbacks?.onError) callbacks.onError(error);
         reject(error);
       }
-    }, 300000); // 5 minutes timeout
+    }, 300000);
   });
 }
 
@@ -447,12 +443,6 @@ export interface ToolActionContext {
   provider: string;
   parameters: Record<string, any>;
 }
-
-// Cache for tool action results
-const toolActionCache: Record<string, ToolActionResult[]> = {};
-
-// Helper to check if we're in a browser environment
-const isBrowser = typeof window !== "undefined";
 
 /**
  * Simple consolidated function to track tool actions with analytics

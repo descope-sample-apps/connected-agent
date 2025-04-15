@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { trackOAuthEvent } from "@/lib/analytics";
 
 // Create a separate component that uses useSearchParams
 function OAuthRedirectContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -14,31 +13,8 @@ function OAuthRedirectContent() {
     const handleRedirect = async () => {
       try {
         // Get parameters from URL
-        const code = searchParams.get("code"); // Authorization code
         const error = searchParams.get("error");
         const errorDescription = searchParams.get("error_description");
-        const state = searchParams.get("state");
-
-        // Parse state to get redirect information
-        let redirectPath = "/";
-        let redirectTo = "profile";
-        let chatId = null;
-
-        // Try to parse state JSON
-        if (state) {
-          try {
-            const stateObj = JSON.parse(state);
-            redirectTo = stateObj.redirectTo || "profile";
-
-            // If state includes a chatId, use it for returning to the specific chat
-            if (stateObj.chatId) {
-              chatId = stateObj.chatId;
-              console.log("Found chat ID in state:", chatId);
-            }
-          } catch (e) {
-            console.error("Failed to parse state JSON:", e);
-          }
-        }
 
         // Check if there's an error
         if (error) {
@@ -52,93 +28,86 @@ function OAuthRedirectContent() {
             errorDescription: errorDescription || "",
           });
 
-          // Redirect with error parameters
-          if (redirectTo === "chat" && chatId) {
-            // If returning to chat, include the chat ID
-            redirectPath = `/?oauth=error&error=${encodeURIComponent(
-              error
-            )}&redirectTo=chat&chatId=${chatId}`;
-          } else {
-            // Otherwise, redirect to generic error page
-            redirectPath = `/?oauth=error&error=${encodeURIComponent(
-              error
-            )}&redirectTo=${redirectTo}`;
+          // Send error message to parent window
+          if (typeof window !== "undefined" && window.opener) {
+            window.opener.postMessage(
+              { type: "oauth-error", error: errorDescription || error },
+              window.location.origin
+            );
           }
-
-          // Redirect after a short delay
-          setTimeout(() => {
-            router.push(redirectPath);
-          }, 1000);
-          return;
-        }
-
-        // No error, handle successful authorization
-        if (code) {
-          console.log("OAuth successful, code received");
+        } else {
+          // No error means success - Descope has handled the code exchange
+          console.log("OAuth successful");
 
           // Track success
           trackOAuthEvent("connection_successful", {
             provider: "oauth",
-            redirectTo,
-            hasCode: !!code,
           });
 
-          // Build redirect URL depending on where we need to go
-          if (redirectTo === "chat" && chatId) {
-            // If returning to chat, include the chat ID
-            redirectPath = `/?oauth=success&redirectTo=chat&chatId=${chatId}`;
-          } else {
-            // Otherwise, redirect to profile or home
-            redirectPath = `/?oauth=success&redirectTo=${redirectTo}`;
+          // Send success message to parent window
+          if (typeof window !== "undefined" && window.opener) {
+            window.opener.postMessage(
+              { type: "oauth-success" },
+              window.location.origin
+            );
           }
-
-          // Redirect immediately
-          router.push(redirectPath);
-          return;
         }
 
-        // No code and no error, redirect to home
-        console.log("No code or error found in OAuth redirect");
-        router.push("/");
+        // Close the popup window immediately
+        if (typeof window !== "undefined") {
+          window.close();
+        }
       } catch (error) {
-        console.error("Error in OAuth redirect:", error);
-        setErrorMessage("An unexpected error occurred during authentication.");
+        console.error("Error in OAuth redirect handler:", error);
+        trackOAuthEvent("connection_failed", {
+          provider: "oauth",
+          error: String(error),
+        });
 
-        // Redirect to home with error after a delay
-        setTimeout(() => {
-          router.push("/?oauth=error&error=unexpected_error");
-        }, 2000);
+        // Send error message to parent window
+        if (typeof window !== "undefined" && window.opener) {
+          window.opener.postMessage(
+            { type: "oauth-error", error: String(error) },
+            window.location.origin
+          );
+        }
+
+        // Close the popup window
+        if (typeof window !== "undefined") {
+          window.close();
+        }
       }
     };
 
     handleRedirect();
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-      <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
-        {errorMessage ? "Authentication Error" : "Redirecting..."}
-      </h2>
-      <p className="text-gray-600 dark:text-gray-400">
-        {errorMessage || "Completing your authentication. Please wait..."}
-      </p>
+    <div className="flex min-h-screen flex-col items-center justify-center p-4 text-center">
+      <div className="w-full max-w-md space-y-4">
+        <h1 className="text-2xl font-bold">Completing Authorization</h1>
+        {errorMessage ? (
+          <div className="text-red-500">{errorMessage}</div>
+        ) : (
+          <div className="text-gray-600">
+            Please wait while we complete the authorization process...
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+// Wrap the component that uses useSearchParams in Suspense
 export default function OAuthRedirectPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex flex-col items-center justify-center h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
-            Loading...
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Preparing authentication...
-          </p>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Loading...</h1>
+            <p className="text-gray-600">Please wait...</p>
+          </div>
         </div>
       }
     >

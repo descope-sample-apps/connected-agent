@@ -27,7 +27,11 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
-import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
+import {
+  connectToOAuthProvider,
+  disconnectOAuthProvider,
+  handleOAuthPopup,
+} from "@/lib/oauth-utils";
 
 interface UserMenuProps {
   onProfileClick?: () => void;
@@ -76,6 +80,7 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
 
   useEffect(() => {
     fetchConnections();
@@ -115,55 +120,61 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
     }
   };
 
-  const handleConnectClick = async (connectionId: string) => {
+  const handleConnectClick = async (providerId: string) => {
     try {
-      setIsConnecting(connectionId);
+      setIsConnecting(providerId);
 
-      // Get current chat ID from localStorage to preserve chat context
-      const currentChatId =
-        localStorage.getItem("currentChatId") || `chat-${Date.now()}`;
+      // Simple redirect URL (no need for redirectTo param as we'll handle it in the popup)
+      const redirectUrl = `${window.location.origin}/api/oauth/callback`;
 
-      // Redirect directly back to the current chat after OAuth completes
-      const redirectUrl = `${window.location.origin}/chat/${currentChatId}`;
-      console.log(`Setting OAuth redirect to: ${redirectUrl}`);
-
-      // Get authorization URL
+      // Handle connection
       const authUrl = await connectToOAuthProvider({
-        appId: connectionId,
+        appId: providerId,
         redirectUrl,
-        // No need to use state for chat ID since it's in the redirectUrl
         state: {
-          redirectTo: "chat",
+          originalUrl: window.location.href,
         },
       });
 
-      // Handle the OAuth flow
+      // Handle the OAuth popup
       await handleOAuthPopup(authUrl, {
         onSuccess: () => {
-          // Refresh connections list immediately
+          // Refresh connections immediately
           fetchConnections().then(() => {
             toast({
-              title: "Connected successfully",
+              title: "Connected",
               description: `Successfully connected to ${
-                connections.find((c) => c.id === connectionId)?.name
+                connections.find((c) => c.id === providerId)?.name || providerId
               }`,
             });
           });
         },
         onError: (error) => {
-          toast({
-            title: "Connection failed",
-            description: error.message || "Failed to connect",
-            variant: "destructive",
-          });
+          // Don't show errors for user cancellation
+          if (
+            error instanceof Error &&
+            (error.name === "AuthCanceled" ||
+              error.message === "Authentication window was closed")
+          ) {
+            console.log("User canceled authentication, not showing error");
+          } else {
+            toast({
+              title: "Error",
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to connect service",
+              variant: "destructive",
+            });
+          }
         },
       });
     } catch (error) {
-      console.error("Error connecting:", error);
+      console.error("Error connecting provider:", error);
       toast({
-        title: "Connection failed",
+        title: "Error",
         description:
-          error instanceof Error ? error.message : "Failed to connect",
+          error instanceof Error ? error.message : "Failed to connect service",
         variant: "destructive",
       });
     } finally {
@@ -171,22 +182,74 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
     }
   };
 
+  const handleDisconnectClick = async (providerId: string) => {
+    try {
+      setIsDisconnecting(providerId);
+
+      // Immediately mark as disconnected in the UI for better UX
+      setConnections((prev) =>
+        prev.map((connection) =>
+          connection.id === providerId
+            ? { ...connection, connected: false }
+            : connection
+        )
+      );
+
+      // Call the disconnection function
+      const success = await disconnectOAuthProvider({ providerId });
+
+      if (success) {
+        console.log(`Successfully disconnected ${providerId}`);
+
+        // Fetch the latest connection status with a delay to ensure Descope has time to update
+        setTimeout(async () => {
+          await fetchConnections();
+          toast({
+            title: "Disconnected",
+            description: `Successfully disconnected from ${
+              connections.find((c) => c.id === providerId)?.name || providerId
+            }`,
+          });
+        }, 500);
+      } else {
+        throw new Error("Failed to disconnect provider");
+      }
+    } catch (error) {
+      console.error("Error disconnecting provider:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to disconnect service",
+        variant: "destructive",
+      });
+
+      // Still refresh connections to get the real status
+      await fetchConnections();
+    } finally {
+      setIsDisconnecting(null);
+    }
+  };
+
   // Get icon based on connection type
   const getIcon = (connection: Connection) => {
-    switch (connection.id) {
-      case "google-calendar":
-        return <Calendar className="h-4 w-4 text-indigo-500" />;
-      case "google-docs":
-        return <FileText className="h-4 w-4 text-purple-500" />;
-      case "google-meet":
-        return <Video className="h-4 w-4 text-indigo-500" />;
-      case "custom-crm":
-        return <Database className="h-4 w-4 text-purple-500" />;
-      case "slack":
-        return <MessageSquare className="h-4 w-4 text-indigo-500" />;
-      default:
-        return <ExternalLink className="h-4 w-4 text-indigo-500" />;
+    if (connection.icon.endsWith(".svg")) {
+      return (
+        <img
+          src={connection.icon}
+          alt={connection.name}
+          className="w-5 h-5 object-contain"
+        />
+      );
     }
+    return (
+      <img
+        src={connection.icon}
+        alt={connection.name}
+        className="w-5 h-5 object-contain"
+      />
+    );
   };
 
   if (!user) return null;
@@ -247,9 +310,6 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
                 <div
                   key={connection.id}
                   className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                  onClick={() =>
-                    !connection.connected && handleConnectClick(connection.id)
-                  }
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 relative flex items-center justify-center">
@@ -259,16 +319,30 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
                   </div>
                   {isConnecting === connection.id ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : isDisconnecting === connection.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : connection.connected ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 border border-red-200 dark:border-red-800"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDisconnectClick(connection.id);
+                      }}
+                    >
+                      Disconnect
+                    </Button>
                   ) : (
                     <Badge
-                      variant={connection.connected ? "default" : "outline"}
-                      className={`text-xs px-1 py-0 h-5 ${
-                        connection.connected
-                          ? "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-                          : ""
-                      }`}
+                      variant="outline"
+                      className="text-xs px-1 py-0 h-5 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleConnectClick(connection.id);
+                      }}
                     >
-                      {connection.connected ? "Connected" : "Connect"}
+                      Connect
                     </Badge>
                   )}
                 </div>

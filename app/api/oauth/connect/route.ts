@@ -9,9 +9,6 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    // Log the request start
-    console.log("===== OAUTH CONNECT REQUEST =====");
-
     // Parse the request
     const { appId, options } = await request.json();
 
@@ -36,9 +33,9 @@ export async function POST(request: Request) {
     }
 
     // Get the user's refresh token from cookie or header
-    const cookieStore = cookies();
-    const refreshTokenCookie = cookieStore.get("DSR");
     const refreshTokenHeader = request.headers.get("X-Refresh-Token");
+    const cookieStore = await cookies();
+    const refreshTokenCookie = cookieStore.get("DSR");
     const refreshToken = refreshTokenCookie?.value || refreshTokenHeader;
 
     if (!refreshToken) {
@@ -49,42 +46,14 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(`Refresh token found (${refreshToken.substring(0, 10)}...)`);
-
-    // Define default scopes for Google Docs if needed
-    if (
-      appId === "google-docs" &&
-      (!options.scopes || options.scopes.length === 0)
-    ) {
-      console.log("Adding default scopes for Google Docs");
-      options.scopes = [
-        "https://www.googleapis.com/auth/documents",
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/drive.file",
-      ];
-      console.log("Updated scopes:", options.scopes);
-    }
-
-    const serviceUrl =
-      process.env.DESCOPE_SERVICE_URL || "https://api.descope.com";
+    const baseUrl = process.env.DESCOPE_BASE_URL || "https://api.descope.com";
     const projectId = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID || "";
 
-    // Make the request to Descope API
-    console.log(
-      `Making request to Descope API: ${serviceUrl}/v1/auth/oauth/authorize`
-    );
-    console.log(`Request body:`, {
-      appId,
-      options,
-      refreshToken: "PRESENT (hidden)",
-    });
-
-    const response = await fetch(`${serviceUrl}/v1/auth/oauth/authorize`, {
+    const response = await fetch(`${baseUrl}/v1/outbound/oauth/connect`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-descope-sdk-web-refresh-token": refreshToken,
-        Authorization: `Bearer ${projectId}`,
+        Authorization: `Bearer ${projectId}:${refreshToken}`,
       },
       body: JSON.stringify({
         appId,
