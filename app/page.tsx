@@ -25,6 +25,7 @@ import PromptExplanation from "@/components/prompt-explanation";
 import PromptTrigger from "@/components/prompt-trigger";
 import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
+import { useTimezone } from "@/context/timezone-context";
 import {
   Calendar,
   FileText,
@@ -491,6 +492,9 @@ export default function Home() {
   const [isHandlingChatChange, setIsHandlingChatChange] = useState(false);
   const [chatRedirectAttempts, setChatRedirectAttempts] = useState(0);
 
+  // Get timezone information from the context
+  const { timezone, timezoneOffset } = useTimezone();
+
   const {
     messages,
     input,
@@ -506,6 +510,8 @@ export default function Home() {
     body: {
       id: currentChatId,
       selectedChatModel: selectedModel,
+      timezone, // Include the timezone in the request
+      timezoneOffset, // Include the timezone offset in the request
     },
     credentials: "include",
     onFinish: (message) => {
@@ -602,7 +608,10 @@ export default function Home() {
         console.log("Fetching messages for chat:", currentChatId);
 
         // Check if we already have messages for this chat
-        if (messages.length > 0 && messages[0]?.chatId === currentChatId) {
+        if (
+          messages.length > 0 &&
+          (messages[0] as any)?.chatId === currentChatId
+        ) {
           console.log("Messages already loaded for chat:", currentChatId);
           return;
         }
@@ -1545,7 +1554,7 @@ export default function Home() {
             </h1>
 
             <div className="flex items-center gap-3">
-              {isAuthenticated && messages.length > 0 && (
+              {/* {isAuthenticated && messages.length > 0 && (
                 <div className="flex items-center gap-2 mr-2">
                   <Button
                     variant="outline"
@@ -1556,7 +1565,7 @@ export default function Home() {
                     <Share2 className="h-4 w-4 mr-2" /> Share
                   </Button>
                 </div>
-              )}
+              )} */}
 
               <TooltipProvider>
                 <Tooltip>

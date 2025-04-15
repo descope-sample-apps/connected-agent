@@ -231,20 +231,20 @@ export default function ChatMessage({
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-sm shadow-sm transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 border border-blue-400/20"
         >
           {isCalendarLink ? (
             <>
               <Calendar className="h-4 w-4" />
-              View Calendar Event
+              <span>View Calendar Event</span>
             </>
           ) : (
             <>
               <Video className="h-4 w-4" />
-              Join Meeting
+              <span>Join Meeting</span>
             </>
           )}
-          <ExternalLink className="h-3 w-3" />
+          <ExternalLink className="h-3 w-3 ml-1 opacity-70" />
         </a>
       </div>
     );
@@ -441,20 +441,20 @@ export default function ChatMessage({
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-sm shadow-sm transition-colors mt-3 no-underline"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 border border-blue-400/20 no-underline mt-3"
                   >
                     {isCalendarLink ? (
                       <>
                         <Calendar className="h-4 w-4" />
-                        View Calendar Event
+                        <span>View Calendar Event</span>
                       </>
                     ) : (
                       <>
                         <Video className="h-4 w-4" />
-                        Join Meeting
+                        <span>Join Meeting</span>
                       </>
                     )}
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="h-3 w-3 ml-1 opacity-70" />
                   </a>
                 );
               }

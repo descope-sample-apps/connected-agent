@@ -427,7 +427,6 @@ export default function Chat({
 
   // Render a standard message bubble
   const renderMessage = (message: ExtendedMessage) => {
-    console.log("renderMessage", message);
     // Skip rendering if message content is empty
     if (!message.content && (!message.parts || message.parts.length === 0)) {
       return null;
@@ -435,6 +434,8 @@ export default function Chat({
 
     // Check if this message has an action card
     const hasActionCard = message.actionCard !== undefined;
+    const hasToolActions =
+      message.toolActions && message.toolActions.length > 0;
     const showConnectionPrompt =
       message.role === "assistant" &&
       message.content &&
@@ -456,6 +457,8 @@ export default function Chat({
       message.role === "assistant" &&
       message.content &&
       message.content.includes('{"type":"step-start"}');
+
+    console.log("isStepStart", isStepStart);
 
     const isGeneralStreamingPlaceholder =
       message.role === "assistant" &&

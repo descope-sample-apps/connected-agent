@@ -42,6 +42,7 @@ import { toolRegistry } from "@/lib/tools/base";
 import { CalendarTool } from "@/lib/tools/calendar";
 import { CalendarListTool } from "@/lib/tools/calendar-list";
 import { searchContact } from "@/lib/api/crm-utils";
+import { format, addDays, addWeeks } from "date-fns";
 
 // Add this interface definition
 interface DataStreamWithAppend {
@@ -282,10 +283,14 @@ export async function POST(request: Request) {
       id,
       messages,
       selectedChatModel = DEFAULT_CHAT_MODEL,
+      timezone = "UTC",
+      timezoneOffset = 0,
     }: {
       id: string;
       messages: Array<UIMessage>;
       selectedChatModel?: string;
+      timezone?: string;
+      timezoneOffset?: number;
     } = await request.json();
 
     // Validate the chat ID
@@ -293,6 +298,9 @@ export async function POST(request: Request) {
       console.error("Missing chat ID in request");
       return new Response("Chat ID is required", { status: 400 });
     }
+
+    // Log timezone information for debugging
+    console.log(`Request timezone: ${timezone} (offset: ${timezoneOffset})`);
 
     const userSession = await session();
 
@@ -367,15 +375,53 @@ export async function POST(request: Request) {
           timeString?: string;
         }) => {
           try {
-            const dateContext = getCurrentDateContext();
-            const parsedDate = parseRelativeDate(dateString, timeString);
+            console.log(
+              `Parsing date: "${dateString}" at time: "${timeString}" with timezone: ${timezone}`
+            );
+
+            // Always use a fresh current date
+            const now = new Date();
+            console.log(`Current timestamp: ${now.toISOString()}`);
+
+            // Apply timezone offset to the date for more accurate calculations
+            if (timezoneOffset !== 0) {
+              // Convert the offset from minutes to milliseconds
+              const offsetMs = timezoneOffset * 60 * 1000;
+              // Adjust the date by adding the offset
+              now.setTime(now.getTime() + offsetMs);
+              console.log(
+                `Adjusted timestamp for timezone offset: ${now.toISOString()}`
+              );
+            }
+
+            // Get date context with fresh date
+            const dateContext = {
+              currentDate: format(now, "MMMM d, yyyy"),
+              currentTime: format(now, "h:mm a"),
+              tomorrow: format(addDays(now, 1), "MMMM d, yyyy"),
+              nextWeek: format(addWeeks(now, 1), "MMMM d, yyyy"),
+              timezone: timezone,
+              timezoneOffset: timezoneOffset,
+            };
+
+            // Pass the fresh date explicitly to ensure no cached dates are used
+            const parsedDate = parseRelativeDate(dateString, timeString, now);
+
+            console.log("Parsed date result:", {
+              date: parsedDate.date.toISOString(),
+              formattedDate: parsedDate.formattedDate,
+              formattedTime: parsedDate.formattedTime,
+              inputString: dateString,
+              timezone: timezone,
+            });
 
             // Format the date for calendar event creation
             const formattedDate = {
               iso: parsedDate.date.toISOString(),
-              display: parsedDate.formatted,
-              time: parsedDate.time,
+              display: parsedDate.formattedDate,
+              time: parsedDate.formattedTime,
               date: parsedDate.date,
+              timezone: timezone,
             };
 
             return {
@@ -691,7 +737,7 @@ export async function POST(request: Request) {
           timeZone: z
             .string()
             .optional()
-            .describe("Time zone (optional, defaults to UTC)"),
+            .describe("Time zone (optional, defaults to user's timezone)"),
           settings: z
             .object({
               muteUponEntry: z.boolean().optional(),
@@ -718,6 +764,12 @@ export async function POST(request: Request) {
                   },
                 },
               };
+            }
+
+            // Use the client's timezone if no timeZone was specified
+            if (!data.timeZone && timezone !== "UTC") {
+              console.log(`Using client timezone for Google Meet: ${timezone}`);
+              data.timeZone = timezone;
             }
 
             const result = await googleMeetTool.execute(userId, {
@@ -815,7 +867,7 @@ export async function POST(request: Request) {
           timeZone: z
             .string()
             .optional()
-            .describe("Time zone (optional, defaults to UTC)"),
+            .describe("Time zone (optional, defaults to user's timezone)"),
           lookupContacts: z
             .boolean()
             .optional()
@@ -879,6 +931,14 @@ export async function POST(request: Request) {
               data.attendees = processedAttendees;
             }
 
+            // Use the client's timezone if no timeZone was specified
+            if (!data.timeZone && timezone !== "UTC") {
+              console.log(
+                `Using client timezone for calendar event: ${timezone}`
+              );
+              data.timeZone = timezone;
+            }
+
             return await calendarTool.execute(userId, data);
           } catch (error) {
             console.error("Error in calendar tool execution:", error);
@@ -915,11 +975,7 @@ export async function POST(request: Request) {
         error.message === "Monthly usage limit exceeded"
       ) {
         return Response.json(
-          {
-            error: "Too Many Requests",
-            message:
-              "We've received too many requests recently. Descope outbound apps is currently experiencing high usage, please try again later.",
-          },
+          { error: "Monthly usage limit exceeded" },
           { status: 429 }
         );
       }
@@ -989,7 +1045,7 @@ export async function POST(request: Request) {
                 // Find the last assistant message
                 const assistantMessage =
                   assistantMessages[assistantMessages.length - 1];
-                const assistantId = assistantMessage.id || generateUUID();
+                const assistantId = nanoid();
 
                 // Format assistant message for storage
                 let messageParts: any[] = [];

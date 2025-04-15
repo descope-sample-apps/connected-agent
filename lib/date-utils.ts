@@ -27,6 +27,7 @@ export interface ParsedDate {
   formattedDate: string;
   formattedTime: string;
   isoString: string;
+  timezone: string;
 }
 
 // Helper function to determine if a time is morning, afternoon, or evening
@@ -45,9 +46,23 @@ function getTimeOfDay(timeString: string): { hour: number; minute: number } {
 export function parseRelativeDate(
   dateString: string,
   timeString: string = "12:00",
-  baseDate: Date = new Date()
+  baseDate: Date = new Date(),
+  timezone: string = "UTC"
 ): ParsedDate {
   try {
+    // Ensure baseDate is current if not explicitly provided
+    if (baseDate.getTime() < Date.now() - 86400000) {
+      console.warn(
+        "Base date is more than a day old, using current date instead"
+      );
+      baseDate = new Date();
+    }
+
+    // Log the base date for debugging
+    console.log(
+      `Date parsing base date: ${baseDate.toISOString()}, timezone: ${timezone}`
+    );
+
     // Set base date to start of day to avoid timezone issues
     const base = startOfDay(new Date(baseDate));
 
@@ -61,58 +76,96 @@ export function parseRelativeDate(
       targetDate = addDays(base, 1);
     } else if (lowerDateString === "next week") {
       targetDate = addWeeks(base, 1);
+      console.log(
+        `Parsed "next week" as: ${targetDate.toISOString()} in timezone: ${timezone}`
+      );
     } else if (lowerDateString === "next month") {
       targetDate = addMonths(base, 1);
     } else if (lowerDateString === "next year") {
       targetDate = addYears(base, 1);
     }
-    // Handle days of the week with "this" or "next"
+    // Handle days of the week with "this", "next", or "next week"
     else if (lowerDateString.includes("monday") || lowerDateString === "mon") {
-      targetDate = lowerDateString.includes("this")
-        ? nextMonday(addDays(base, -7))
-        : nextMonday(base);
+      if (lowerDateString.includes("next week")) {
+        // For "next week monday", add 1 week to the next Monday
+        targetDate = addWeeks(nextMonday(base), 1);
+      } else {
+        targetDate = lowerDateString.includes("this")
+          ? nextMonday(addDays(base, -7))
+          : nextMonday(base);
+      }
     } else if (
       lowerDateString.includes("tuesday") ||
       lowerDateString === "tue"
     ) {
-      targetDate = lowerDateString.includes("this")
-        ? nextTuesday(addDays(base, -7))
-        : nextTuesday(base);
+      if (lowerDateString.includes("next week")) {
+        // For "next week tuesday", add 1 week to the next Tuesday
+        targetDate = addWeeks(nextTuesday(base), 1);
+      } else {
+        targetDate = lowerDateString.includes("this")
+          ? nextTuesday(addDays(base, -7))
+          : nextTuesday(base);
+      }
     } else if (
       lowerDateString.includes("wednesday") ||
       lowerDateString === "wed"
     ) {
-      targetDate = lowerDateString.includes("this")
-        ? nextWednesday(addDays(base, -7))
-        : nextWednesday(base);
+      if (lowerDateString.includes("next week")) {
+        // For "next week wednesday", add 1 week to the next Wednesday
+        targetDate = addWeeks(nextWednesday(base), 1);
+      } else {
+        targetDate = lowerDateString.includes("this")
+          ? nextWednesday(addDays(base, -7))
+          : nextWednesday(base);
+      }
     } else if (
       lowerDateString.includes("thursday") ||
       lowerDateString === "thu"
     ) {
-      targetDate = lowerDateString.includes("this")
-        ? nextThursday(addDays(base, -7))
-        : nextThursday(base);
+      if (lowerDateString.includes("next week")) {
+        // For "next week thursday", add 1 week to the next Thursday
+        targetDate = addWeeks(nextThursday(base), 1);
+      } else {
+        targetDate = lowerDateString.includes("this")
+          ? nextThursday(addDays(base, -7))
+          : nextThursday(base);
+      }
     } else if (
       lowerDateString.includes("friday") ||
       lowerDateString === "fri"
     ) {
-      targetDate = lowerDateString.includes("this")
-        ? nextFriday(addDays(base, -7))
-        : nextFriday(base);
+      if (lowerDateString.includes("next week")) {
+        // For "next week friday", add 1 week to the next Friday
+        targetDate = addWeeks(nextFriday(base), 1);
+      } else {
+        targetDate = lowerDateString.includes("this")
+          ? nextFriday(addDays(base, -7))
+          : nextFriday(base);
+      }
     } else if (
       lowerDateString.includes("saturday") ||
       lowerDateString === "sat"
     ) {
-      targetDate = lowerDateString.includes("this")
-        ? nextSaturday(addDays(base, -7))
-        : nextSaturday(base);
+      if (lowerDateString.includes("next week")) {
+        // For "next week saturday", add 1 week to the next Saturday
+        targetDate = addWeeks(nextSaturday(base), 1);
+      } else {
+        targetDate = lowerDateString.includes("this")
+          ? nextSaturday(addDays(base, -7))
+          : nextSaturday(base);
+      }
     } else if (
       lowerDateString.includes("sunday") ||
       lowerDateString === "sun"
     ) {
-      targetDate = lowerDateString.includes("this")
-        ? nextSunday(addDays(base, -7))
-        : nextSunday(base);
+      if (lowerDateString.includes("next week")) {
+        // For "next week sunday", add 1 week to the next Sunday
+        targetDate = addWeeks(nextSunday(base), 1);
+      } else {
+        targetDate = lowerDateString.includes("this")
+          ? nextSunday(addDays(base, -7))
+          : nextSunday(base);
+      }
     }
     // Try to parse as a formatted date
     else {
@@ -239,6 +292,7 @@ export function parseRelativeDate(
       formattedDate: format(targetDate, "MMMM d, yyyy"),
       formattedTime: format(targetDate, "h:mm a"),
       isoString: targetDate.toISOString(),
+      timezone: timezone,
     };
   } catch (error) {
     console.error("Error in parseRelativeDate:", error);
@@ -249,6 +303,7 @@ export function parseRelativeDate(
       formattedDate: format(now, "MMMM d, yyyy"),
       formattedTime: format(now, "h:mm a"),
       isoString: now.toISOString(),
+      timezone: "UTC",
     };
   }
 }

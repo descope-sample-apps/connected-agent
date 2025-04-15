@@ -7,6 +7,7 @@ import { AuthProvider } from "@/context/auth-context";
 import { AuthProvider as DescopeAuthProvider } from "@descope/nextjs-sdk";
 import { OAuthProvider } from "@/context/oauth-context";
 import { OAuthReconnectDialog } from "@/components/oauth-reconnect-dialog";
+import { TimezoneProvider } from "@/context/timezone-context";
 import { initPostHog } from "@/lib/analytics";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -39,8 +40,10 @@ export default function RootLayout({
           >
             <AuthProvider>
               <OAuthProvider>
-                {children}
-                <OAuthReconnectDialog />
+                <TimezoneProvider>
+                  {children}
+                  <OAuthReconnectDialog />
+                </TimezoneProvider>
               </OAuthProvider>
             </AuthProvider>
           </DescopeAuthProvider>
