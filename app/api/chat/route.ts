@@ -37,10 +37,29 @@ import { CRMDealsTool } from "@/lib/tools/crm";
 import { toolRegistry } from "@/lib/tools/base";
 import { searchContact } from "@/lib/api/crm-utils";
 
-// Add this interface definition
-interface DataStreamWithAppend {
-  append: (data: any) => void;
+// Define the base stream interface
+interface BaseStream {
+  write?: (data: string) => void;
+  append?: (data: any) => void;
   close?: () => void;
+}
+
+// Define the DataStreamWriter interface
+interface DataStreamWriter extends BaseStream {
+  write: (data: string) => void;
+  writeData: (data: any) => void;
+  writeMessageAnnotation: (annotation: any) => void;
+  writeSource: (source: any) => void;
+  close: () => void;
+  merge?: (stream: any) => void;
+  onError?: (error: unknown) => void;
+}
+
+// Update the DataStreamWithAppend interface to properly extend BaseStream
+interface DataStreamWithAppend extends BaseStream {
+  append: (data: any) => void;
+  write: (data: string) => void;
+  close: () => void;
 }
 
 export const maxDuration = 60;
@@ -83,34 +102,56 @@ function extractTitle(message: UIMessage): string {
 }
 
 // Create a wrapper for dataStream that handles the append method
-function createStreamAdapter(dataStream: any) {
+function createStreamAdapter(dataStream: any): DataStreamWithAppend {
   // Check if dataStream already has an append method
   if (dataStream && typeof dataStream.append === "function") {
     console.log("Using existing append method");
-    return dataStream;
+    return dataStream as DataStreamWithAppend;
   }
 
   // Create a wrapper with append method
   return {
     append: (data: any) => {
       try {
+        // Format the data according to the expected stream format
+        let formattedData = data;
+
+        // If data is an object with a toolActivity property, format it correctly
+        if (data && typeof data === "object" && "toolActivity" in data) {
+          formattedData = {
+            type: "toolActivity",
+            text: data.toolActivity.text || JSON.stringify(data.toolActivity),
+          };
+        }
+
         // If dataStream has a write method, use that instead
         if (dataStream && typeof dataStream.write === "function") {
           console.log("Using write method for stream");
-          dataStream.write(JSON.stringify(data) + "\n");
+          dataStream.write(JSON.stringify(formattedData) + "\n");
         } else if (dataStream && typeof dataStream.append === "function") {
           console.log("Using append method for stream");
-          dataStream.append(data);
+          dataStream.append(formattedData);
         } else {
           console.warn("dataStream does not have append or write method");
           // Try to use the dataStream directly if it's a function
           if (typeof dataStream === "function") {
             console.log("Using dataStream as function");
-            dataStream(data);
+            dataStream(formattedData);
           }
         }
       } catch (error) {
         console.error("Error appending to stream:", error);
+      }
+    },
+    write: (data: string) => {
+      try {
+        if (dataStream && typeof dataStream.write === "function") {
+          dataStream.write(data);
+        } else {
+          console.warn("dataStream does not have write method");
+        }
+      } catch (error) {
+        console.error("Error writing to stream:", error);
       }
     },
     close: () => {
@@ -278,9 +319,12 @@ export async function POST(request: Request) {
       return new Response("Chat ID is required", { status: 400 });
     }
 
+    // Get the user session
     const userSession = await session();
 
+    // Check if the user is authenticated
     if (!userSession?.token?.sub) {
+      console.error("User not authenticated");
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -299,6 +343,7 @@ export async function POST(request: Request) {
       await saveChat(userId, title, id);
     } else {
       if (chat.userId !== userId) {
+        console.error("User not authorized to access this chat");
         return new Response("Unauthorized", { status: 401 });
       }
     }
@@ -977,23 +1022,10 @@ export async function POST(request: Request) {
               }),
             };
 
-            // Return the appropriate message type based on role
-            switch (msg.role) {
-              case "system":
-                return {
-                  ...baseMessage,
-                  role: "system" as const,
-                } as CoreMessage;
-              case "user":
-                return { ...baseMessage, role: "user" as const } as CoreMessage;
-              case "assistant":
-                return {
-                  ...baseMessage,
-                  role: "assistant" as const,
-                } as CoreMessage;
-              default:
-                return { ...baseMessage, role: "user" as const } as CoreMessage;
-            }
+            return {
+              ...baseMessage,
+              role: msg.role as "system" | "user" | "assistant",
+            } as CoreMessage;
           }),
           maxSteps: 5,
           experimental_transform: smoothStream({ chunking: "word" }),
@@ -1082,18 +1114,20 @@ export async function POST(request: Request) {
               }
             }
           },
-          experimental_telemetry: {
-            isEnabled: isProductionEnvironment,
-            functionId: "stream-text",
-          },
         });
 
         // Add debug logging for stream consumption
         console.log("Starting stream consumption...");
         result.consumeStream();
-        result.mergeIntoDataStream(dataStream, {
-          sendReasoning: true,
-        });
+
+        // Use the streamAdapter for merging to ensure proper formatting
+        if (result.mergeIntoDataStream) {
+          result.mergeIntoDataStream(streamAdapter, {
+            sendReasoning: true,
+          });
+        } else {
+          console.warn("mergeIntoDataStream method not available on result");
+        }
       },
       onError: (error) => {
         console.error("Error in chat processing:", error);

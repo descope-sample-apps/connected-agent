@@ -57,6 +57,8 @@ export default function Chat({
     input,
     handleInputChange,
     handleSubmit: chatHandleSubmit,
+    isLoading: isChatLoading,
+    error,
   } = useChat({
     api: "/api/chat",
     body: {
@@ -67,17 +69,51 @@ export default function Chat({
     onResponse: (response) => {
       // Log streaming response for debugging
       console.log("Streaming response received:", response);
+
+      // Check for errors in the response
+      if (response.status === 429) {
+        toast({
+          title: "Usage Limit Exceeded",
+          description: "You have reached your monthly usage limit.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check for authentication errors
+      if (response.status === 401) {
+        toast({
+          title: "Authentication Error",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Ensure we scroll to bottom when new content arrives
       scrollToBottom();
     },
     onFinish: (message) => {
       // Log when streaming is complete
       console.log("Streaming finished:", message);
+      setIsLoading(false);
       // Final scroll to bottom after completion
       scrollToBottom();
     },
     onError: (error) => {
       console.error("Streaming error:", error);
+      setIsLoading(false);
+
+      // Check for authentication errors
+      if (error.message && error.message.includes("Unauthorized")) {
+        toast({
+          title: "Authentication Error",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Error",
         description: "Failed to get response from AI. Please try again.",
@@ -347,12 +383,23 @@ export default function Chat({
     );
   };
 
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  // Custom submit handler to manage loading state
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    chatHandleSubmit(e);
+    setIsLoading(true);
+    try {
+      await chatHandleSubmit(e);
+    } catch (error) {
+      console.error("Error submitting message:", error);
+      setIsLoading(false);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
