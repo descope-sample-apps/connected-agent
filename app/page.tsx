@@ -2,14 +2,7 @@
 
 import type React from "react";
 
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  Suspense,
-  useMemo,
-} from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +26,7 @@ import PromptTrigger from "@/components/prompt-trigger";
 import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import {
+  Briefcase,
   Calendar,
   FileText,
   Video,
@@ -102,15 +96,10 @@ interface MeetingDetails {
 
 interface UIMessage {
   id: string;
-  content: string;
   role: "user" | "assistant";
-  createdAt: Date;
-  chatId: string;
-  parts?: {
-    type: string;
-    content: string;
-    [key: string]: any;
-  }[];
+  content: string;
+  parts: any[];
+  chatId?: string; // Add optional chatId property
 }
 
 const promptExplanations: Record<PromptType, PromptExplanation> = {
@@ -457,45 +446,8 @@ function ChatParamsHandler({
   return null; // This component doesn't render anything
 }
 
-// Helper function to extract message content from different message formats
-const extractMessageContent = (msg: any): string => {
-  // If msg has direct content, use it first
-  if (typeof msg.content === "string" && msg.content.trim() !== "") {
-    return msg.content;
-  }
-
-  // Check if parts exists and is an array
-  if (!msg.parts || !Array.isArray(msg.parts) || msg.parts.length === 0) {
-    return "";
-  }
-
-  const firstPart = msg.parts[0];
-
-  // Handle different message part formats
-  if (typeof firstPart === "string") {
-    return firstPart;
-  } else if (typeof firstPart === "object" && firstPart !== null) {
-    // Object with text property
-    if ("text" in firstPart && firstPart.text) {
-      return String(firstPart.text);
-    }
-
-    // Object with content property
-    if ("content" in firstPart && firstPart.content) {
-      return String(firstPart.content);
-    }
-
-    // Try to convert the entire object to string as last resort
-    return JSON.stringify(firstPart);
-  }
-
-  // Fallback
-  return "";
-};
-
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
-  const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [historySidebarOpen, setHistorySidebarOpen] = useState(true);
   const historySidebarRef = useRef<{ fetchChatHistory: () => void }>(null);
@@ -503,8 +455,25 @@ export default function Home() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [hasActivePrompt, setHasActivePrompt] = useState(false);
   const [showPromptExplanation, setShowPromptExplanation] = useState(false);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<UIMessage[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
+    // Initialize from localStorage if available
+    if (typeof window !== "undefined") {
+      // If we just redirected from a chat/[id] page, that ID will be in localStorage
+      const storedId = localStorage.getItem("currentChatId");
+
+      // If we have an ID, use it
+      if (storedId) {
+        return storedId;
+      }
+
+      // Otherwise, generate a new one
+      const newId = `chat-${nanoid()}`;
+      localStorage.setItem("currentChatId", newId);
+      return newId;
+    }
+    // Server-side rendering case
+    return null;
+  });
   const [lastScheduledMeeting, setLastScheduledMeeting] =
     useState<LastScheduledMeeting | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -524,12 +493,14 @@ export default function Home() {
   const [chatRedirectAttempts, setChatRedirectAttempts] = useState(0);
 
   const {
+    messages,
     input,
     handleInputChange,
     handleSubmit: chatHandleSubmit,
     isLoading: isChatLoading,
     error,
     append,
+    setMessages,
     reload,
   } = useChat({
     api: "/api/chat",
@@ -555,18 +526,7 @@ export default function Home() {
 
       // Extract calendar event details from the assistant's response
       const messageContent =
-        message.parts
-          ?.map((part) => {
-            if (typeof part === "object" && part !== null) {
-              if ("content" in part) {
-                return part.content;
-              } else if ("text" in part) {
-                return part.text;
-              }
-            }
-            return "";
-          })
-          .join("") || message.content;
+        typeof message.content === "string" ? message.content : "";
 
       // More robust pattern matching for meeting detection
       const scheduledMatch = messageContent.match(
@@ -627,76 +587,134 @@ export default function Home() {
     },
   });
 
-  const [isLoadingChatHistory, setIsLoadingChatHistory] = useState(false);
+  // Load chat messages when currentChatId changes
+  useEffect(() => {
+    const fetchChatMessages = async () => {
+      if (!currentChatId || !isAuthenticated) return;
 
-  const fetchChatMessages = useCallback(
-    async (chatId: string) => {
-      if (!chatId || chatId === "new" || isHandlingChatChange) {
-        return;
-      }
-
-      // Check if this is a newly created chat
-      const isNewChat = localStorage.getItem("isNewChat") === "true";
-      if (isNewChat) {
-        localStorage.removeItem("isNewChat");
-        return;
-      }
-
-      // Check if we already have messages for this chat
-      if (messages.length > 0 && messages[0].chatId === chatId) {
+      // Don't try more than twice to avoid infinite loops
+      if (chatRedirectAttempts >= 2) {
+        console.log("Too many chat redirect attempts, stopping");
         return;
       }
 
       try {
-        setIsLoadingChatHistory(true);
-        const response = await fetch(`/api/chats/${chatId}/messages`);
+        setIsHandlingChatChange(true);
+        console.log("Fetching messages for chat:", currentChatId);
 
+        // Check if we already have messages for this chat
+        if (messages.length > 0 && messages[0]?.chatId === currentChatId) {
+          console.log("Messages already loaded for chat:", currentChatId);
+          return;
+        }
+
+        const response = await fetch(
+          `/api/chat/messages?chatId=${currentChatId}`,
+          {
+            headers: {
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
+            },
+          }
+        );
+
+        // Handle invalid chat ID cases
         if (!response.ok) {
           if (response.status === 404) {
-            setMessages([]);
+            console.log("Chat ID not found, creating new chat");
+            createNewChat();
             return;
           }
-          throw new Error(
-            `Failed to fetch chat messages: ${response.statusText}`
-          );
+          throw new Error("Failed to fetch chat messages");
         }
 
         const data = await response.json();
-        if (!data.messages) {
-          throw new Error("No messages found in response");
+        if (
+          data.messages &&
+          Array.isArray(data.messages) &&
+          data.messages.length > 0
+        ) {
+          console.log(
+            `Loaded ${data.messages.length} messages for chat ${currentChatId}`
+          );
+
+          // Transform messages to the format expected by useChat
+          const formattedMessages = data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: extractMessageContent(msg),
+            parts: Array.isArray(msg.parts) ? msg.parts : [],
+            chatId: currentChatId, // Add chatId to track message ownership
+          }));
+
+          // Set messages in chat
+          setMessages(formattedMessages);
+        } else {
+          // If no messages found for this chat ID, treat as invalid and create new chat
+          console.log("No messages found for chat ID, creating new chat");
+          createNewChat();
         }
-
-        const transformedMessages = data.messages.map((msg: any) => ({
-          id: msg.id,
-          content: msg.parts?.[0]?.text || "",
-          role: msg.role,
-          createdAt: new Date(msg.createdAt),
-          chatId: chatId,
-        }));
-
-        setMessages(transformedMessages);
       } catch (error) {
-        console.error("Error fetching chat messages:", error);
-        toast({
-          title: "Error Loading Chat",
-          description:
-            "Failed to load chat history. Please try refreshing the page.",
-          variant: "destructive",
-        });
-        setMessages([]);
+        console.error("Error loading chat messages:", error);
+        // On any error, create a new chat
+        createNewChat();
       } finally {
-        setIsLoadingChatHistory(false);
+        setIsHandlingChatChange(false);
       }
-    },
-    [messages, toast, isHandlingChatChange]
-  );
+    };
 
-  // Update the effect to be more efficient
-  useEffect(() => {
-    if (currentChatId && !isHandlingChatChange) {
-      fetchChatMessages(currentChatId);
+    // Helper function to create a new chat
+    const createNewChat = () => {
+      setChatRedirectAttempts((prev) => prev + 1);
+      const newChatId = `chat-${nanoid()}`;
+      console.log("Creating new chat with ID:", newChatId);
+      setCurrentChatId(newChatId);
+      localStorage.setItem("currentChatId", newChatId);
+
+      // Update URL without reload
+      if (typeof window !== "undefined") {
+        window.history.pushState({}, "", `/chat/${newChatId}`);
+      }
+    };
+
+    fetchChatMessages();
+  }, [currentChatId, isAuthenticated]); // Remove unnecessary dependencies
+
+  // Helper function to extract message content from different message formats
+  const extractMessageContent = (msg: any): string => {
+    // If msg has direct content, use it first
+    if (typeof msg.content === "string" && msg.content.trim() !== "") {
+      return msg.content;
     }
-  }, [currentChatId, fetchChatMessages, isHandlingChatChange]);
+
+    // Check if parts exists and is an array
+    if (!msg.parts || !Array.isArray(msg.parts) || msg.parts.length === 0) {
+      return "";
+    }
+
+    const firstPart = msg.parts[0];
+
+    // Handle different message part formats
+    if (typeof firstPart === "string") {
+      return firstPart;
+    } else if (typeof firstPart === "object" && firstPart !== null) {
+      // Object with text property
+      if ("text" in firstPart && firstPart.text) {
+        return String(firstPart.text);
+      }
+
+      // Object with content property
+      if ("content" in firstPart && firstPart.content) {
+        return String(firstPart.content);
+      }
+
+      // Try to convert the entire object to string as last resort
+      return JSON.stringify(firstPart);
+    }
+
+    // Fallback
+    return "";
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView();
@@ -797,14 +815,13 @@ export default function Home() {
   };
 
   const generateDefaultTitle = useCallback(() => {
-    const firstUserMessage = messages.find((m) => m.role === "user");
-
-    const firstUserMessageText =
-      firstUserMessage?.parts?.find((p) => p.type === "text")?.text || "";
+    const firstUserMessage = messages
+      .find((m) => m.role === "user")
+      ?.parts.find((p) => p.type === "text")?.text;
     let title = "";
 
-    if (firstUserMessageText) {
-      const words = firstUserMessageText.split(" ");
+    if (firstUserMessage) {
+      const words = firstUserMessage.split(" ");
       title = words.slice(0, 5).join(" ");
       if (words.length > 5) title += "...";
     }
@@ -853,67 +870,32 @@ export default function Home() {
     if (matchedPrompt) {
       const [key, category] = matchedPrompt;
       // Add the user's message and system context in a single append call
-      const userMessage: UIMessage = {
-        id: nanoid(),
+      append({
         role: "user",
         content: value,
-        createdAt: new Date(),
-        chatId: currentChatId || "",
         parts: [
-          {
-            type: "text",
-            content: value,
-          },
+          { type: "text", text: value },
           {
             type: "reasoning",
-            content:
+            reasoning:
               category.context?.systemPrompt ||
               `This is a ${category.title} request. Please provide specific guidance.`,
             details: [
               {
                 type: "text",
-                content:
+                text:
                   category.context?.systemPrompt ||
                   `This is a ${category.title} request. Please provide specific guidance.`,
               },
             ],
           },
         ],
-      };
-
-      // Optimistically update UI
-      setMessages((prev) => [...prev, userMessage]);
-
-      // Then append to chat
-      append({
-        role: "user",
-        content: value,
-        parts: userMessage.parts,
       });
     } else {
       // Regular message handling
-      const userMessage: UIMessage = {
-        id: nanoid(),
-        role: "user",
-        content: value,
-        createdAt: new Date(),
-        chatId: currentChatId || "",
-        parts: [
-          {
-            type: "text",
-            content: value,
-          },
-        ],
-      };
-
-      // Optimistically update UI
-      setMessages((prev) => [...prev, userMessage]);
-
-      // Then append to chat
       append({
         role: "user",
         content: value,
-        parts: userMessage.parts,
       });
     }
 
@@ -1171,10 +1153,9 @@ export default function Home() {
     try {
       if (!isAuthenticated || !chatId) return;
 
-      // Extract title from the first user message's parts or use default for new chats
+      // Extract title from the first user message's parts
       let title = "New Chat";
       const initialUserMessage = messages.find((m) => m.role === "user");
-
       if (initialUserMessage?.parts?.[0]) {
         const firstPart = initialUserMessage.parts[0];
         if (typeof firstPart === "string") {
@@ -1184,9 +1165,6 @@ export default function Home() {
         }
         // Limit title length
         title = title.substring(0, 50);
-      } else if (messages.length > 0 && messages[0].content) {
-        // Fallback to content if parts are not properly structured
-        title = messages[0].content.substring(0, 50);
       }
 
       // Format messages for saving
@@ -1319,66 +1297,43 @@ export default function Home() {
     if (!chatId || chatId === currentChatId) return;
 
     try {
-      // Update state first - this will trigger the useEffect to load messages
+      // Update state first
       setCurrentChatId(chatId);
       localStorage.setItem("currentChatId", chatId);
-
-      // Clear messages to avoid showing old messages while loading
       setMessages([]);
 
-      // No need to fetch messages here - the useEffect will handle it
-      // when currentChatId changes
+      // Fetch messages for the selected chat
+      const response = await fetch(`/api/chat/messages?chatId=${chatId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch chat messages");
+      }
+      const data = await response.json();
+
+      if (data.messages && Array.isArray(data.messages)) {
+        setMessages(data.messages);
+      }
     } catch (error) {
-      console.error("Error selecting chat:", error);
+      console.error("Error loading chat messages:", error);
       toast({
         title: "Error",
-        description: "Failed to select chat",
+        description: "Failed to load chat messages",
         variant: "destructive",
       });
     }
   };
 
   // Function to handle creating a new chat
-  const handleNewChat = useCallback(() => {
+  const handleNewChat = () => {
     const newChatId = `chat-${nanoid()}`;
+    setCurrentChatId(newChatId);
+    localStorage.setItem("currentChatId", newChatId);
+    setMessages([]); // Clear messages to show the welcome screen
 
-    // Set handling flag to prevent multiple updates
-    setIsHandlingChatChange(true);
-
-    // Batch all state updates together
-    const updates = () => {
-      // Update URL first
-      if (typeof window !== "undefined") {
-        window.history.pushState({}, "", `/chat/${newChatId}`);
-      }
-
-      // Update localStorage
-      localStorage.setItem("currentChatId", newChatId);
-      localStorage.setItem("isNewChat", "true");
-
-      // Update React state in a single batch
-      setCurrentChatId(newChatId);
-      setMessages([]);
-      setIsLoadingChatHistory(false);
-    };
-
-    // Execute updates in the next frame to ensure smooth transition
-    requestAnimationFrame(updates);
-
-    // Save to database if authenticated
-    if (isAuthenticated) {
-      saveChatToDatabase(newChatId).catch((error) => {
-        console.error("Error saving new chat:", error);
-      });
+    // Force a refresh of the chat history
+    if (historySidebarRef.current) {
+      historySidebarRef.current.fetchChatHistory();
     }
-
-    // Reset handling flag after a short delay to ensure all updates are complete
-    setTimeout(() => {
-      setIsHandlingChatChange(false);
-    }, 100);
-
-    return newChatId;
-  }, [isAuthenticated, setIsHandlingChatChange]);
+  };
 
   // Function to handle chat deletion
   const handleChatDeleted = (deletedChatId: string) => {
@@ -1476,33 +1431,6 @@ export default function Home() {
   }, [messages.length, isChatLoading]);
 
   const [isScrolling, setIsScrolling] = useState(false);
-
-  // Memoize the example prompts to prevent re-shuffling on every render
-  const examplePrompts = useMemo(() => {
-    // Create a flat array of all examples from all tools
-    const allExamples = Object.entries(promptExplanations)
-      .filter(([key]) => key !== "add-custom-tool") // Exclude the add-custom-tool
-      .flatMap(([key, category]) =>
-        category.examples.map((example) => ({
-          example,
-          toolKey: key,
-          logo: category.logo,
-          title: category.title,
-        }))
-      );
-
-    // Use a stable seed for shuffling (current date)
-    const seed = new Date().toDateString();
-    const shuffled = [...allExamples].sort((a, b) => {
-      const hashA = seed
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const hashB = (hashA * 31) % allExamples.length;
-      return (hashB + a.example.length - b.example.length) % 2 ? 1 : -1;
-    });
-
-    return shuffled.slice(0, 12);
-  }, []); // Empty dependency array means this only runs once on mount
 
   if (isLoading) {
     return (
@@ -1703,8 +1631,11 @@ export default function Home() {
                   className="flex-1 p-6 pb-24"
                   style={{ overflowAnchor: "auto" }}
                 >
-                  {messages.length === 0 && !isLoadingChatHistory ? (
+                  {messages.length === 0 && !isHandlingChatChange ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/40">
+                        <Briefcase className="h-8 w-8 text-indigo-500" />
+                      </div>
                       <h2 className="text-2xl font-bold mb-2">
                         Welcome to CRM Assistant
                       </h2>
@@ -1715,32 +1646,52 @@ export default function Home() {
                       </p>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
-                        {examplePrompts.map((item, index) => (
-                          <button
-                            key={index}
-                            onClick={() => {
-                              // Use the handleInputChange function from useChat
-                              const event = {
-                                target: { value: item.example },
-                              } as React.ChangeEvent<HTMLInputElement>;
-                              handleInputChange(event);
-                              inputRef.current?.focus();
-                            }}
-                            className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 text-left group relative"
-                          >
-                            <div className="relative w-6 h-6 flex-shrink-0">
-                              <Image
-                                src={item.logo}
-                                alt={item.title}
-                                fill
-                                className="object-contain"
-                              />
-                            </div>
-                            <span className="text-sm text-muted-foreground group-hover:text-foreground line-clamp-2">
-                              {item.example}
-                            </span>
-                          </button>
-                        ))}
+                        {(() => {
+                          // Create a flat array of all examples from all tools
+                          const allExamples = Object.entries(promptExplanations)
+                            .filter(([key]) => key !== "add-custom-tool") // Exclude the add-custom-tool
+                            .flatMap(([key, category]) =>
+                              category.examples.map((example) => ({
+                                example,
+                                toolKey: key,
+                                logo: category.logo,
+                                title: category.title,
+                              }))
+                            );
+
+                          // Shuffle the array and take a subset (12 examples)
+                          const shuffled = [...allExamples].sort(
+                            () => Math.random() - 0.5
+                          );
+                          const selectedExamples = shuffled.slice(0, 12);
+
+                          return selectedExamples.map((item, index) => (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                // Use the handleInputChange function from useChat
+                                const event = {
+                                  target: { value: item.example },
+                                } as React.ChangeEvent<HTMLInputElement>;
+                                handleInputChange(event);
+                                inputRef.current?.focus();
+                              }}
+                              className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 text-left group relative"
+                            >
+                              <div className="relative w-6 h-6 flex-shrink-0">
+                                <Image
+                                  src={item.logo}
+                                  alt={item.title}
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                              <span className="text-sm text-muted-foreground group-hover:text-foreground line-clamp-2">
+                                {item.example}
+                              </span>
+                            </button>
+                          ));
+                        })()}
                       </div>
                     </div>
                   ) : (

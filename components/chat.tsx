@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useChat, Message as AIMessage } from "ai/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ interface ExtendedMessage extends AIMessage {
     type: string;
     data: any;
   };
+  chatId?: string;
 }
 
 interface ChatProps {
@@ -67,9 +68,6 @@ export default function Chat({
     },
     initialMessages,
     onResponse: (response) => {
-      // Log streaming response for debugging
-      console.log("Streaming response received:", response);
-
       // Check for errors in the response
       if (response.status === 429) {
         toast({
@@ -94,8 +92,6 @@ export default function Chat({
       scrollToBottom();
     },
     onFinish: (message) => {
-      // Log when streaming is complete
-      console.log("Streaming finished:", message);
       setIsLoading(false);
       // Final scroll to bottom after completion
       scrollToBottom();
@@ -139,10 +135,21 @@ export default function Chat({
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
 
+  // Filter out empty messages
+  const filteredMessages = useMemo(() => {
+    return messages.filter((message) => {
+      // Skip empty messages
+      if (!message.content && (!message.parts || message.parts.length === 0)) {
+        return false;
+      }
+      return true;
+    });
+  }, [messages]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [filteredMessages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -403,7 +410,7 @@ export default function Chat({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative bg-muted/20">
       {/* Usage information */}
       {usage && (
         <div className="px-4 py-2 bg-gray-50 border-b">
@@ -421,9 +428,24 @@ export default function Chat({
         </div>
       )}
 
-      <ScrollArea className="flex-1 p-4 md:p-6">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-12">
+      <div className="flex-1 overflow-auto">
+        {filteredMessages.length > 0 ? (
+          <div className="max-w-4xl mx-auto p-6 pt-10 pb-24">
+            {filteredMessages.map((message, index) => (
+              <div key={message.id || index}>
+                {renderMessage(message as ExtendedMessage)}
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+            <h2 className="text-2xl font-bold mb-2">
+              Start a new conversation
+            </h2>
+            <p className="text-muted-foreground text-center max-w-md mb-8">
+              Ask me anything about your CRM data, calendar, or business needs.
+            </p>
             <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/40">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -440,23 +462,9 @@ export default function Chat({
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent mb-2">
-              Start a New Conversation
-            </h3>
-            <p className="text-muted-foreground max-w-md mb-6">
-              Ask a question or type a message to begin chatting with
-              ConnectedAgent.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((message, index) => (
-              <div key={index}>{renderMessage(message as ExtendedMessage)}</div>
-            ))}
-            <div ref={messagesEndRef} />
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {!isReadonly && (
         <div className="border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">

@@ -7,8 +7,6 @@ import {
   createDataStreamResponse,
   smoothStream,
   streamText,
-  Message,
-  CoreMessage,
 } from "ai";
 import { session } from "@descope/nextjs-sdk/server";
 import { systemPrompt } from "@/lib/ai/prompts";
@@ -23,43 +21,39 @@ import {
   generateUUID,
   getMostRecentUserMessage,
   getTrailingMessageId,
+  isCrmRelatedQuery,
 } from "@/lib/utils";
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { myProvider } from "@/lib/ai/providers";
-import { getCRMToken } from "@/lib/descope";
+import { getGoogleCalendarToken, getCRMToken } from "@/lib/descope";
 import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
 import { isProductionEnvironment } from "@/lib/constants";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { CRMDealsTool } from "@/lib/tools/crm";
+import {
+  CRMDealsTool,
+  fetchCRMContacts,
+  fetchCRMDeals,
+  fetchDealStakeholders,
+} from "@/lib/tools/crm";
 import { toolRegistry } from "@/lib/tools/base";
+import { CalendarTool } from "@/lib/tools/calendar";
+import { CalendarListTool } from "@/lib/tools/calendar-list";
 import { searchContact } from "@/lib/api/crm-utils";
 
-// Define the base stream interface
+// Add this interface definition
+interface DataStreamWithAppend {
+  append: (data: any) => void;
+  close?: () => void;
+}
+
+// Simple interface for stream handling
 interface BaseStream {
   write?: (data: string) => void;
   append?: (data: any) => void;
   close?: () => void;
-}
-
-// Define the DataStreamWriter interface
-interface DataStreamWriter extends BaseStream {
-  write: (data: string) => void;
-  writeData: (data: any) => void;
-  writeMessageAnnotation: (annotation: any) => void;
-  writeSource: (source: any) => void;
-  close: () => void;
-  merge?: (stream: any) => void;
-  onError?: (error: unknown) => void;
-}
-
-// Update the DataStreamWithAppend interface to properly extend BaseStream
-interface DataStreamWithAppend extends BaseStream {
-  append: (data: any) => void;
-  write: (data: string) => void;
-  close: () => void;
 }
 
 export const maxDuration = 60;
@@ -102,18 +96,17 @@ function extractTitle(message: UIMessage): string {
 }
 
 // Create a wrapper for dataStream that handles the append method
-function createStreamAdapter(dataStream: any): DataStreamWithAppend {
-  // Check if dataStream already has an append method
+function createStreamAdapter(dataStream: any) {
+  // If dataStream already has an append method, return it
   if (dataStream && typeof dataStream.append === "function") {
-    console.log("Using existing append method");
-    return dataStream as DataStreamWithAppend;
+    return dataStream;
   }
 
-  // Create a wrapper with append method
+  // Create a simple wrapper with append method
   return {
     append: (data: any) => {
       try {
-        // Format the data according to the expected stream format
+        // Format the data if needed
         let formattedData = data;
 
         // If data is an object with a toolActivity property, format it correctly
@@ -126,18 +119,9 @@ function createStreamAdapter(dataStream: any): DataStreamWithAppend {
 
         // If dataStream has a write method, use that instead
         if (dataStream && typeof dataStream.write === "function") {
-          console.log("Using write method for stream");
           dataStream.write(JSON.stringify(formattedData) + "\n");
-        } else if (dataStream && typeof dataStream.append === "function") {
-          console.log("Using append method for stream");
-          dataStream.append(formattedData);
         } else {
           console.warn("dataStream does not have append or write method");
-          // Try to use the dataStream directly if it's a function
-          if (typeof dataStream === "function") {
-            console.log("Using dataStream as function");
-            dataStream(formattedData);
-          }
         }
       } catch (error) {
         console.error("Error appending to stream:", error);
@@ -147,8 +131,6 @@ function createStreamAdapter(dataStream: any): DataStreamWithAppend {
       try {
         if (dataStream && typeof dataStream.write === "function") {
           dataStream.write(data);
-        } else {
-          console.warn("dataStream does not have write method");
         }
       } catch (error) {
         console.error("Error writing to stream:", error);
@@ -157,7 +139,6 @@ function createStreamAdapter(dataStream: any): DataStreamWithAppend {
     close: () => {
       try {
         if (dataStream && typeof dataStream.close === "function") {
-          console.log("Closing stream");
           dataStream.close();
         }
       } catch (error) {
@@ -289,18 +270,6 @@ const dealStakeholdersSchema = {
   },
 };
 
-interface MessagePart {
-  type: string;
-  text?: string;
-  content?: any;
-}
-
-interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string | MessagePart[] | any;
-  parts?: MessagePart[];
-}
-
 export async function POST(request: Request) {
   try {
     const {
@@ -319,12 +288,9 @@ export async function POST(request: Request) {
       return new Response("Chat ID is required", { status: 400 });
     }
 
-    // Get the user session
     const userSession = await session();
 
-    // Check if the user is authenticated
     if (!userSession?.token?.sub) {
-      console.error("User not authenticated");
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -343,7 +309,6 @@ export async function POST(request: Request) {
       await saveChat(userId, title, id);
     } else {
       if (chat.userId !== userId) {
-        console.error("User not authorized to access this chat");
         return new Response("Unauthorized", { status: 401 });
       }
     }
@@ -947,147 +912,89 @@ export async function POST(request: Request) {
         // Create a wrapper for the dataStream with proper append method
         const streamAdapter = createStreamAdapter(dataStream);
 
-        // Add debug logging for stream adapter
-        console.log("Stream adapter created:", {
-          hasAppend: typeof streamAdapter.append === "function",
-          hasClose: typeof streamAdapter.close === "function",
-        });
-
         // Initialize the document tool with the proper stream adapter
         toolsObject.createDocument = createDocument({
           session: userSession,
           dataStream: streamAdapter,
         });
 
-        // Explicitly get the system prompt and check its type
-        let systemPromptString: string | undefined;
-        const promptResult = systemPrompt({ selectedChatModel });
-        if (typeof promptResult === "string") {
-          systemPromptString = promptResult || undefined;
-        } else {
-          console.warn(
-            "System prompt function did not return a string as expected. Using undefined prompt."
-          );
-          systemPromptString = undefined;
-        }
+        // Get system prompt
+        const systemPromptString =
+          systemPrompt({ selectedChatModel }) || undefined;
 
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
           system: systemPromptString,
-          messages: (messages as ChatMessage[]).map((msg) => {
+          messages: (messages as any[]).map((msg) => {
             // Ensure content is a string
             let content = "";
             if (typeof msg.content === "string") {
               content = msg.content;
             } else if (Array.isArray(msg.content)) {
               content = msg.content
-                .map((part: MessagePart) =>
-                  typeof part === "string"
-                    ? part
-                    : part.text || JSON.stringify(part)
-                )
+                .map((part: any) => {
+                  if (typeof part === "string") return part;
+                  if (typeof part === "object" && part !== null) {
+                    return part.text || JSON.stringify(part);
+                  }
+                  return String(part);
+                })
                 .join(" ");
             } else if (msg.content) {
               content = JSON.stringify(msg.content);
             }
 
-            // Create a properly formatted message based on role
-            const baseMessage: Partial<CoreMessage> = {
-              content: content,
-              ...(msg.parts && {
-                parts: msg.parts.map((part) => {
-                  if (typeof part === "string") {
-                    return { type: "text", text: part };
-                  }
-                  if (typeof part === "object" && part !== null) {
-                    // Handle tool activity messages
-                    if (part.type === "toolActivity") {
-                      return {
-                        type: "toolActivity",
-                        text: part.text || part.content || JSON.stringify(part),
-                      };
-                    }
-                    // Handle standard text messages
-                    if ("type" in part && "text" in part) {
-                      return { type: part.type, text: part.text };
-                    }
-                    // Handle other message types
-                    return {
-                      type: "text",
-                      text: JSON.stringify(part),
-                    };
-                  }
-                  return { type: "text", text: String(part) };
-                }),
-              }),
-            };
-
             return {
-              ...baseMessage,
-              role: msg.role as "system" | "user" | "assistant",
-            } as CoreMessage;
+              role: msg.role,
+              content: content,
+            };
           }),
           maxSteps: 5,
           experimental_transform: smoothStream({ chunking: "word" }),
-          experimental_generateMessageId: generateUUID,
           tools: toolsObject,
           onFinish: async ({ response }) => {
             console.log("Stream finished, saving response...");
             if (userId) {
               try {
-                // Get the assistant messages with type assertion
+                // Get the assistant messages
                 const assistantMessages = response.messages.filter(
                   (message) => message.role === "assistant"
                 );
 
-                const assistantId = getTrailingMessageId({
-                  messages: assistantMessages as any,
-                });
-
-                if (!assistantId) {
+                if (assistantMessages.length === 0) {
                   throw new Error("No assistant message found!");
                 }
 
                 // Find the last assistant message
                 const assistantMessage =
                   assistantMessages[assistantMessages.length - 1];
+                const assistantId = assistantMessage.id || generateUUID();
 
-                if (!assistantMessage) {
-                  throw new Error("No assistant message found!");
-                }
-
-                // Ensure assistantMessage content is correctly formatted for saving
-                // The database expects parts to be an array of objects, e.g., { type: 'text', text: '...' }
+                // Format assistant message for storage
                 let messageParts: any[] = [];
                 if (typeof assistantMessage.content === "string") {
-                  // If content is a simple string, wrap it in the standard part structure
                   messageParts = [
                     { type: "text", text: assistantMessage.content },
                   ];
                 } else if (Array.isArray(assistantMessage.content)) {
-                  // If content is already an array of parts, use it directly
-                  // Ensure the parts conform to the expected structure if necessary
-                  messageParts = assistantMessage.content.map((part) => {
-                    if (part.type === "text") {
+                  messageParts = assistantMessage.content.map((part: any) => {
+                    if (typeof part === "object" && part.type === "text") {
                       return { type: "text", text: part.text };
-                    } else {
-                      // Handle other part types if necessary, or stringify them
-                      console.warn(
-                        "Unhandled part type in assistant message content:",
-                        part.type
-                      );
-                      return { type: part.type, content: part }; // Or adjust as needed for DB schema
                     }
+                    return { type: "text", text: JSON.stringify(part) };
                   });
-                } else {
-                  // Handle cases where content might be missing or in an unexpected format
-                  console.warn(
-                    "Assistant message content has unexpected format or is missing:",
-                    assistantMessage.content
-                  );
-                  messageParts = [
-                    { type: "text", text: "[AI response content unavailable]" },
-                  ];
+                }
+
+                // Check for connection UI elements
+                const uiElements =
+                  extractUIElementsFromToolResponses(assistantMessage);
+                // Only add UI elements if they exist (not null/undefined)
+                if (uiElements !== null && uiElements !== undefined) {
+                  // Add the UI element to message parts
+                  messageParts.push({
+                    type: "connection",
+                    connection: uiElements,
+                  });
                 }
 
                 // Save the assistant message with its structured content
@@ -1097,14 +1004,7 @@ export async function POST(request: Request) {
                       id: assistantId,
                       chatId: id,
                       role: "assistant",
-                      // Use the processed parts derived from assistantMessage.content
                       parts: messageParts,
-                      // Preserve original attachments if they exist (using type assertion)
-                      attachments:
-                        (assistantMessage as any).experimental_attachments ??
-                        [],
-                      // Preserve original metadata if it exists (using type assertion)
-                      metadata: (assistantMessage as any).metadata ?? {},
                       createdAt: new Date(),
                     },
                   ],
@@ -1114,19 +1014,23 @@ export async function POST(request: Request) {
               }
             }
           },
+          experimental_telemetry: {
+            isEnabled: isProductionEnvironment,
+            functionId: "stream-text",
+          },
         });
 
-        // Add debug logging for stream consumption
-        console.log("Starting stream consumption...");
+        // Start stream consumption
         result.consumeStream();
 
-        // Use the streamAdapter for merging to ensure proper formatting
-        if (result.mergeIntoDataStream) {
-          result.mergeIntoDataStream(streamAdapter, {
+        // Use the streamAdapter for merging
+        try {
+          // Use any to bypass type checking
+          result.mergeIntoDataStream(dataStream, {
             sendReasoning: true,
           });
-        } else {
-          console.warn("mergeIntoDataStream method not available on result");
+        } catch (error) {
+          console.error("Error merging data stream:", error);
         }
       },
       onError: (error) => {
@@ -1187,50 +1091,8 @@ function extractUIElementsFromToolResponses(message: any): any {
 
     // Look for connection_required UI elements in any tool response
     for (const response of toolResponses) {
-      // Check for connection_required UI type
       if (response?.output?.ui?.type === "connection_required") {
         return response.output.ui;
-      }
-
-      // Check for error responses that might indicate insufficient permissions
-      if (
-        response?.output?.status === "error" &&
-        (response?.output?.error?.includes("Insufficient Permission") ||
-          response?.output?.error?.includes("403"))
-      ) {
-        // Extract the provider from the tool name or error message
-        let provider = "unknown";
-        if (response?.output?.name) {
-          if (response.output.name.includes("google-meet"))
-            provider = "google-meet";
-          else if (response.output.name.includes("calendar"))
-            provider = "google-calendar";
-          else if (response.output.name.includes("docs"))
-            provider = "google-docs";
-          else if (response.output.name.includes("slack")) provider = "slack";
-        }
-
-        // Create a connection UI object
-        return {
-          type: "connection_required",
-          service: provider,
-          message: `You need additional permissions for ${provider}. Please reconnect with the required scopes.`,
-          requiredScopes: response?.output?.ui?.requiredScopes || [],
-          connectButton: {
-            text: `Reconnect ${
-              provider === "google-calendar"
-                ? "Google Calendar"
-                : provider === "google-meet"
-                ? "Google Meet"
-                : provider === "google-docs"
-                ? "Google Docs"
-                : provider === "slack"
-                ? "Slack"
-                : provider
-            }`,
-            action: `connection://${provider}`,
-          },
-        };
       }
     }
 
