@@ -88,6 +88,25 @@ export default function LoginScreen() {
             <p className="text-xs text-muted-foreground mb-2">
               Powered by Descope AI
             </p>
+            <div className="flex items-center justify-center space-x-4 w-full mt-2">
+              <a
+                href="https://www.descope.com/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors duration-200"
+              >
+                Privacy Policy
+              </a>
+              <span className="text-xs text-muted-foreground">•</span>
+              <a
+                href="https://www.descope.com/terms-of-service"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors duration-200"
+              >
+                Terms of Service
+              </a>
+            </div>
           </CardFooter>
         </Card>
       </div>
