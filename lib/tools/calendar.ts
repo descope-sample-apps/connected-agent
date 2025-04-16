@@ -19,6 +19,7 @@ export interface CalendarEvent {
   location?: string;
   timeZone?: string;
   lookupContacts?: boolean;
+  includeGoogleMeet?: boolean;
 }
 
 export class CalendarTool extends Tool<CalendarEvent> {
@@ -34,6 +35,7 @@ export class CalendarTool extends Tool<CalendarEvent> {
       "location",
       "timeZone",
       "lookupContacts",
+      "includeGoogleMeet",
     ],
     capabilities: [
       "Create calendar events",
@@ -169,28 +171,38 @@ export class CalendarTool extends Tool<CalendarEvent> {
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
       // Prepare event data
-      const event = {
+      const event: any = {
         summary: data.title,
         description: data.description,
         start: {
-          dateTime: data.startTime,
+          dateTime: getTimezoneSafeDateTime(data.startTime, data.timeZone),
           timeZone: data.timeZone || "UTC",
         },
         end: {
-          dateTime: data.endTime,
+          dateTime: getTimezoneSafeDateTime(data.endTime, data.timeZone),
           timeZone: data.timeZone || "UTC",
         },
         location: data.location,
         attendees: data.attendees?.map((email) => ({ email })),
       };
 
+      // Add Google Meet conferencing if requested
+      if (data.includeGoogleMeet) {
+        event.conferenceData = {
+          createRequest: {
+            requestId: `meet-${Date.now()}`,
+            conferenceSolutionKey: { type: "hangoutsMeet" },
+          },
+        };
+      }
+
       // Create the calendar event
       console.log("Sending calendar event creation request to Google API");
       const response = await calendar.events.insert({
         calendarId: "primary",
         requestBody: event,
-        // Add this for better link handling
-        conferenceDataVersion: 1,
+        // Enable conference data version for Google Meet support
+        conferenceDataVersion: data.includeGoogleMeet ? 1 : 0,
       });
 
       // Log the successful response from Google Calendar API
@@ -279,3 +291,37 @@ export class CalendarTool extends Tool<CalendarEvent> {
 
 // Register the calendar tool
 toolRegistry.register(new CalendarTool());
+
+// Helper function to extract timezone-aware ISO string if available
+function getTimezoneSafeDateTime(
+  dateTimeString: string,
+  timezone?: string
+): string {
+  try {
+    // If this is a Date object with our custom timezone property, use that
+    const date = new Date(dateTimeString);
+    if (date && (date as any).isoStringWithTimezone) {
+      console.log(
+        `Using timezone-aware ISO string: ${
+          (date as any).isoStringWithTimezone
+        }`
+      );
+      return (date as any).isoStringWithTimezone;
+    }
+
+    // Check if the string already looks like an ISO format
+    if (
+      typeof dateTimeString === "string" &&
+      dateTimeString.includes("T") &&
+      (dateTimeString.includes("Z") || dateTimeString.includes("+"))
+    ) {
+      return dateTimeString;
+    }
+
+    // Fall back to the original string
+    return dateTimeString;
+  } catch (e) {
+    console.error("Error extracting timezone-aware datetime:", e);
+    return dateTimeString;
+  }
+}

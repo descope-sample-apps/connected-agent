@@ -7,10 +7,11 @@ import {
   Video,
   Database,
   ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import { useOAuth } from "@/context/oauth-context";
 import Image from "next/image";
-import { connectToOAuthProvider } from "@/lib/oauth-utils";
+import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 import ReactMarkdown from "react-markdown";
 
 // Service logo mapping
@@ -61,40 +62,99 @@ export default function ChatMessage({
   const [requiredScopes, setRequiredScopes] = useState<string[]>([]);
   const { setShowReconnectDialog, setReconnectInfo } = useOAuth();
 
-  // Handle connection button click - Direct connection without dialog
+  // Handle connection button click - Use popup instead of direct redirect
   const handleConnectionClick = async (service: string, action: string) => {
     console.log(`Connection button clicked for ${service}`);
 
     // Extract the service from the action URI
     const serviceType = action.replace("connection://", "");
-    console.log(`Initiating direct OAuth flow for ${serviceType}`);
+    console.log(`Initiating OAuth popup flow for ${serviceType}`);
 
     try {
-      // Get current chat ID for direct redirection
+      // Get current chat ID for returning to the same chat
       const currentChatId =
         localStorage.getItem("currentChatId") || `chat-${Date.now()}`;
 
-      // Build a direct URL back to the current chat
-      const directRedirectUrl = `${window.location.origin}/chat/${currentChatId}`;
-      console.log(`Setting OAuth redirect directly to: ${directRedirectUrl}`);
+      // Prepare the OAuth flow with the API endpoint
+      const redirectUrl = `${window.location.origin}/api/oauth/callback`;
 
-      // Initiate direct connection flow
+      // Initiate connection flow
       const authUrl = await connectToOAuthProvider({
         appId: serviceType,
-        redirectUrl: directRedirectUrl,
-        // No need for chatId in state since it's in the redirect URL
+        redirectUrl,
+        // Include chatId in state to return to the same chat
         state: {
           redirectTo: "chat",
+          chatId: currentChatId,
         },
       });
 
-      // Directly redirect to the OAuth provider
-      window.location.href = authUrl;
+      // Use popup flow instead of direct redirect
+      await handleOAuthPopup(authUrl, {
+        onSuccess: () => {
+          console.log("OAuth connection successful");
+          // Optional: refresh the chat or trigger the onReconnectComplete callback
+          if (onReconnectComplete) {
+            onReconnectComplete();
+          }
+        },
+        onError: (error) => {
+          console.error("OAuth connection failed:", error);
+
+          // Only show reconnect dialog if it's specifically a scopes/permissions issue
+          const errorMessage = error?.message || "";
+          const isScopeError =
+            errorMessage.includes("insufficient_scopes") ||
+            errorMessage.includes("missing_scopes") ||
+            errorMessage.includes("scope") ||
+            errorMessage.includes("permission");
+
+          if (isScopeError) {
+            // Extract required scopes if possible
+            const scopesMatch = errorMessage.match(
+              /requiredScopes:\s*\[(.*?)\]/
+            );
+            const scopes = scopesMatch
+              ? scopesMatch[1]
+                  .split(",")
+                  .map((s) => s.trim().replace(/"/g, ""))
+                  .filter(Boolean)
+              : [];
+
+            setReconnectInfo({ appId: serviceType, scopes });
+            setShowReconnectDialog(true);
+          } else {
+            // For general connection failures, just try again without showing reconnect dialog
+            // Could show a different toast/notification here instead
+            console.log("General connection error, not scope-related");
+          }
+        },
+      });
     } catch (e) {
       console.error("Error initiating OAuth flow:", e);
-      // Fallback to dialog approach if direct connection fails
-      setReconnectInfo({ appId: serviceType, scopes: [] });
-      setShowReconnectDialog(true);
+
+      // Only show reconnect dialog for scope-related errors
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const isScopeError =
+        errorMessage.includes("insufficient_scopes") ||
+        errorMessage.includes("missing_scopes") ||
+        errorMessage.includes("scope") ||
+        errorMessage.includes("permission");
+
+      if (isScopeError) {
+        // Extract required scopes if possible
+        const scopesMatch = errorMessage.match(/requiredScopes:\s*\[(.*?)\]/);
+        const scopes = scopesMatch
+          ? scopesMatch[1]
+              .split(",")
+              .map((s) => s.trim().replace(/"/g, ""))
+              .filter(Boolean)
+          : [];
+
+        setReconnectInfo({ appId: serviceType, scopes });
+        setShowReconnectDialog(true);
+      }
+      // For general errors, we could add a toast notification here
     }
   };
 
@@ -324,10 +384,10 @@ export default function ChatMessage({
       connectionUI.type === "connection_required" && (
         <div
           key="connection-ui"
-          className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm"
+          className="mt-4 p-4 bg-card rounded-xl border border-border shadow-sm animate-scaleIn"
         >
           <div className="flex items-center mb-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center mr-2">
+            <div className="h-8 w-8 rounded-full bg-background border border-border flex items-center justify-center mr-2 shadow-sm">
               {SERVICE_LOGOS[
                 connectionUI.service as keyof typeof SERVICE_LOGOS
               ] ? (
@@ -351,7 +411,7 @@ export default function ChatMessage({
                 getIcon(connectionUI.service) // Use getIcon as fallback
               )}
             </div>
-            <p className="text-gray-700 dark:text-gray-200 font-medium">
+            <p className="text-foreground font-medium">
               {connectionUI.message}
             </p>
           </div>
@@ -362,7 +422,7 @@ export default function ChatMessage({
                 connectionUI.connectButton.action
               )
             }
-            className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-sm shadow-sm transition-colors"
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium shadow-sm transition-all duration-200 active:scale-[0.98]"
           >
             {connectionUI.connectButton.text || "Connect"}
           </button>
@@ -500,18 +560,20 @@ export default function ChatMessage({
       serviceLower === "google-calendar" ||
       serviceLower.includes("calendar")
     ) {
-      return <Calendar className="h-4 w-4 text-indigo-500" />;
+      return <Calendar className="h-4 w-4 text-primary" />;
     } else if (
       serviceLower === "google-docs" ||
       serviceLower.includes("docs")
     ) {
-      return <FileText className="h-4 w-4 text-purple-500" />;
+      return <FileText className="h-4 w-4 text-primary" />;
     } else if (serviceLower === "zoom" || serviceLower.includes("zoom")) {
-      return <Video className="h-4 w-4 text-indigo-500" />;
+      return <Video className="h-4 w-4 text-primary" />;
     } else if (serviceLower === "crm" || serviceLower.includes("crm")) {
-      return <Database className="h-4 w-4 text-purple-500" />;
+      return <Database className="h-4 w-4 text-primary" />;
+    } else if (serviceLower === "slack" || serviceLower.includes("slack")) {
+      return <MessageSquare className="h-4 w-4 text-primary" />;
     } else {
-      return <ExternalLink className="h-4 w-4 text-indigo-500" />;
+      return <ExternalLink className="h-4 w-4 text-primary" />;
     }
   };
 

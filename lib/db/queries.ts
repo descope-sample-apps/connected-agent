@@ -238,9 +238,6 @@ export async function saveMessages({
     );
 
     if (newMessages.length === 0) {
-      console.log(
-        "All messages already exist in the database, skipping insert"
-      );
       return;
     }
 

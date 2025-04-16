@@ -43,6 +43,8 @@ export function OAuthReconnectDialog() {
         scopes: reconnectInfo.scopes,
       });
 
+      console.log(" URL:", url);
+
       // Use the OAuth popup handler
       handleOAuthPopup(url, {
         onSuccess: () => {

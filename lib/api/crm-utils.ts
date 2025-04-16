@@ -276,10 +276,6 @@ export async function searchContact(token: string, name: string) {
       throw new Error("Unexpected response format from CRM API");
     }
 
-    console.log(
-      `[CRM Utils] Got ${responseData.data.length} contacts, filtering for "${name}"`
-    );
-
     // Check for exact matches first (case-insensitive)
     const exactMatch = responseData.data.find(
       (contact: CRMContact) => contact.name.toLowerCase() === name.toLowerCase()

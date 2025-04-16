@@ -65,7 +65,6 @@ import { availableModels } from "@/lib/ai/providers";
 import { useEffect as useClientEffect } from "react";
 import { disconnectOAuthProvider } from "@/lib/oauth-utils";
 import {
-  isConnected,
   setConnected,
   getAllConnectionStatuses,
   OAuthProvider as ConnectionProvider,

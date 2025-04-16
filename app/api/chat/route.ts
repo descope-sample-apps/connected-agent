@@ -29,6 +29,8 @@ import { CalendarTool } from "@/lib/tools/calendar";
 import { CalendarListTool } from "@/lib/tools/calendar-list";
 import { searchContact } from "@/lib/api/crm-utils";
 import { format, addDays, addWeeks } from "date-fns";
+import "@/lib/tools/add-google-meet";
+import { Tool } from "@/lib/tools/base";
 
 export const maxDuration = 60;
 
@@ -385,9 +387,6 @@ export async function POST(request: Request) {
       return new Response("Chat ID is required", { status: 400 });
     }
 
-    // Log timezone information for debugging
-    console.log(`Request timezone: ${timezone} (offset: ${timezoneOffset})`);
-
     const userSession = await session();
 
     if (!userSession?.token?.sub) {
@@ -438,7 +437,6 @@ export async function POST(request: Request) {
     const calendarTool = toolRegistry.getTool("google-calendar");
     const calendarListTool = toolRegistry.getTool("google-calendar-list");
     const crmContactsTool = toolRegistry.getTool("crm-contacts");
-    const googleMeetTool = toolRegistry.getTool("google-meet");
     const slackTool = toolRegistry.getTool("slack");
 
     // Define the tools object
@@ -572,7 +570,12 @@ export async function POST(request: Request) {
             };
 
             // Pass the fresh date explicitly to ensure no cached dates are used
-            const parsedDate = parseRelativeDate(dateString, timeString, now);
+            const parsedDate = parseRelativeDate(
+              dateString,
+              timeString,
+              now,
+              timezone
+            );
 
             console.log("Parsed date result:", {
               date: parsedDate.date.toISOString(),
@@ -584,7 +587,9 @@ export async function POST(request: Request) {
 
             // Format the date for calendar event creation
             const formattedDate = {
-              iso: parsedDate.date.toISOString(),
+              iso:
+                (parsedDate.date as any).isoStringWithTimezone ||
+                parsedDate.date.toISOString(),
               display: parsedDate.formattedDate,
               time: parsedDate.formattedTime,
               date: parsedDate.date,
@@ -889,77 +894,67 @@ export async function POST(request: Request) {
       },
       // Add a dedicated Google Meet creation tool
       createGoogleMeet: {
-        description: "Create a Google Meet meeting and get the meeting link",
-        parameters: z.object({
-          title: z.string().describe("Meeting title"),
-          description: z.string().describe("Meeting description/agenda"),
-          startTime: z
-            .string()
-            .describe("Start time in ISO format (e.g., 2023-05-01T09:00:00)"),
-          duration: z.number().describe("Meeting duration in minutes"),
-          attendees: z
-            .array(z.string())
-            .optional()
-            .describe("Optional list of attendee emails"),
-          timeZone: z
-            .string()
-            .optional()
-            .describe("Time zone (optional, defaults to user's timezone)"),
-          settings: z
-            .object({
-              muteUponEntry: z.boolean().optional(),
-              joinBeforeHost: z.boolean().optional(),
-            })
-            .optional(),
-        }),
-        execute: async (data: any) => {
-          try {
-            if (!googleMeetTool) {
-              return {
-                success: false,
-                error: "Google Meet tool not available",
-                message:
-                  "Unable to create Google Meet meetings. Please connect your Google Calendar.",
-                ui: {
-                  type: "connection_required",
-                  service: "google-meet",
-                  message:
-                    "Please connect your Google Meet to create video conferences",
-                  connectButton: {
-                    text: "Connect Google Meet",
-                    action: "connection://google-meet",
-                  },
-                },
-              };
-            }
-
-            // Use the client's timezone if no timeZone was specified
-            if (!data.timeZone && timezone !== "UTC") {
-              data.timeZone = timezone;
-            }
-
-            const result = await googleMeetTool.execute(userId, {
-              title: data.title,
-              description: data.description,
-              startTime: data.startTime,
-              duration: data.duration,
-              attendees: data.attendees,
-              timeZone: data.timeZone,
-              settings: data.settings,
-            });
-
-            return result;
-          } catch (error) {
-            return {
-              success: false,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Unknown error creating Google Meet",
-              message:
-                "There was an error creating your Google Meet. Please try again later.",
-            };
-          }
+        description:
+          "Create a standalone Google Meet meeting WITHOUT a calendar event (use createCalendarEvent with includeGoogleMeet=true for a calendar event with Google Meet)",
+        parameters: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "The title of the Google Meet",
+            },
+            description: {
+              type: "string",
+              description: "Optional description for the Google Meet",
+            },
+            startTime: {
+              type: "string",
+              description:
+                "Start time of the Google Meet (ISO 8601 format or natural language like 'tomorrow at 3pm')",
+            },
+            duration: {
+              type: "number",
+              description: "Duration of the Google Meet in minutes",
+            },
+            attendees: {
+              type: "array",
+              items: {
+                type: "string",
+              },
+              description: "Optional list of attendee email addresses",
+            },
+          },
+          required: ["title", "startTime", "duration"],
+        },
+      },
+      // Add a tool for adding Google Meet to existing calendar events
+      addGoogleMeet: {
+        description:
+          "Add a Google Meet link to an EXISTING calendar event (use this after createCalendarEvent if you need to add Google Meet to a previously created event)",
+        parameters: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description:
+                "The ID of the calendar event to update (optional if other identifiers are provided)",
+            },
+            eventTitle: {
+              type: "string",
+              description:
+                "The title of the calendar event to find and update with Google Meet",
+            },
+            eventDate: {
+              type: "string",
+              description:
+                "The date of the calendar event (to help identify the correct event)",
+            },
+            attendee: {
+              type: "string",
+              description:
+                "An attendee email to help identify the correct event",
+            },
+          },
         },
       },
       // Add Slack messaging tool
@@ -1008,6 +1003,51 @@ export async function POST(request: Request) {
                 "There was an error sending your Slack message. Please try again later.",
             };
           }
+        },
+      },
+      // Update the createCalendarEvent tool description to mention integrated Google Meet capabilities
+      createCalendarEvent: {
+        description:
+          "Create a calendar event or meeting (can include Google Meet link by adding conferenceData:true parameter)",
+        parameters: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "The title of the calendar event",
+            },
+            description: {
+              type: "string",
+              description: "Optional description for the calendar event",
+            },
+            startTime: {
+              type: "string",
+              description:
+                "Start time of the event (ISO 8601 format or natural language like 'tomorrow at 3pm')",
+            },
+            endTime: {
+              type: "string",
+              description:
+                "End time of the event (ISO 8601 format or natural language like 'tomorrow at 4pm')",
+            },
+            attendees: {
+              type: "array",
+              items: {
+                type: "string",
+              },
+              description: "Optional list of attendee email addresses",
+            },
+            location: {
+              type: "string",
+              description: "Optional location for the event",
+            },
+            includeGoogleMeet: {
+              type: "boolean",
+              description:
+                "Set to true to include a Google Meet link in the calendar event (preferred over using separate createGoogleMeet tool)",
+            },
+          },
+          required: ["title", "startTime", "endTime"],
         },
       },
     };
@@ -1185,49 +1225,93 @@ export async function POST(request: Request) {
                 data.startTime.toLowerCase().includes("saturday") ||
                 data.startTime.toLowerCase().includes("sunday"))
             ) {
-              console.log(
-                "Detected relative date in startTime:",
-                data.startTime
-              );
-              console.log("Current server date:", new Date().toISOString());
-
-              // Parse the relative date using the current date as base
-              const nowDate = new Date();
-              let dateString, timeString;
-
-              // Split into date and time parts if needed
-              if (data.startTime.includes(" at ")) {
-                [dateString, timeString] = data.startTime.split(" at ");
+              // Check if this is a new message or a loaded old message
+              // Skip timezone processing for messages loaded from history
+              if (userMessage.id && userMessage.id.startsWith("db-")) {
+                console.log(
+                  "Skipping timezone processing for message loaded from history:",
+                  data.startTime
+                );
               } else {
-                dateString = data.startTime;
-                timeString = "12:00";
-              }
+                console.log(
+                  "Detected relative date in startTime for new message:",
+                  data.startTime
+                );
+                console.log("Current server date:", new Date().toISOString());
 
-              console.log("Parsing relative date with:", {
-                dateString,
-                timeString,
-                baseDate: nowDate,
-              });
-              const parsedDate = parseRelativeDate(
-                dateString,
-                timeString,
-                nowDate,
-                timezone
-              );
+                // Parse the relative date using the current date as base
+                const nowDate = new Date();
+                let dateString, timeString;
 
-              // Save the original startTime for reference
-              data.originalStartTime = data.startTime;
+                // Split into date and time parts if needed
+                if (data.startTime.includes(" at ")) {
+                  [dateString, timeString] = data.startTime.split(" at ");
+                } else {
+                  dateString = data.startTime;
+                  timeString = "2:00 pm"; // Default to 2:00 PM instead of noon
+                }
 
-              // Update the startTime with the parsed ISO date
-              data.startTime = parsedDate.date.toISOString();
-              console.log("Updated startTime to:", data.startTime);
+                console.log("Parsing relative date with:", {
+                  dateString,
+                  timeString,
+                  baseDate: nowDate,
+                  timezone: timezone || "UTC",
+                });
 
-              // If endTime is not specified, default to 1 hour after start
-              if (!data.endTime) {
-                const endDate = new Date(parsedDate.date);
-                endDate.setHours(endDate.getHours() + 1);
-                data.endTime = endDate.toISOString();
-                console.log("Set default endTime to:", data.endTime);
+                // Use the timezone parameter when parsing the date
+                const parsedDate = parseRelativeDate(
+                  dateString,
+                  timeString,
+                  nowDate,
+                  timezone || "UTC"
+                );
+
+                // Save the original startTime for reference
+                data.originalStartTime = data.startTime;
+
+                // Use the timezone-aware ISO string if available
+                data.startTime =
+                  (parsedDate.date as any).isoStringWithTimezone ||
+                  parsedDate.date.toISOString();
+                console.log("Updated startTime to:", data.startTime);
+
+                // If endTime is not specified, default to 1 hour after start
+                if (!data.endTime) {
+                  const endDate = new Date(parsedDate.date);
+                  endDate.setHours(endDate.getHours() + 1);
+
+                  // Use the same timezone handling for the end time
+                  if ((parsedDate.date as any).isoStringWithTimezone) {
+                    const endHour = endDate.getHours();
+                    const endMinute = endDate.getMinutes();
+
+                    // Create a similar timezone-aware ISO string for the end time
+                    const year = endDate.getFullYear();
+                    const month = String(endDate.getMonth() + 1).padStart(
+                      2,
+                      "0"
+                    );
+                    const day = String(endDate.getDate()).padStart(2, "0");
+                    const hour = String(endHour).padStart(2, "0");
+                    const minute = String(endMinute).padStart(2, "0");
+
+                    if (timezone && timezone !== "UTC") {
+                      data.endTime = `${year}-${month}-${day}T${hour}:${minute}:00`;
+                    } else {
+                      data.endTime = `${year}-${month}-${day}T${hour}:${minute}:00Z`;
+                    }
+                  } else {
+                    data.endTime = endDate.toISOString();
+                  }
+
+                  console.log("Set default endTime to:", data.endTime);
+                }
+
+                // Make sure to set the timeZone parameter
+                if (timezone && !data.timeZone) {
+                  data.timeZone = timezone;
+                  console.log(`Setting timeZone parameter to: ${timezone}`);
+                }
               }
             }
 
@@ -1402,7 +1486,6 @@ When handling date and time references:
           experimental_transform: smoothStream({ chunking: "word" }),
           tools: toolsObject,
           onFinish: async ({ response }) => {
-            console.log("Stream finished, saving response...");
             if (userId) {
               try {
                 // Get the assistant messages
