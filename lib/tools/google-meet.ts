@@ -2,6 +2,7 @@ import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
 import { getRequiredScopes } from "@/lib/openapi-utils";
+import { getCurrentDateContext } from "@/lib/date-utils";
 
 export interface GoogleMeetEvent {
   title: string;
@@ -36,6 +37,9 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
   };
 
   validate(data: GoogleMeetEvent): ToolResponse | null {
+    // Get current date context for validation
+    const dateContext = getCurrentDateContext();
+
     if (!data.title) {
       return {
         success: false,
@@ -53,7 +57,7 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
         error: "Missing start time",
         needsInput: {
           field: "startTime",
-          message: "Please provide a start time",
+          message: `Please provide a start time. Today is ${dateContext.currentDate}.`,
         },
       };
     }
@@ -74,6 +78,15 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
 
   async execute(userId: string, data: GoogleMeetEvent): Promise<ToolResponse> {
     try {
+      // Include date context when processing
+      const dateContext = getCurrentDateContext();
+      console.log("Creating Google Meet meeting:", {
+        title: data.title,
+        startTime: data.startTime,
+        duration: data.duration,
+        currentDate: dateContext.currentDate, // Include current date for context
+      });
+
       // Get OAuth token for Google Calendar
       const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
@@ -218,3 +231,8 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
 
 // Register the Google Meet tool
 toolRegistry.register(new GoogleMeetTool());
+
+function promptForDateClarification(vagueDateText: string) {
+  const context = getCurrentDateContext();
+  return `I see you mentioned "${vagueDateText}". Today is ${context.currentDate}. Could you please clarify exactly when you'd like to schedule this?`;
+}

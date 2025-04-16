@@ -322,6 +322,7 @@ export function getCurrentDateContext(): {
   currentTime: string;
   tomorrow: string;
   nextWeek: string;
+  currentDateReadable: string;
 } {
   const now = new Date();
   return {
@@ -329,5 +330,6 @@ export function getCurrentDateContext(): {
     currentTime: format(now, "h:mm a"),
     tomorrow: format(addDays(now, 1), "MMMM d, yyyy"),
     nextWeek: format(addWeeks(now, 1), "MMMM d, yyyy"),
+    currentDateReadable: now.toDateString(),
   };
 }

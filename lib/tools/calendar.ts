@@ -7,6 +7,7 @@ import {
 } from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
+import { getCurrentDateContext } from "../date-utils";
 
 export interface CalendarEvent {
   id?: string;
@@ -44,6 +45,9 @@ export class CalendarTool extends Tool<CalendarEvent> {
   };
 
   validate(data: CalendarEvent): ToolResponse | null {
+    // Get current date context for validation
+    const dateContext = getCurrentDateContext();
+
     if (!data.title) {
       return {
         success: false,
@@ -61,7 +65,7 @@ export class CalendarTool extends Tool<CalendarEvent> {
         error: "Missing start time",
         needsInput: {
           field: "startTime",
-          message: "Please provide a start time",
+          message: `Please provide a start time. Today is ${dateContext.currentDate}.`,
         },
       };
     }
@@ -72,7 +76,7 @@ export class CalendarTool extends Tool<CalendarEvent> {
         error: "Missing end time",
         needsInput: {
           field: "endTime",
-          message: "Please provide an end time",
+          message: `Please provide an end time. Today is ${dateContext.currentDate}.`,
         },
       };
     }
@@ -102,12 +106,15 @@ export class CalendarTool extends Tool<CalendarEvent> {
 
   async execute(userId: string, data: CalendarEvent): Promise<ToolResponse> {
     try {
+      // Include date context when logging
+      const dateContext = getCurrentDateContext();
       console.log("Creating calendar event:", {
         title: data.title,
         startTime: data.startTime,
         endTime: data.endTime,
         attendees: data.attendees,
         timezone: data.timeZone,
+        currentDate: dateContext.currentDate, // Include current date for context
       });
 
       // Get OAuth token for the user

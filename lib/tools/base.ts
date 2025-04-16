@@ -1,4 +1,5 @@
 import { toolLogger } from "../logger";
+import { getCurrentDateContext } from "../date-utils";
 
 export interface ToolResponse {
   success: boolean;
@@ -41,6 +42,12 @@ export abstract class Tool<InputType> {
   abstract validate(data: InputType): ToolResponse | null;
 
   abstract execute(userId: string, data: InputType): Promise<ToolResponse>;
+
+  // Helper method to prompt for date clarification with current date context
+  promptForDateClarification(vagueDateText: string): string {
+    const context = getCurrentDateContext();
+    return `I see you mentioned "${vagueDateText}". Today is ${context.currentDate}. Could you please clarify exactly when you'd like to schedule this?`;
+  }
 
   async executeWithLogging(
     userId: string,

@@ -331,6 +331,38 @@ interface ParsedDate {
   time: string;
 }
 
+// Helper function to verify date clarity and prompt for more details if needed
+function verifyDateClarity(
+  dateString: string,
+  timeString: string
+): string | null {
+  // Check if date string is too vague
+  const vagueDateTerms = ["later", "sometime", "soon", "when", "eventually"];
+
+  // If date string contains vague terms, ask for clarification
+  if (vagueDateTerms.some((term) => dateString.toLowerCase().includes(term))) {
+    const context = getCurrentDateContext();
+    return `I noticed the date "${dateString}" is a bit unclear. Today is ${context.currentDate}. Could you please provide a more specific date?`;
+  }
+
+  // If time string is too vague, ask for clarification
+  const vagueTimeTerms = [
+    "later",
+    "morning",
+    "afternoon",
+    "evening",
+    "sometime",
+  ];
+  if (
+    vagueTimeTerms.some((term) => timeString.toLowerCase().includes(term)) &&
+    !timeString.includes(":")
+  ) {
+    return `Could you please specify a more exact time than "${timeString}"? For example, "9:00 AM" or "3:30 PM".`;
+  }
+
+  return null; // No clarification needed
+}
+
 export async function POST(request: Request) {
   try {
     const {
@@ -438,6 +470,33 @@ export async function POST(request: Request) {
 
             // Check if the date string is too vague
             const lowerDateString = dateString.toLowerCase().trim();
+            const vagueTerms = [
+              "later",
+              "sometime",
+              "soon",
+              "when",
+              "eventually",
+              "flexible",
+            ];
+
+            // Don't allow completely vague date terms
+            if (
+              vagueTerms.some((term) => lowerDateString.includes(term)) ||
+              (lowerDateString === "today" && !timeString)
+            ) {
+              console.log("Date string is too vague:", lowerDateString);
+              return {
+                success: false,
+                needsMoreDetails: true,
+                error: "Date specification is too vague",
+                message: `I need a more specific date than "${dateString}". Today is ${format(
+                  new Date(),
+                  "MMMM d, yyyy"
+                )}. Could you provide a specific date or day of the week?`,
+                dateContext: getCurrentDateContext(),
+                originalInput: { dateString, timeString },
+              };
+            }
 
             // If just "next week" without a specific day, we need more details
             if (lowerDateString === "next week") {
@@ -1249,6 +1308,18 @@ export async function POST(request: Request) {
       throw error;
     }
 
+    // Get system prompt with date context added
+    const baseSystemPrompt = systemPrompt({ selectedChatModel });
+    const currentDate = new Date();
+    const enhancedSystemPrompt = `${baseSystemPrompt}
+
+Today's date is ${currentDate.toDateString()} (${currentDate.toISOString()}).
+When handling date and time references:
+- Ask for clarification if the user provides vague time references
+- Confirm specific dates and times before scheduling
+- Interpret relative terms (tomorrow, next week) relative to today's date
+`;
+
     // Return a streaming response
     return createDataStreamResponse({
       execute: (dataStream) => {
@@ -1300,14 +1371,9 @@ export async function POST(request: Request) {
           },
         };
 
-        // Get system prompt
-        const promptResult = systemPrompt({ selectedChatModel });
-        const systemPromptString =
-          typeof promptResult === "string" ? promptResult : undefined;
-
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
-          system: systemPromptString,
+          system: enhancedSystemPrompt,
           messages: (messages as any[]).map((msg) => {
             // Ensure content is a string
             let content = "";
