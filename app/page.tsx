@@ -1735,30 +1735,16 @@ export default function Home() {
                                 ? message.content
                                 : extractMessageContent(message),
                             parts: message.parts
-                              ?.map((part) => {
-                                // Handle string parts
-                                if (typeof part === "string") {
-                                  return {
-                                    type: "text",
-                                    text: part,
-                                  };
+                              ?.filter((part) => {
+                                if (
+                                  typeof part === "object" &&
+                                  "type" in part
+                                ) {
+                                  return part.type !== "step-start";
                                 }
-                                // Handle object parts
-                                if (typeof part === "object" && part !== null) {
-                                  if ("text" in part) {
-                                    return {
-                                      type: part.type || "text",
-                                      text: String(part.text || ""),
-                                    };
-                                  } else if ("content" in part) {
-                                    return {
-                                      type: part.type || "text",
-                                      text: String(part.content || ""),
-                                    };
-                                  }
-                                }
-                                return null;
+                                return true;
                               })
+                              .map((part) => {})
                               .filter(Boolean) as any,
                           }}
                           onReconnectComplete={handleReconnectComplete}

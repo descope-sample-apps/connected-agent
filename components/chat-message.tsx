@@ -132,43 +132,6 @@ export default function ChatMessage({
     }
   }, [message]);
 
-  // This function checks for calendar/meeting links that may not be properly parsed
-  const hasCalendarLinks = (content: string) => {
-    // First check for markdown links [text](url)
-    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-    let match;
-
-    while ((match = markdownLinkRegex.exec(content)) !== null) {
-      const url = match[2];
-      if (
-        url.includes("google.com/calendar") ||
-        url.includes("calendar/event") ||
-        url.includes("calendar.google.com") ||
-        url.includes("eid=") ||
-        url.includes("meet.google.com")
-      ) {
-        return true;
-      }
-    }
-
-    // Then check for raw URLs
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    while ((match = urlRegex.exec(content)) !== null) {
-      const url = match[1];
-      if (
-        url.includes("google.com/calendar") ||
-        url.includes("calendar/event") ||
-        url.includes("calendar.google.com") ||
-        url.includes("eid=") ||
-        url.includes("meet.google.com")
-      ) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
   // Extract calendar links from content
   const extractCalendarLinks = (content: string) => {
     const links = [];
@@ -207,47 +170,6 @@ export default function ChatMessage({
     }
 
     return links;
-  };
-
-  // Render calendar link button
-  const CalendarLinkButton = ({
-    url,
-    text,
-  }: {
-    url: string;
-    text?: string;
-  }) => {
-    const isCalendarLink =
-      url.includes("google.com/calendar") ||
-      url.includes("calendar/event") ||
-      url.includes("calendar.google.com") ||
-      url.includes("eid=");
-
-    const isMeetLink = url.includes("meet.google.com");
-
-    return (
-      <div className="mt-3">
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 border border-blue-400/20"
-        >
-          {isCalendarLink ? (
-            <>
-              <Calendar className="h-4 w-4" />
-              <span>View Calendar Event</span>
-            </>
-          ) : (
-            <>
-              <Video className="h-4 w-4" />
-              <span>Join Meeting</span>
-            </>
-          )}
-          <ExternalLink className="h-3 w-3 ml-1 opacity-70" />
-        </a>
-      </div>
-    );
   };
 
   // Parse link syntax in message content
@@ -528,7 +450,17 @@ export default function ChatMessage({
             : "bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800"
         }`}
       >
-        {renderMessageContent(message.content)}
+        {renderMessageContent(
+          (message.parts || [])
+            .filter(
+              (part) =>
+                part?.type === "text" &&
+                part?.text &&
+                part?.type !== "step-start"
+            )
+            .map((part) => part.text)
+            .join("\n") || message.content // fallback to raw content
+        )}
       </div>
     </div>
   );
