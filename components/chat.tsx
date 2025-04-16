@@ -15,6 +15,7 @@ import { trackPrompt } from "@/lib/analytics";
 import { useAuth } from "@/context/auth-context";
 import { OAuthProvider } from "@/lib/tools/base";
 import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
+import { nanoid } from "nanoid";
 
 // Define message types
 interface UIElement {
@@ -40,6 +41,11 @@ interface ExtendedMessage extends AIMessage {
     data: any;
   };
   chatId?: string;
+
+  // Add properties related to tool invocations
+  toolInvocations?: any[];
+  tool_calls?: any[];
+  tool_responses?: any[];
 }
 
 interface ChatProps {
@@ -1228,15 +1234,57 @@ export default function Chat({
 
     setIsLoading(true);
     try {
-      await chatHandleSubmit(e);
+      // Add a try/catch block around the chatHandleSubmit call
+      try {
+        await chatHandleSubmit(e);
+      } catch (err: any) {
+        // Handle specifically typeName errors
+        console.error("Error in chat processing:", err);
+
+        if (
+          err?.message?.includes(
+            "Cannot read properties of undefined (reading 'typeName')"
+          )
+        ) {
+          console.warn(
+            "This is likely due to an undefined entry in tool calls or responses"
+          );
+
+          // Show a custom error toast instead of updating messages directly
+          toast({
+            title: "Processing Error",
+            description:
+              "Sorry, there was an error processing your request. Please try again.",
+            variant: "destructive",
+          });
+        } else {
+          // Re-throw for other error types
+          throw err;
+        }
+      }
     } catch (error) {
       console.error("Error submitting message:", error);
+
+      // Don't show an error toast for certain types of errors
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (
+        errorMessage.includes("connection_required") ||
+        errorMessage.includes("insufficient_scopes")
+      ) {
+        console.log(
+          "Suppressing error toast for known error type:",
+          errorMessage
+        );
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to send message. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
       setIsLoading(false);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
     }
   };
 
@@ -1284,6 +1332,56 @@ export default function Chat({
 
     return () => {
       document.head.removeChild(style);
+    };
+  }, []);
+
+  // Handle events when messages are updated (streaming responses)
+  useEffect(() => {
+    const handleMessageUpdate = (message: ExtendedMessage) => {
+      // Sanitize message to prevent typeName errors
+      if (message.toolInvocations && Array.isArray(message.toolInvocations)) {
+        // Filter out any undefined entries in toolInvocations array
+        message.toolInvocations = message.toolInvocations.filter(
+          (invocation) =>
+            invocation !== undefined && typeof invocation === "object"
+        );
+      }
+
+      // Also sanitize tool calls and tool responses
+      if (message.tool_calls && Array.isArray(message.tool_calls)) {
+        message.tool_calls = message.tool_calls.filter(
+          (call) => call !== undefined && typeof call === "object"
+        );
+      }
+
+      if (message.tool_responses && Array.isArray(message.tool_responses)) {
+        message.tool_responses = message.tool_responses.filter(
+          (response) => response !== undefined && typeof response === "object"
+        );
+      }
+
+      // Update the message
+      console.log("Message updated:", message);
+
+      // Continue with existing message handling
+      // ...rest of the function
+    };
+
+    // Set up the event listener
+    const handleAIMessageUpdate = (event: CustomEvent) => {
+      handleMessageUpdate(event.detail.message);
+    };
+
+    window.addEventListener(
+      "ai-message-update",
+      handleAIMessageUpdate as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "ai-message-update",
+        handleAIMessageUpdate as EventListener
+      );
     };
   }, []);
 

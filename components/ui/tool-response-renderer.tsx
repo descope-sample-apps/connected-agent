@@ -61,7 +61,7 @@ export function ToolResponseRenderer({
       toolInvocation.ui?.type === "connection_required"
     ) {
       return (
-        <Card className="p-4 my-3 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+        <Card className="p-4 my-3 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 animate-in fade-in duration-300">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/40">
@@ -89,52 +89,56 @@ export function ToolResponseRenderer({
             <p className="text-amber-700 dark:text-amber-400">
               {toolInvocation.ui.message}
             </p>
-            <Button
-              variant="outline"
-              className="bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
-              onClick={() => {
-                // Handle connection action
-                if (toolInvocation.ui.connectButton?.action) {
-                  // Construct the base connection URL
-                  let connectUrl =
-                    toolInvocation.ui.connectButton.action.replace(
-                      "connection://",
-                      "/api/oauth/connect/"
-                    );
-                  // Append scopes if they exist in the UI object
-                  if (
-                    toolInvocation.ui.requiredScopes &&
-                    Array.isArray(toolInvocation.ui.requiredScopes) &&
-                    toolInvocation.ui.requiredScopes.length > 0
-                  ) {
-                    const scopeString =
-                      toolInvocation.ui.requiredScopes.join(",");
-                    // Ensure we handle URL parameters correctly (add ? or &)
-                    connectUrl += `${
-                      connectUrl.includes("?") ? "&" : "?"
-                    }scopes=${encodeURIComponent(scopeString)}`;
-                  }
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-3 py-1 text-xs bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:scale-105 transition-transform duration-200 shadow-sm"
+                onClick={() => {
+                  // Handle connection action
+                  if (toolInvocation.ui.connectButton?.action) {
+                    // Construct the base connection URL
+                    let connectUrl =
+                      toolInvocation.ui.connectButton.action.replace(
+                        "connection://",
+                        "/api/oauth/connect/"
+                      );
+                    // Append scopes if they exist in the UI object
+                    if (
+                      toolInvocation.ui.requiredScopes &&
+                      Array.isArray(toolInvocation.ui.requiredScopes) &&
+                      toolInvocation.ui.requiredScopes.length > 0
+                    ) {
+                      const scopeString =
+                        toolInvocation.ui.requiredScopes.join(",");
+                      // Ensure we handle URL parameters correctly (add ? or &)
+                      connectUrl += `${
+                        connectUrl.includes("?") ? "&" : "?"
+                      }scopes=${encodeURIComponent(scopeString)}`;
+                    }
 
-                  // Add the current chat ID to the URL as state to return to
-                  const currentChatId = localStorage.getItem("currentChatId");
-                  if (currentChatId) {
-                    connectUrl += `${
-                      connectUrl.includes("?") ? "&" : "?"
-                    }chatId=${currentChatId}`;
-                  }
+                    // Add the current chat ID to the URL as state to return to
+                    const currentChatId = localStorage.getItem("currentChatId");
+                    if (currentChatId) {
+                      connectUrl += `${
+                        connectUrl.includes("?") ? "&" : "?"
+                      }chatId=${currentChatId}`;
+                    }
 
-                  // Store callback intention for when user returns from OAuth
-                  if (onReconnectComplete) {
-                    localStorage.setItem("pendingReconnectComplete", "true");
-                  }
+                    // Store callback intention for when user returns from OAuth
+                    if (onReconnectComplete) {
+                      localStorage.setItem("pendingReconnectComplete", "true");
+                    }
 
-                  // Redirect the user to initiate the OAuth flow
-                  window.location.href = connectUrl;
-                }
-              }}
-            >
-              {toolInvocation.ui.connectButton?.text || "Connect"}
-            </Button>
+                    // Redirect the user to initiate the OAuth flow
+                    window.location.href = connectUrl;
+                  }
+                }}
+              >
+                <ExternalLink className="h-3 w-3 mr-1.5" />
+                {toolInvocation.ui.connectButton?.text || "Connect"}
+              </Button>
+            </div>
           </div>
         </Card>
       );

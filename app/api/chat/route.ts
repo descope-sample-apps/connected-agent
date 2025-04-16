@@ -1547,6 +1547,45 @@ When handling date and time references:
                     ? assistantMessage.content
                     : messageParts.map((part) => part.text || "").join(" ");
 
+                // Sanitize tool responses to prevent "typeName" errors
+                if (
+                  assistantMessage.tool_responses &&
+                  Array.isArray(assistantMessage.tool_responses)
+                ) {
+                  // Filter out any undefined or invalid entries
+                  assistantMessage.tool_responses =
+                    assistantMessage.tool_responses.filter(
+                      (response) =>
+                        response !== undefined && typeof response === "object"
+                    );
+                }
+
+                // Sanitize tool calls to prevent "typeName" errors
+                if (
+                  assistantMessage.tool_calls &&
+                  Array.isArray(assistantMessage.tool_calls)
+                ) {
+                  // Filter out any undefined or invalid entries
+                  assistantMessage.tool_calls =
+                    assistantMessage.tool_calls.filter(
+                      (call) => call !== undefined && typeof call === "object"
+                    );
+                }
+
+                // Fix for the map typeName error in AI SDK
+                if (
+                  assistantMessage.toolInvocations &&
+                  Array.isArray(assistantMessage.toolInvocations)
+                ) {
+                  // Filter out any undefined entries in toolInvocations array
+                  assistantMessage.toolInvocations =
+                    assistantMessage.toolInvocations.filter(
+                      (invocation) =>
+                        invocation !== undefined &&
+                        typeof invocation === "object"
+                    );
+                }
+
                 // Extract UI elements if present
                 const uiElements =
                   extractUIElementsFromToolResponses(assistantMessage);
