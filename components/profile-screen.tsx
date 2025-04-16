@@ -37,6 +37,7 @@ import {
   Share,
   Trash,
   ArrowUpDown,
+  InfoIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -69,6 +70,7 @@ import {
   getAllConnectionStatuses,
   OAuthProvider as ConnectionProvider,
 } from "@/lib/connection-manager";
+import { DEFAULT_SCOPES } from "@/lib/oauth-utils";
 
 interface OAuthProvider {
   id: string;
@@ -556,17 +558,21 @@ export default function ProfileScreen({
 
   // Add helper function to format scope strings
   function formatScope(scope: string): string {
-    // Remove URL parts and common prefixes
-    const cleanScope = scope
-      .replace("https://www.googleapis.com/auth/", "")
-      .replace("https://www.googleapis.com/", "")
-      .replace(".readonly", " (read only)");
+    // Replace dots with spaces and capitalize first letter of each word
+    const formattedScope = scope
+      .replace(/\./g, " ")
+      .replace(/:/g, ": ")
+      .replace(/\b\w/g, (l) => l.toUpperCase());
 
-    // Split on dots and underscores, capitalize each word
-    return cleanScope
-      .split(/[._]/)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+    // Format OAuth URLs more nicely
+    if (scope.includes("googleapis.com")) {
+      return scope
+        .replace("https://www.googleapis.com/auth/", "")
+        .replace(/\./g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+
+    return formattedScope;
   }
 
   // Add a function to handle example clicks
@@ -948,7 +954,7 @@ export default function ProfileScreen({
                 </CardContent>
               </Card>
 
-              <Card className="w-full">
+              <Card className="w-full card-hover">
                 <CardHeader>
                   <CardTitle>Data Access</CardTitle>
                   <CardDescription>
@@ -957,40 +963,154 @@ export default function ProfileScreen({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {oauthProviders.map((provider) => (
-                      <div key={provider.id} className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Image
-                            src={provider.icon}
-                            alt={provider.name}
-                            width={24}
-                            height={24}
-                            className="rounded-sm"
-                          />
-                          <h3 className="font-medium">{provider.name}</h3>
-                          <Badge
-                            variant={
-                              provider.connected ? "default" : "secondary"
-                            }
-                          >
-                            {provider.connected ? "Connected" : "Not Connected"}
-                          </Badge>
-                        </div>
-                        {provider.connected && provider.tokenData?.scopes && (
-                          <div className="pl-8 text-sm text-gray-600 dark:text-gray-400">
-                            <p className="font-medium mb-1">
-                              Granted Permissions:
-                            </p>
-                            <ul className="list-disc pl-4 space-y-1">
-                              {provider.tokenData.scopes.map((scope) => (
-                                <li key={scope}>{formatScope(scope)}</li>
-                              ))}
-                            </ul>
+                  <div className="space-y-6">
+                    {oauthProviders.map((provider) => {
+                      // Get the required scopes for this provider
+                      const requiredScopes =
+                        DEFAULT_SCOPES[provider.id as ConnectionProvider] || [];
+                      // Get the granted scopes for this provider (if connected)
+                      const grantedScopes =
+                        provider.connected && provider.tokenData?.scopes
+                          ? provider.tokenData.scopes
+                          : [];
+
+                      return (
+                        <div
+                          key={provider.id}
+                          className="space-y-3 p-4 border rounded-md bg-card animate-scaleIn"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 flex-shrink-0 bg-gray-50 dark:bg-gray-900 p-1 rounded-full ring-1 ring-gray-200 dark:ring-gray-800">
+                              <img
+                                src={provider.icon}
+                                alt={provider.name}
+                                className="w-full h-full"
+                              />
+                            </div>
+                            <h3 className="font-medium">{provider.name}</h3>
+                            <Badge
+                              variant={
+                                provider.connected ? "default" : "secondary"
+                              }
+                              className="ml-auto"
+                            >
+                              {provider.connected
+                                ? "Connected"
+                                : "Not Connected"}
+                            </Badge>
                           </div>
-                        )}
-                      </div>
-                    ))}
+
+                          {provider.connected ? (
+                            <div className="pl-2 pt-2 text-sm">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <p className="font-medium mb-1 flex items-center text-primary">
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Granted Permissions:
+                                  </p>
+                                  {grantedScopes.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {grantedScopes.map((scope) => (
+                                        <li
+                                          key={scope}
+                                          className="flex items-start"
+                                        >
+                                          <Badge
+                                            variant="outline"
+                                            className="mr-2 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-900"
+                                          >
+                                            <Check className="mr-1 h-3 w-3 text-green-600 dark:text-green-400" />
+                                          </Badge>
+                                          {formatScope(scope)}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-muted-foreground italic">
+                                      No permissions granted
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="space-y-2">
+                                  <p className="font-medium mb-1 flex items-center text-muted-foreground">
+                                    <InfoIcon className="mr-2 h-4 w-4" />
+                                    Required Permissions:
+                                  </p>
+                                  {requiredScopes.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {requiredScopes.map((scope) => {
+                                        const isGranted =
+                                          grantedScopes.includes(scope);
+                                        return (
+                                          <li
+                                            key={scope}
+                                            className="flex items-start"
+                                          >
+                                            <Badge
+                                              variant="outline"
+                                              className={`mr-2 ${
+                                                isGranted
+                                                  ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-900"
+                                                  : "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-900"
+                                              }`}
+                                            >
+                                              {isGranted ? (
+                                                <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                              ) : (
+                                                <X className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                              )}
+                                            </Badge>
+                                            {formatScope(scope)}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-muted-foreground italic">
+                                      No permissions required
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {!requiredScopes.every((scope) =>
+                                grantedScopes.includes(scope)
+                              ) && (
+                                <div className="mt-4 pt-3 border-t border-dashed">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() =>
+                                      toggleConnection(provider.id)
+                                    }
+                                  >
+                                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                                    Update Permissions
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="pl-2 pt-2 text-sm">
+                              <p className="text-muted-foreground">
+                                Connect this service to view available
+                                permissions
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => toggleConnection(provider.id)}
+                              >
+                                Connect {provider.name}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>

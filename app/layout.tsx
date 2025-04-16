@@ -9,7 +9,11 @@ import { OAuthProvider } from "@/context/oauth-context";
 import { OAuthReconnectDialog } from "@/components/oauth-reconnect-dialog";
 import { TimezoneProvider } from "@/context/timezone-context";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "ConnectedAgent",
@@ -23,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning className="scroll-smooth">
+      <body className={`${inter.className} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -37,8 +41,10 @@ export default function RootLayout({
             <AuthProvider>
               <OAuthProvider>
                 <TimezoneProvider>
-                  {children}
-                  <OAuthReconnectDialog />
+                  <div className="min-h-screen bg-background">
+                    {children}
+                    <OAuthReconnectDialog />
+                  </div>
                 </TimezoneProvider>
               </OAuthProvider>
             </AuthProvider>
