@@ -146,12 +146,12 @@ export default function ProfileScreen({
       icon: "/logos/google-calendar.png",
       connected: false,
     },
-    {
-      id: "google-docs",
-      name: "Google Docs",
-      icon: "/logos/google-docs.png",
-      connected: false,
-    },
+    // {
+    //   id: "google-docs",
+    //   name: "Google Docs",
+    //   icon: "/logos/google-docs.png",
+    //   connected: false,
+    // },
     {
       id: "google-meet",
       name: "Google Meet",

@@ -258,7 +258,7 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     logo: "/logos/google-meet-logo.png",
     examples: [
       "Create a Google Meet for my meeting with John Doe",
-      "Add video conferencing to my call with Jane Lane from Globex Corp",
+      // "Add video conferencing to my call with Jane Lane from Globex Corp",
       "Set up a Google Meet link for the IT infrastructure meeting with Michael Chen",
     ],
     steps: [
@@ -1032,19 +1032,19 @@ export default function Home() {
           "create-google-meet"
         ),
     },
-    {
-      id: "summarize-deal",
-      title: "Summarize Deal",
-      description: "Summarize deal status and save to Google Docs",
-      logo: "/logos/google-docs.png",
-      action: () =>
-        checkOAuthAndPrompt(() =>
-          usePredefinedPrompt(
-            "Summarize the Enterprise Software License deal",
-            "summarize-deal"
-          )
-        ),
-    },
+    // {
+    //   id: "summarize-deal",
+    //   title: "Summarize Deal",
+    //   description: "Summarize deal status and save to Google Docs",
+    //   logo: "/logos/google-docs.png",
+    //   action: () =>
+    //     checkOAuthAndPrompt(() =>
+    //       usePredefinedPrompt(
+    //         "Summarize the Enterprise Software License deal",
+    //         "summarize-deal"
+    //       )
+    //     ),
+    // },
     {
       id: "slack",
       title: "Slack Integration",
