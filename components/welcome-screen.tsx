@@ -29,6 +29,32 @@ export default function WelcomeScreen() {
       </Button>
 
       <LogoConnections />
+
+      {/* Add footer with Descope attribution and links */}
+      <div className="mt-12 border-t border-primary/10 pt-6 w-full max-w-md">
+        <p className="text-xs text-muted-foreground mb-2">
+          Powered by Descope AI
+        </p>
+        <div className="flex items-center justify-center space-x-4 w-full mt-2">
+          <a
+            href="https://www.descope.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors duration-200"
+          >
+            Privacy Policy
+          </a>
+          <span className="text-xs text-muted-foreground">•</span>
+          <a
+            href="https://www.descope.com/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors duration-200"
+          >
+            Terms of Service
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

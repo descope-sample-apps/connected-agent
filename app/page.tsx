@@ -1512,6 +1512,31 @@ export default function Home() {
             >
               Get Started
             </Button>
+            {/* Add footer with Descope attribution and links */}
+            <div className="mt-auto pt-12 border-t border-primary/10 w-full max-w-md fixed bottom-6 left-0 right-0 mx-auto">
+              <p className="text-xs text-muted-foreground mb-2">
+                Powered by Descope AI
+              </p>
+              <div className="flex items-center justify-center space-x-4 w-full mt-2">
+                <a
+                  href="https://www.descope.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors duration-200"
+                >
+                  Privacy Policy
+                </a>
+                <span className="text-xs text-muted-foreground">•</span>
+                <a
+                  href="https://www.descope.com/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors duration-200"
+                >
+                  Terms of Service
+                </a>
+              </div>
+            </div>
           </div>
         )}
       </div>
