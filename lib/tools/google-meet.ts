@@ -21,7 +21,10 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
     id: "google-meet",
     name: "Google Meet",
     description: "Create Google Meet meetings and get meeting links",
-    scopes: ["https://www.googleapis.com/auth/calendar"],
+    scopes: [
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/meetings.space.created",
+    ],
     requiredFields: ["title", "startTime", "duration"],
     optionalFields: ["description", "attendees", "timeZone", "settings"],
     capabilities: [
@@ -132,14 +135,14 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
         },
       };
 
+      console.log("event", event);
+
       // Create the calendar event with Google Meet
       const response = await calendar.events.insert({
         calendarId: "primary",
         requestBody: event,
-        conferenceDataVersion: 1, // Required to create a Meet link
+        conferenceDataVersion: 1,
       });
-
-      console.log("Google Meet response:", response);
 
       // Extract Meet link from the response
       const meetLink = response.data.conferenceData?.entryPoints?.find(

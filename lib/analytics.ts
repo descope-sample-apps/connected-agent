@@ -2,8 +2,6 @@
  * Analytics utilities for tracking events and errors
  */
 
-import posthog from "posthog-js";
-
 export type EventType =
   | "connection_initiated"
   | "connection_successful"
@@ -57,14 +55,6 @@ declare global {
 export function initAnalytics() {
   if (typeof window !== "undefined") {
     // Initialize PostHog
-    posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
-      api_host:
-        process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://app.posthog.com",
-      capture_pageview: false, // We'll handle pageviews manually
-      persistence: "localStorage",
-      autocapture: false,
-      disable_session_recording: true, // Enable only if needed
-    });
 
     // Initialize Segment
     const segmentKey = process.env.NEXT_PUBLIC_SEGEMENT_WRITE_KEY;
@@ -148,10 +138,6 @@ export function initAnalytics() {
     console.log("[Analytics] Initialized");
   }
 }
-
-// Alias for backward compatibility
-export const initPostHog = initAnalytics;
-
 /**
  * Identify a user in analytics platforms
  */
@@ -160,9 +146,6 @@ export function identifyUser(userId: string, traits: Record<string, any> = {}) {
   if (process.env.NODE_ENV !== "production") {
     console.log(`[Analytics] Identify User: ${userId}`, traits);
   }
-
-  // Identify in PostHog
-  posthog.identify(userId, traits);
 
   // Identify in Segment if available
   if (typeof window !== "undefined" && window.analytics) {
@@ -184,7 +167,7 @@ export function trackPageView(
 
   // Track in Segment if available
   if (typeof window !== "undefined" && window.analytics) {
-    window.analytics.page(pageName, properties);
+    window.analytics.page(pageName);
   }
 }
 
@@ -199,12 +182,6 @@ export function trackOAuthEvent(
   if (process.env.NODE_ENV !== "production") {
     console.log(`[Analytics] OAuth Event: ${event}`, data);
   }
-
-  // In production, send to PostHog
-  posthog.capture(`oauth_${event}`, {
-    ...data,
-    timestamp: new Date().toISOString(),
-  });
 
   // Send to Segment if available
   if (
@@ -238,13 +215,6 @@ export function trackToolUsage(
     console.log(`[Analytics] Tool Usage: ${toolName}`, data);
   }
 
-  // In production, send to PostHog
-  posthog.capture("tool_execution", {
-    tool: toolName,
-    ...data,
-    timestamp: new Date().toISOString(),
-  });
-
   // Send to Segment if available
   if (typeof window !== "undefined" && window.analytics) {
     window.analytics.track("tool_execution", {
@@ -266,15 +236,6 @@ export function trackError(error: Error, context: Record<string, any> = {}) {
       stack: error.stack,
     });
   }
-
-  // In production, send to PostHog
-  posthog.capture("error", {
-    error_name: error.name,
-    error_message: error.message,
-    error_stack: error.stack,
-    ...context,
-    timestamp: new Date().toISOString(),
-  });
 
   // Send to Segment if available
   if (typeof window !== "undefined" && window.analytics) {
@@ -306,12 +267,6 @@ export function trackPrompt(
   if (process.env.NODE_ENV !== "production") {
     console.log(`[Analytics] Prompt Event: ${event}`, data);
   }
-
-  // In production, send to PostHog
-  posthog.capture(`prompt_${event}`, {
-    ...data,
-    timestamp: new Date().toISOString(),
-  });
 
   // Send to Segment if available
   if (typeof window !== "undefined" && window.analytics) {

@@ -10,13 +10,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Generates a UUID for message IDs
- */
-export function generateUUID(): string {
-  return uuidv4();
-}
-
-/**
  * Gets the most recent user message from an array of messages
  */
 export function getMostRecentUserMessage(

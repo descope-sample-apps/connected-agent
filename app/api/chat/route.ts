@@ -16,44 +16,19 @@ import {
   saveMessages,
   incrementUserUsage,
 } from "@/lib/db/queries";
-import {
-  generateUUID,
-  getMostRecentUserMessage,
-  getTrailingMessageId,
-  isCrmRelatedQuery,
-} from "@/lib/utils";
-import { createDocumentWrapper } from "@/lib/tools/documents";
+import { getMostRecentUserMessage } from "@/lib/utils";
 import { myProvider } from "@/lib/ai/providers";
-import { getGoogleCalendarToken, getCRMToken } from "@/lib/descope";
+import { getCRMToken } from "@/lib/descope";
 import { parseRelativeDate, getCurrentDateContext } from "@/lib/date-utils";
-import { isProductionEnvironment } from "@/lib/constants";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import {
-  CRMDealsTool,
-  fetchCRMContacts,
-  fetchCRMDeals,
-  fetchDealStakeholders,
-} from "@/lib/tools/crm";
+import { CRMDealsTool } from "@/lib/tools/crm";
 import { toolRegistry } from "@/lib/tools/base";
 import { CalendarTool } from "@/lib/tools/calendar";
 import { CalendarListTool } from "@/lib/tools/calendar-list";
 import { searchContact } from "@/lib/api/crm-utils";
 import { format, addDays, addWeeks } from "date-fns";
-
-// Add this interface definition
-interface DataStreamWithAppend {
-  append: (data: any) => void;
-  close?: () => void;
-}
-
-// Simple interface for stream handling
-interface BaseStream {
-  write?: (data: string) => void;
-  append?: (data: any) => void;
-  close?: () => void;
-}
 
 export const maxDuration = 60;
 
@@ -132,16 +107,15 @@ function createStreamAdapter(dataStream: any) {
               };
             }
           }
-          // Handle step markers (like step-start)
+          // Handle step markers (like step-end)
           else if (
             "type" in data &&
-            (data.type === "step-start" ||
-              data.type === "step-end" ||
+            (data.type === "step-end" ||
               (typeof data.type === "string" && data.type.startsWith("step")))
           ) {
             formattedData = {
               type: "text",
-              text: `${data.type === "step-start" ? "Thinking..." : "Done"}`,
+              text: "Done",
             };
           }
           // Handle connection_required UI elements - use simple text
@@ -175,6 +149,14 @@ function createStreamAdapter(dataStream: any) {
           typeof formattedData === "string"
             ? formattedData
             : JSON.stringify(formattedData);
+
+        // Additional check to catch any raw step-end JSON that might have slipped through
+        if (outputData.includes('"type":"step-end"')) {
+          outputData = JSON.stringify({
+            type: "text",
+            text: "Done",
+          });
+        }
 
         // Add proper newline to ensure stream boundaries are clear
         if (!outputData.endsWith("\n")) {
@@ -1063,13 +1045,132 @@ export async function POST(request: Request) {
               data.timeZone = timezone;
             }
 
+            // Validate the start time - must be in the future and not more than 1 year ahead
+            try {
+              const startTimeDate = new Date(data.startTime);
+              const now = new Date();
+              const oneYearFromNow = new Date();
+              oneYearFromNow.setFullYear(now.getFullYear() + 1);
+
+              // Check if event date is before now (in the past)
+              if (startTimeDate < now) {
+                console.warn("Calendar event startTime is in the past:", {
+                  startTime: data.startTime,
+                  currentTime: now.toISOString(),
+                });
+
+                // Assume this is an error - if the user said "tomorrow" but date is in the past,
+                // they probably meant tomorrow from today
+                if (
+                  data.originalStartTime &&
+                  data.originalStartTime.toLowerCase().includes("tomorrow")
+                ) {
+                  console.log(
+                    "Fixing 'tomorrow' date that was parsed incorrectly"
+                  );
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+
+                  // Keep the time portion from the original date but use tomorrow's date
+                  tomorrow.setHours(startTimeDate.getHours());
+                  tomorrow.setMinutes(startTimeDate.getMinutes());
+
+                  data.startTime = tomorrow.toISOString();
+                  console.log("Fixed startTime to:", data.startTime);
+
+                  // Adjust endTime too if it exists
+                  if (data.endTime) {
+                    const endTimeDate = new Date(data.endTime);
+                    const timeDiff =
+                      endTimeDate.getTime() - startTimeDate.getTime();
+                    const newEndTime = new Date(tomorrow.getTime() + timeDiff);
+                    data.endTime = newEndTime.toISOString();
+                    console.log("Adjusted endTime to:", data.endTime);
+                  }
+                }
+              }
+
+              // Check if date is more than a year in the future
+              if (startTimeDate > oneYearFromNow) {
+                console.warn(
+                  "Calendar event startTime is more than a year ahead:",
+                  {
+                    startTime: data.startTime,
+                    oneYearFromNow: oneYearFromNow.toISOString(),
+                  }
+                );
+              }
+            } catch (e) {
+              console.error("Error validating calendar date:", e);
+            }
+
             // Execute the calendar tool
             console.log("Executing calendar tool with data:", {
               title: data.title,
               startTime: data.startTime,
               endTime: data.endTime,
               attendees: data.attendees?.length || 0,
+              originalInput: data,
             });
+
+            // Check if startTime looks like a relative date that needs to be processed
+            if (
+              typeof data.startTime === "string" &&
+              (data.startTime.toLowerCase().includes("tomorrow") ||
+                data.startTime.toLowerCase().includes("next") ||
+                data.startTime.toLowerCase().includes("monday") ||
+                data.startTime.toLowerCase().includes("tuesday") ||
+                data.startTime.toLowerCase().includes("wednesday") ||
+                data.startTime.toLowerCase().includes("thursday") ||
+                data.startTime.toLowerCase().includes("friday") ||
+                data.startTime.toLowerCase().includes("saturday") ||
+                data.startTime.toLowerCase().includes("sunday"))
+            ) {
+              console.log(
+                "Detected relative date in startTime:",
+                data.startTime
+              );
+              console.log("Current server date:", new Date().toISOString());
+
+              // Parse the relative date using the current date as base
+              const nowDate = new Date();
+              let dateString, timeString;
+
+              // Split into date and time parts if needed
+              if (data.startTime.includes(" at ")) {
+                [dateString, timeString] = data.startTime.split(" at ");
+              } else {
+                dateString = data.startTime;
+                timeString = "12:00";
+              }
+
+              console.log("Parsing relative date with:", {
+                dateString,
+                timeString,
+                baseDate: nowDate,
+              });
+              const parsedDate = parseRelativeDate(
+                dateString,
+                timeString,
+                nowDate,
+                timezone
+              );
+
+              // Save the original startTime for reference
+              data.originalStartTime = data.startTime;
+
+              // Update the startTime with the parsed ISO date
+              data.startTime = parsedDate.date.toISOString();
+              console.log("Updated startTime to:", data.startTime);
+
+              // If endTime is not specified, default to 1 hour after start
+              if (!data.endTime) {
+                const endDate = new Date(parsedDate.date);
+                endDate.setHours(endDate.getHours() + 1);
+                data.endTime = endDate.toISOString();
+                console.log("Set default endTime to:", data.endTime);
+              }
+            }
 
             const calendarResult = await calendarTool.execute(userId, data);
 
@@ -1327,10 +1428,6 @@ export async function POST(request: Request) {
               }
             }
           },
-          experimental_telemetry: {
-            isEnabled: isProductionEnvironment,
-            functionId: "stream-text",
-          },
         });
 
         // Start stream consumption
@@ -1481,6 +1578,7 @@ function extractUIElementsFromToolResponses(message: any): any {
           requiredScopes = ["https://www.googleapis.com/auth/documents"];
         } else if (service === "google-meet") {
           requiredScopes = [
+            "https://www.googleapis.com/auth/calendar",
             "https://www.googleapis.com/auth/meetings.space.created",
           ];
         }

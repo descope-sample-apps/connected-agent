@@ -57,8 +57,6 @@ export async function getRequiredScopes(
   provider: string,
   operation: string
 ): Promise<string[]> {
-  console.log(`Getting required scopes for ${provider}:${operation}`);
-
   // Operation-specific scopes only - no default fallbacks
   const operationScopes: Record<string, Record<string, string[]>> = {
     "google-calendar": {
@@ -80,7 +78,10 @@ export async function getRequiredScopes(
         "https://www.googleapis.com/auth/meetings.space.created",
       ],
       "meetings.write": ["https://www.googleapis.com/auth/meetings.write"],
-      connect: ["https://www.googleapis.com/auth/meetings.space.created"],
+      connect: [
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/meetings.space.created",
+      ],
     },
     "custom-crm": {
       "contacts.list": ["contacts.read"],
@@ -110,10 +111,6 @@ export async function getRequiredScopes(
 
   // Return default scopes for the provider if available, otherwise empty array
   if (DEFAULT_SCOPES[provider]) {
-    console.log(
-      `Using default scopes for ${provider}:`,
-      DEFAULT_SCOPES[provider]
-    );
     return DEFAULT_SCOPES[provider];
   }
 

@@ -709,6 +709,7 @@ export default function Chat({
       requiredScopes.push("https://www.googleapis.com/auth/calendar");
     } else if (service === "google-meet") {
       requiredScopes.push(
+        "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/meetings.space.created"
       );
     }
@@ -920,18 +921,6 @@ export default function Chat({
         message.content.includes('{"type":"function-execution"}') ||
         message.content.includes('"name":"'));
 
-    const isStepStart =
-      message.role === "assistant" &&
-      message.content &&
-      (message.content.includes('{"type":"step-start"}') ||
-        message.content.includes('{"type": "step-start"}') ||
-        message.content === '{"type":"step-start"}' ||
-        (message.content.startsWith("{") &&
-          (message.content.includes('"type":"step') ||
-            message.content.includes('"type": "step'))));
-
-    console.log("isStepStart", isStepStart, message.content);
-
     // When message content is ONLY a step marker, we should hide it entirely
     if (
       message.content &&
@@ -944,21 +933,10 @@ export default function Chat({
         if (
           parsedJson &&
           parsedJson.type &&
-          (parsedJson.type === "step-start" ||
-            parsedJson.type === "step-end" ||
-            parsedJson.type.startsWith("step"))
+          (parsedJson.type === "step-end" || parsedJson.type.startsWith("step"))
         ) {
           // This is ONLY a step marker with no other content
-          return isStepStart ? (
-            <div className="flex items-center py-2">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <div className="ml-3 text-sm text-gray-400">Thinking...</div>
-            </div>
-          ) : null;
+          return null;
         }
       } catch (e) {
         // Not valid JSON, continue with normal rendering
@@ -969,7 +947,6 @@ export default function Chat({
       message.role === "assistant" &&
       message.content &&
       !isToolInvocation && // Don't treat tool activity as a placeholder
-      !isStepStart && // Don't treat step-start as a general placeholder
       (message.content.includes('{"type":"step-end"}') ||
         (message.content.startsWith("{") &&
           message.content.includes('"type":')));
@@ -1027,16 +1004,7 @@ export default function Chat({
               : "bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 shadow-sm"
           }`}
         >
-          {isStepStart ? (
-            <div className="flex items-center py-2">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <div className="ml-3 text-sm text-gray-400">Thinking...</div>
-            </div>
-          ) : isToolInvocation ? (
+          {isToolInvocation ? (
             <div className="flex items-center py-2">
               <div className="tool-execution-indicator mr-3">
                 <svg

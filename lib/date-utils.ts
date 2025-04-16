@@ -50,12 +50,21 @@ export function parseRelativeDate(
   timezone: string = "UTC"
 ): ParsedDate {
   try {
-    // Ensure baseDate is current if not explicitly provided
-    if (baseDate.getTime() < Date.now() - 86400000) {
+    // Always create a fresh current date if the provided date seems stale
+    // In javascript, a day in milliseconds is 86400000
+    const currentDate = new Date();
+    const ONE_DAY_MS = 86400000;
+
+    // If baseDate is more than 12 hours old, use the current date instead
+    if (currentDate.getTime() - baseDate.getTime() > ONE_DAY_MS / 2) {
       console.warn(
-        "Base date is more than a day old, using current date instead"
+        "Base date is more than 12 hours old, using current date instead.",
+        {
+          providedBase: baseDate.toISOString(),
+          currentDate: currentDate.toISOString(),
+        }
       );
-      baseDate = new Date();
+      baseDate = currentDate;
     }
 
     // Log the base date for debugging

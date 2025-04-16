@@ -8,12 +8,8 @@ import { AuthProvider as DescopeAuthProvider } from "@descope/nextjs-sdk";
 import { OAuthProvider } from "@/context/oauth-context";
 import { OAuthReconnectDialog } from "@/components/oauth-reconnect-dialog";
 import { TimezoneProvider } from "@/context/timezone-context";
-import { initPostHog } from "@/lib/analytics";
 
 const inter = Inter({ subsets: ["latin"] });
-
-// Initialize PostHog on app load
-initPostHog();
 
 export const metadata: Metadata = {
   title: "ConnectedAgent",

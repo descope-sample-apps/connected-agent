@@ -126,7 +126,7 @@ export class ContactsTool extends Tool<Contact> {
             {
               method: "GET",
               headers: {
-                Authorization: `Bearer ${crmTokenResponse.token.accessToken}`,
+                Authorization: `Bearer ${crmTokenResponse.token?.accessToken}`,
                 "Content-Type": "application/json",
               },
             }

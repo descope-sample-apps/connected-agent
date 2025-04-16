@@ -11,20 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  LogOut,
-  User,
-  ExternalLink,
-  Calendar,
-  FileText,
-  Video,
-  Database,
-  Loader2,
-  RefreshCw,
-  MessageSquare,
-} from "lucide-react";
+import { LogOut, User, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import {

@@ -43,29 +43,6 @@ export function ToolResponseRenderer({
       );
     }
 
-    // Handle step-start type with a nicer loading animation
-    if (toolInvocation.type === "step-start") {
-      return (
-        <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-          <div className="flex space-x-1">
-            <div
-              className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce"
-              style={{ animationDelay: "0ms" }}
-            />
-            <div
-              className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce"
-              style={{ animationDelay: "150ms" }}
-            />
-            <div
-              className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce"
-              style={{ animationDelay: "300ms" }}
-            />
-          </div>
-          <span>Processing your request...</span>
-        </div>
-      );
-    }
-
     // Handle step-complete type
     if (toolInvocation.type === "step-complete") {
       return (
@@ -379,8 +356,7 @@ export function ToolResponseRenderer({
             </h3>
           </div>
           <pre className="bg-white dark:bg-zinc-800 p-3 rounded-md overflow-auto text-sm">
-            {toolInvocation.type === "step-start" ||
-            toolInvocation.type === "step-complete"
+            {toolInvocation.type === "step-complete"
               ? "Processing..."
               : JSON.stringify(toolInvocation, null, 2)}
           </pre>
@@ -396,8 +372,7 @@ export function ToolResponseRenderer({
         isLoading ? "opacity-50" : "opacity-100",
         toolInvocation.type === "result" && toolInvocation.result?.ui
           ? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"
-          : toolInvocation.type === "step-start" ||
-            toolInvocation.type === "step-complete"
+          : toolInvocation.type === "step-complete"
           ? "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
           : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
       )}
