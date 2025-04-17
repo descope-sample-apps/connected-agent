@@ -69,6 +69,16 @@ import {
   getAllConnectionStatuses,
   OAuthProvider as ConnectionProvider,
 } from "@/lib/connection-manager";
+<<<<<<< Updated upstream
+=======
+import { DEFAULT_SCOPES } from "@/lib/oauth-utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+>>>>>>> Stashed changes
 
 interface OAuthProvider {
   id: string;
@@ -307,82 +317,82 @@ export default function ProfileScreen({
       // SECOND: Still make the API call to verify server-side status
       // But this won't block the UI update
       const timestamp = new Date().getTime();
-      // const response = await fetch(`/api/oauth/connections?_=${timestamp}`, {
-      //   headers: {
-      //     "Cache-Control": "no-cache, no-store, must-revalidate",
-      //     Pragma: "no-cache",
-      //     Expires: "0",
-      //   },
-      //   cache: "no-store",
-      // });
+      const response = await fetch(`/api/oauth/connections?_=${timestamp}`, {
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+        cache: "no-store",
+      });
 
-      // console.log("Connections response status:", response.status);
-      // console.log(
-      //   "Connections response headers:",
-      //   Object.fromEntries([...response.headers.entries()])
-      // );
+      console.log("Connections response status:", response.status);
+      console.log(
+        "Connections response headers:",
+        Object.fromEntries([...response.headers.entries()])
+      );
 
-      // if (!response.ok) {
-      //   throw new Error(
-      //     `Failed to fetch connections: ${response.status} ${response.statusText}`
-      //   );
-      // }
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch connections: ${response.status} ${response.statusText}`
+        );
+      }
 
-      // const data = await response.json();
-      // if (!data.connections) {
-      //   throw new Error("No connections data in response");
-      // }
+      const data = await response.json();
+      if (!data.connections) {
+        throw new Error("No connections data in response");
+      }
 
       // Update providers with API connection data
       // (only if it differs from localStorage to avoid UI flicker)
-      // setOauthProviders((providers) =>
-      //   providers.map((provider) => {
-      //     const connectionData = data.connections[provider.id];
-      //     const locallyConnected =
-      //       localConnectionStatuses[provider.id as ConnectionProvider] || false;
+      setOauthProviders((providers) =>
+        providers.map((provider) => {
+          const connectionData = data.connections[provider.id];
+          const locallyConnected =
+            localConnectionStatuses[provider.id as ConnectionProvider] || false;
 
-      //     // If no connection data from API, use localStorage value
-      //     if (!connectionData) {
-      //       return { ...provider, connected: locallyConnected };
-      //     }
+          // If no connection data from API, use localStorage value
+          if (!connectionData) {
+            return { ...provider, connected: locallyConnected };
+          }
 
-      //     // If there's an error from API, still use localStorage value
-      //     if (typeof connectionData === "object" && "error" in connectionData) {
-      //       console.error(
-      //         `Connection error for ${provider.id}:`,
-      //         connectionData.error
-      //       );
-      //       return { ...provider, connected: locallyConnected };
-      //     }
+          // If there's an error from API, still use localStorage value
+          if (typeof connectionData === "object" && "error" in connectionData) {
+            console.error(
+              `Connection error for ${provider.id}:`,
+              connectionData.error
+            );
+            return { ...provider, connected: locallyConnected };
+          }
 
-      //     // If API reports different status than localStorage, use API status but also update localStorage
-      //     if (connectionData.connected !== locallyConnected) {
-      //       // Update localStorage to match server status
-      //       setConnected(
-      //         provider.id as ConnectionProvider,
-      //         connectionData.connected === true
-      //       );
-      //     }
+          // If API reports different status than localStorage, use API status but also update localStorage
+          if (connectionData.connected !== locallyConnected) {
+            // Update localStorage to match server status
+            setConnected(
+              provider.id as ConnectionProvider,
+              connectionData.connected === true
+            );
+          }
 
-      //     // Return object with complete data
-      //     if (connectionData.token) {
-      //       return {
-      //         ...provider,
-      //         connected: connectionData.connected === true,
-      //         tokenData: {
-      //           scopes: connectionData.token.scopes || [],
-      //           accessToken: connectionData.token.accessToken || "",
-      //           expiresAt: connectionData.token.accessTokenExpiry || "",
-      //         },
-      //       };
-      //     }
+          // Return object with complete data
+          if (connectionData.token) {
+            return {
+              ...provider,
+              connected: connectionData.connected === true,
+              tokenData: {
+                scopes: connectionData.token.scopes || [],
+                accessToken: connectionData.token.accessToken || "",
+                expiresAt: connectionData.token.accessTokenExpiry || "",
+              },
+            };
+          }
 
-      //   return {
-      //     ...provider,
-      //     connected: connectionData.connected === true,
-      //   };
-      // })
-      // );
+          return {
+            ...provider,
+            connected: connectionData.connected === true,
+          };
+        })
+      );
     } catch (error) {
       console.error("Error fetching connections:", error);
       setError(
@@ -567,6 +577,70 @@ export default function ProfileScreen({
       .split(/[._]/)
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
+  }
+
+  // Add a function to format token expiry time
+  function formatTokenExpiry(expiryTimestamp: string): string {
+    try {
+      // Convert the UNIX timestamp (seconds) to milliseconds
+      const timestamp = parseInt(expiryTimestamp);
+
+      // Handle invalid timestamp
+      if (isNaN(timestamp)) {
+        return "Unknown expiry time";
+      }
+
+      const expiryDate = new Date(timestamp * 1000);
+      const now = new Date();
+
+      // Calculate time difference in milliseconds
+      const timeDiff = expiryDate.getTime() - now.getTime();
+
+      // Check if token is expired
+      if (timeDiff <= 0) {
+        return "Expired";
+      }
+
+      // Calculate days, hours, minutes
+      const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+      );
+      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+
+      // Format the string based on time left
+      if (days > 0) {
+        return `${days} day${days > 1 ? "s" : ""} ${hours} hour${
+          hours > 1 ? "s" : ""
+        } left`;
+      } else if (hours > 0) {
+        return `${hours} hour${hours > 1 ? "s" : ""} ${minutes} minute${
+          minutes > 1 ? "s" : ""
+        } left`;
+      } else if (minutes > 0) {
+        return `${minutes} minute${minutes > 1 ? "s" : ""} left`;
+      } else {
+        return "Less than a minute left";
+      }
+    } catch (error) {
+      console.error("Error formatting token expiry:", error);
+      return "Unknown expiry time";
+    }
+  }
+
+  // Add a function to get the absolute expiry time for tooltip
+  function getAbsoluteExpiryTime(expiryTimestamp: string): string {
+    try {
+      const timestamp = parseInt(expiryTimestamp);
+      if (isNaN(timestamp)) {
+        return "";
+      }
+
+      const expiryDate = new Date(timestamp * 1000);
+      return expiryDate.toLocaleString();
+    } catch (error) {
+      return "";
+    }
   }
 
   // Add a function to handle example clicks
@@ -957,6 +1031,7 @@ export default function ProfileScreen({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
+<<<<<<< Updated upstream
                   <div className="space-y-4">
                     {oauthProviders.map((provider) => (
                       <div key={provider.id} className="space-y-2">
@@ -976,6 +1051,180 @@ export default function ProfileScreen({
                           >
                             {provider.connected ? "Connected" : "Not Connected"}
                           </Badge>
+=======
+                  <div className="space-y-6">
+                    {oauthProviders.map((provider) => {
+                      // Get the required scopes for this provider
+                      const requiredScopes =
+                        DEFAULT_SCOPES[provider.id as ConnectionProvider] || [];
+                      // Get the granted scopes for this provider (if connected)
+                      const grantedScopes =
+                        provider.connected && provider.tokenData?.scopes
+                          ? provider.tokenData.scopes
+                          : [];
+
+                      return (
+                        <div
+                          key={provider.id}
+                          className="space-y-3 p-4 border rounded-md bg-card animate-scaleIn"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 flex-shrink-0 bg-gray-50 dark:bg-gray-900 p-1 rounded-full ring-1 ring-gray-200 dark:ring-gray-800">
+                              <img
+                                src={provider.icon}
+                                alt={provider.name}
+                                className="w-full h-full"
+                              />
+                            </div>
+                            <h3 className="font-medium">{provider.name}</h3>
+                            <Badge
+                              variant={
+                                provider.connected ? "default" : "secondary"
+                              }
+                              className="ml-auto"
+                            >
+                              {provider.connected
+                                ? "Connected"
+                                : "Not Connected"}
+                            </Badge>
+                          </div>
+
+                          {provider.connected ? (
+                            <div className="pl-2 pt-2 text-sm">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <p className="font-medium mb-1 flex items-center text-primary">
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Granted Permissions:
+                                  </p>
+                                  {grantedScopes.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {grantedScopes.map((scope) => (
+                                        <li
+                                          key={scope}
+                                          className="flex items-start"
+                                        >
+                                          <Badge
+                                            variant="outline"
+                                            className="mr-2 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-900"
+                                          >
+                                            <Check className="mr-1 h-3 w-3 text-green-600 dark:text-green-400" />
+                                          </Badge>
+                                          {formatScope(scope)}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-muted-foreground italic">
+                                      No permissions granted
+                                    </p>
+                                  )}
+
+                                  {/* Token expiry information */}
+                                  {provider.tokenData?.expiresAt && (
+                                    <div className="mt-3 pt-3 border-t border-dashed border-gray-200 dark:border-gray-800">
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <p className="text-sm flex items-center text-muted-foreground cursor-help">
+                                              <Clock className="mr-2 h-3.5 w-3.5" />
+                                              Token expires:{" "}
+                                              {formatTokenExpiry(
+                                                provider.tokenData.expiresAt
+                                              )}
+                                            </p>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>
+                                              Expires on:{" "}
+                                              {getAbsoluteExpiryTime(
+                                                provider.tokenData.expiresAt
+                                              )}
+                                            </p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="space-y-2">
+                                  <p className="font-medium mb-1 flex items-center text-muted-foreground">
+                                    <InfoIcon className="mr-2 h-4 w-4" />
+                                    Required Permissions:
+                                  </p>
+                                  {requiredScopes.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {requiredScopes.map((scope) => {
+                                        const isGranted =
+                                          grantedScopes.includes(scope);
+                                        return (
+                                          <li
+                                            key={scope}
+                                            className="flex items-start"
+                                          >
+                                            <Badge
+                                              variant="outline"
+                                              className={`mr-2 ${
+                                                isGranted
+                                                  ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-900"
+                                                  : "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-900"
+                                              }`}
+                                            >
+                                              {isGranted ? (
+                                                <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                              ) : (
+                                                <X className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                              )}
+                                            </Badge>
+                                            {formatScope(scope)}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-muted-foreground italic">
+                                      No permissions required
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {!requiredScopes.every((scope) =>
+                                grantedScopes.includes(scope)
+                              ) && (
+                                <div className="mt-4 pt-3 border-t border-dashed">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() =>
+                                      toggleConnection(provider.id)
+                                    }
+                                  >
+                                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                                    Update Permissions
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="pl-2 pt-2 text-sm">
+                              <p className="text-muted-foreground">
+                                Connect this service to view available
+                                permissions
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => toggleConnection(provider.id)}
+                              >
+                                Connect {provider.name}
+                              </Button>
+                            </div>
+                          )}
+>>>>>>> Stashed changes
                         </div>
                         {provider.connected && provider.tokenData?.scopes && (
                           <div className="pl-8 text-sm text-gray-600 dark:text-gray-400">
