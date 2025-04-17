@@ -61,7 +61,7 @@ export function ToolResponseRenderer({
       toolInvocation.ui?.type === "connection_required"
     ) {
       return (
-        <Card className="p-4 my-3 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+        <Card className="p-4 my-3 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 animate-in fade-in duration-300">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/40">
@@ -91,7 +91,8 @@ export function ToolResponseRenderer({
             </p>
             <Button
               variant="outline"
-              className="bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
+              size="sm"
+              className="px-3 py-1 text-xs bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:scale-105 transition-transform duration-200 shadow-sm"
               onClick={() => {
                 // Handle connection action
                 if (toolInvocation.ui.connectButton?.action) {
