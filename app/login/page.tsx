@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { nanoid } from "nanoid";
 import { identifyUser } from "@/lib/analytics";
+import { useAuth } from "@/context/auth-context";
 
 export default function LoginPage() {
   const { isAuthenticated, isSessionLoading } = useSession();
@@ -21,8 +22,9 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isDescopeReady, setIsDescopeReady] = useState(false);
+  const { isAuthenticated: authIsAuthenticated, isLoading: authIsLoading } = useAuth();
 
-  // Redirect to new chat if already authenticated
+  // Redirect to chat if already authenticated
   useEffect(() => {
     if (isAuthenticated && descopeUser) {
       // Identify user on automatic login
@@ -46,6 +48,13 @@ export default function LoginPage() {
       router.push(`/chat/${newChatId}`);
     }
   }, [isAuthenticated, router, descopeUser]);
+
+  // Redirect to landing page if not authenticated and not loading
+  useEffect(() => {
+    if (!authIsLoading && !authIsAuthenticated) {
+      router.push("/landing");
+    }
+  }, [authIsAuthenticated, authIsLoading, router]);
 
   const onSuccess = (user: any) => {
     setIsLoading(true);
@@ -82,7 +91,7 @@ export default function LoginPage() {
   };
 
   // Don't render anything while checking authentication
-  if (isSessionLoading || isLoading) {
+  if (isSessionLoading || isLoading || authIsLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
