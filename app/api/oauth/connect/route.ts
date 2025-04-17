@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { trackOAuthEvent, trackError } from "@/lib/analytics";
-import { getRequiredScopes } from "@/lib/openapi-utils";
+import { getRequiredScopes, getToolScopes } from "@/lib/openapi-utils";
 
 export const runtime = "nodejs";
 
@@ -10,8 +10,7 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    // Parse the request
-    const { appId, options } = await request.json();
+    const requestData = await request.json();
 
     console.log(`OAuth Connect Request for app: ${appId}`);
     console.log(`Options:`, JSON.stringify(options, null, 2));
@@ -55,20 +54,24 @@ export async function POST(request: Request) {
       try {
         // Extract the provider from the appId (e.g., "google-calendar" -> "google-calendar")
         const provider = appId;
+
+        // Check for toolId in options
+        const toolId = options.toolId;
+
         console.log(
-          `No scopes provided, fetching from OpenAPI spec for ${provider}`
+          `No scopes provided, fetching scopes for ${provider}${
+            toolId ? ` using tool ${toolId}` : ""
+          }`
         );
 
-        // Get scopes from OpenAPI spec
-        const openApiScopes = await getRequiredScopes(provider, "connect");
-        if (openApiScopes && openApiScopes.length > 0) {
-          console.log(
-            `Using scopes from OpenAPI spec: ${openApiScopes.join(", ")}`
-          );
-          scopes = openApiScopes;
+        // Use enhanced scope lookup
+        const resolvedScopes = await getToolScopes(provider, "connect", toolId);
+        if (resolvedScopes && resolvedScopes.length > 0) {
+          console.log(`Using resolved scopes: ${resolvedScopes.join(", ")}`);
+          scopes = resolvedScopes;
         }
       } catch (error) {
-        console.error("Error getting scopes from OpenAPI spec:", error);
+        console.error("Error getting scopes:", error);
         // Continue without scopes if there's an error
       }
     }

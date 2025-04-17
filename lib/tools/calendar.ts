@@ -141,30 +141,20 @@ export class CalendarTool extends Tool<CalendarEvent> {
             ? tokenResponse.currentScopes
             : undefined;
 
-        return {
-          success: false,
-          error: tokenResponse
-            ? tokenResponse.error
-            : "Calendar access required",
-          ui: {
-            type: "connection_required",
-            service: "google-calendar",
-            message: "Google Calendar access is required to create events.",
-            connectButton: {
-              text: "Connect Google Calendar",
-              action: "connection://google-calendar",
-            },
-            alternativeMessage:
-              "This will allow the assistant to create and manage calendar events on your behalf.",
-            requiredScopes: requiredScopes,
-          },
-        };
+        // Use the standardized createConnectionRequest function
+        return createConnectionRequest({
+          provider: "google-calendar",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes: requiredScopes,
+          currentScopes: currentScopes,
+          customMessage: "Google Calendar access is required to create events.",
+        });
       }
 
       // Set up Google Calendar API client
       const oauth2Client = new google.auth.OAuth2();
       oauth2Client.setCredentials({
-        access_token: tokenResponse.token?.accessToken,
+        access_token: tokenResponse.token!.accessToken,
       });
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
@@ -247,21 +237,11 @@ export class CalendarTool extends Tool<CalendarEvent> {
         errorMsg.includes("401");
 
       if (isAuthError) {
-        return {
-          success: false,
-          error: errorMsg,
-          ui: {
-            type: "connection_required",
-            service: "google-calendar",
-            message: "Google Calendar access is required to create events.",
-            connectButton: {
-              text: "Connect Google Calendar",
-              action: "connection://google-calendar",
-            },
-            alternativeMessage:
-              "This will allow the assistant to create and manage calendar events on your behalf.",
-          },
-        };
+        // Use the standardized createConnectionRequest function
+        return createConnectionRequest({
+          provider: "google-calendar",
+          customMessage: "Google Calendar access is required to create events.",
+        });
       }
 
       return {

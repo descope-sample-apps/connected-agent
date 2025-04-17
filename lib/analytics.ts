@@ -1,3 +1,5 @@
+import { AnalyticsBrowser } from "@segment/analytics-next";
+
 /**
  * Analytics utilities for tracking events and errors
  */
@@ -7,15 +9,14 @@ export type EventType =
   | "connection_successful"
   | "connection_failed"
   | "tool_action"
-  | "connect_initiated"
-  | "disconnect_initiated"
-  | "disconnect_successful"
+  | "connection_initiated"
+  | "connection_disconnect_initiated"
+  | "connection_disconnect_successful"
   | "signin_successful"
   | "signin_failed"
   | "prompt_submitted"
   | "prompt_completed";
 
-// Extended SegmentAnalytics interface that includes the initialization properties
 interface SegmentAnalytics {
   // Core methods
   load: (writeKey: string, options?: any) => void;
@@ -51,11 +52,9 @@ declare global {
   }
 }
 
-// Initialize PostHog and Segment
+// Initialize Segment
 export function initAnalytics() {
   if (typeof window !== "undefined") {
-    // Initialize PostHog
-
     // Initialize Segment
     const segmentKey = process.env.NEXT_PUBLIC_SEGEMENT_WRITE_KEY;
     if (segmentKey) {

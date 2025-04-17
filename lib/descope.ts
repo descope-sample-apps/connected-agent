@@ -2,7 +2,7 @@
  * Utility functions for interacting with Descope API
  */
 
-import { getRequiredScopes } from "./openapi-utils";
+import { getRequiredScopes, getToolScopes } from "./openapi-utils";
 import { trackToolAction } from "./oauth-utils";
 
 type TokenOptions = {
@@ -43,13 +43,15 @@ type TokenResponse =
  * @param appId The provider ID (e.g., "google-calendar")
  * @param operation The operation to perform (e.g., "events.list" or "check_connection")
  * @param options Token options
+ * @param toolId Optional tool ID to use for scope lookup
  * @returns Token response or null if error
  */
 export async function getOAuthToken(
   userId: string,
   appId: string,
   operation: string = "check_connection",
-  options: TokenOptions = { withRefreshToken: false, forceRefresh: true }
+  options: TokenOptions = { withRefreshToken: false, forceRefresh: true },
+  toolId?: string
 ): Promise<TokenResponse | null> {
   const managementKey = process.env.DESCOPE_MANAGEMENT_KEY;
   const projectId = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID;
@@ -59,21 +61,28 @@ export async function getOAuthToken(
     return null;
   }
 
-  // For API operations, get required scopes from the OpenAPI spec
+  // For API operations, get required scopes from the tool registry or OpenAPI spec
   let scopes: string[] | undefined = undefined;
 
   if (operation === "check_connection") {
-    // For connection checking, get scopes from OpenAPI spec
-    scopes = await getRequiredScopes(appId, "connect");
+    // For connection checking, get scopes using unified function
+    scopes = await getToolScopes(appId, "connect", toolId);
   } else {
-    // For specific operations, get required scopes from OpenAPI spec
-    scopes = await getRequiredScopes(appId, operation);
+    // For specific operations, get scopes using unified function
+    scopes = await getToolScopes(appId, operation, toolId);
   }
+
+  // Log scope resolution result
+  console.log(
+    `[getOAuthToken] Resolved scopes for ${appId}:${operation}:`,
+    scopes
+  );
 
   // Prepare the request body
   const requestBody = {
     appId,
     userId,
+    // Only include scopes if they are explicitly provided and non-empty
     ...(scopes && scopes.length > 0 && { scopes }),
     options,
   };
@@ -255,9 +264,27 @@ export async function getCRMToken(
   userId: string,
   operation: string = "check_connection"
 ) {
-  return getOAuthToken(userId, "custom-crm", operation, {
-    withRefreshToken: false,
-  });
+  console.log(
+    `[getCRMToken] Fetching token for userId=${userId}, operation=${operation}`
+  );
+  const token = await getOAuthToken(userId, "custom-crm", operation);
+
+  // Log token response details to help debug scope issues
+  if (!token) {
+    console.log(`[getCRMToken] No token returned`);
+  } else if ("error" in token) {
+    console.log(`[getCRMToken] Token error: ${token.error}`, {
+      requiredScopes: token.requiredScopes || [],
+      currentScopes: token.currentScopes || [],
+    });
+  } else {
+    console.log(
+      `[getCRMToken] Token successfully retrieved with scopes:`,
+      token.token.scopes
+    );
+  }
+
+  return token;
 }
 
 export async function getGoogleMeetToken(

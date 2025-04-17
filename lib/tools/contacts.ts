@@ -1,4 +1,10 @@
-import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import {
+  Tool,
+  ToolConfig,
+  ToolResponse,
+  toolRegistry,
+  createConnectionRequest,
+} from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { getRequiredScopes } from "../openapi-utils";
 
@@ -98,19 +104,24 @@ export class ContactsTool extends Tool<Contact> {
           "[ContactsTool] CRM token error:",
           crmTokenResponse.error
         );
-        return {
-          success: false,
-          error: crmTokenResponse.error,
-          ui: {
-            type: "connection_required",
-            service: "custom-crm",
-            message: "Please connect your CRM to access contacts",
-            connectButton: {
-              text: "Connect CRM",
-              action: "connection://custom-crm",
-            },
-          },
-        };
+
+        // Extract scope information
+        const requiredScopes =
+          "requiredScopes" in crmTokenResponse
+            ? crmTokenResponse.requiredScopes
+            : crmScopes;
+        const currentScopes =
+          "currentScopes" in crmTokenResponse
+            ? crmTokenResponse.currentScopes
+            : undefined;
+
+        return createConnectionRequest({
+          provider: "custom-crm",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes: requiredScopes,
+          currentScopes: currentScopes,
+          customMessage: "Please connect your CRM to access contacts",
+        });
       }
 
       // If no email is provided, first search for the contact by name in CRM
@@ -269,11 +280,32 @@ export class ContactsTool extends Tool<Contact> {
         },
       };
     } catch (error) {
-      console.error("[ContactsTool] Error:", error);
+      console.error("[ContactsTool] Execution error:", error);
+
+      // Check if this is an authentication error
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("401") ||
+        errorMsg.includes("403");
+
+      if (isAuthError) {
+        return createConnectionRequest({
+          provider: "custom-crm",
+          customMessage:
+            "Error accessing your CRM. Please reconnect your account.",
+        });
+      }
+
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to create contact",
+        error: errorMsg,
+        ui: {
+          type: "error",
+          message: "Failed to access CRM contacts. Please try again.",
+        },
       };
     }
   }

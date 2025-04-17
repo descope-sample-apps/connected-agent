@@ -1,4 +1,10 @@
-import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import {
+  Tool,
+  ToolConfig,
+  ToolResponse,
+  toolRegistry,
+  createConnectionRequest,
+} from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { z } from "zod";
 
@@ -101,6 +107,17 @@ export class CRMContactsTool extends Tool<{
       "Retrieve contact details including role and notes",
       "Find customer information for scheduling meetings",
     ],
+    oauthConfig: {
+      provider: "custom-crm",
+      defaultScopes: ["contacts:read"],
+      requiredScopes: ["openid"],
+      scopeMapping: {
+        "contacts.list": ["contacts:read"],
+        "contacts.search": ["contacts:read"],
+        "contacts.create": ["contacts:write"],
+        "contacts.update": ["contacts:write"],
+      },
+    },
   };
 
   validate(data: { query?: string }): ToolResponse | null {
@@ -112,62 +129,100 @@ export class CRMContactsTool extends Tool<{
     data: { query?: string }
   ): Promise<ToolResponse> {
     try {
-      // Get token with necessary scopes
+      console.log("[CRMContactsTool] Executing with query:", data.query);
+
+      // Get token without specifying scopes to let Descope handle defaults
+      console.log("[CRMContactsTool] Getting token without hardcoded scopes");
       const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "custom-crm",
         {
           appId: "custom-crm",
           userId,
-          scopes: ["contacts:read"],
-          operation: "tool_calling",
+          operation: "contacts.list",
+          toolId: this.config.id,
         }
       );
 
-      if (!tokenResponse || "error" in tokenResponse) {
-        const errorMsg =
-          tokenResponse && "error" in tokenResponse
-            ? tokenResponse.error
-            : "Failed to get CRM access token";
+      console.log("[CRMContactsTool] Token response:", {
+        hasError: !tokenResponse || "error" in tokenResponse,
+        error: "error" in tokenResponse ? tokenResponse.error : null,
+        hasToken: tokenResponse && "token" in tokenResponse,
+      });
 
-        return {
-          success: false,
-          error: errorMsg,
-          ui: {
-            type: "connection_required",
-            service: "custom-crm",
-            message: "CRM access is required to view contacts.",
-            connectButton: {
-              text: "Connect CRM",
-              action: "connection://custom-crm",
-            },
-          },
-        };
+      if (!tokenResponse || "error" in tokenResponse) {
+        // Only extract scope information if available in the token response
+        const requiredScopes =
+          "requiredScopes" in tokenResponse && tokenResponse.requiredScopes
+            ? tokenResponse.requiredScopes
+            : undefined;
+        const currentScopes =
+          "currentScopes" in tokenResponse && tokenResponse.currentScopes
+            ? tokenResponse.currentScopes
+            : undefined;
+
+        console.log("[CRMContactsTool] Creating connection request:", {
+          provider: "custom-crm",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          hasRequiredScopes: !!requiredScopes,
+          requiredScopesCount: requiredScopes?.length || 0,
+        });
+
+        // Use standardized connection request
+        return createConnectionRequest({
+          provider: "custom-crm",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes,
+          currentScopes,
+          customMessage: "CRM access is required to view contacts.",
+          toolId: this.config.id,
+          operation: "contacts.list",
+        });
       }
 
       // Extract the actual token from the response
-      const accessToken = tokenResponse.token?.accessToken;
+      const accessToken = tokenResponse.token!.accessToken;
+      console.log(
+        "[CRMContactsTool] Successfully got access token, fetching contacts"
+      );
 
       // Use our enhanced contact fetching function
-      const responseData = await fetchCRMContacts(accessToken!, data.query);
+      const responseData = await fetchCRMContacts(accessToken, data.query);
 
       return {
         success: true,
         data: responseData.data,
       };
     } catch (error) {
+      console.error("[CRMContactsTool] Error:", error);
+
+      // Check if this is an authentication error
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("401") ||
+        errorMsg.includes("403");
+
+      if (isAuthError) {
+        console.log(
+          "[CRMContactsTool] Auth error detected, creating connection request"
+        );
+        return createConnectionRequest({
+          provider: "custom-crm",
+          customMessage:
+            "There was an error connecting to your CRM. Please reconnect.",
+          toolId: this.config.id,
+        });
+      }
+
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to fetch contacts",
+        error: errorMsg,
         ui: {
-          type: "connection_required",
-          service: "custom-crm",
-          message: "There was an error connecting to your CRM",
-          connectButton: {
-            text: "Reconnect CRM",
-            action: "connection://custom-crm",
-          },
+          type: "error",
+          message: "Failed to fetch contacts from your CRM. Please try again.",
         },
       };
     }
@@ -194,6 +249,17 @@ export class CRMDealsTool extends Tool<{
       "Search deals by company name",
       "Get deal details including value and probability",
     ],
+    oauthConfig: {
+      provider: "custom-crm",
+      defaultScopes: ["deals:read"],
+      requiredScopes: ["openid"],
+      scopeMapping: {
+        "deals.list": ["deals:read"],
+        "deals.search": ["deals:read"],
+        "deals.create": ["deals:write"],
+        "deals.update": ["deals:write"],
+      },
+    },
   };
 
   validate(data: {
@@ -215,45 +281,48 @@ export class CRMDealsTool extends Tool<{
     }
   ): Promise<ToolResponse> {
     try {
-      // Get token with necessary scopes
+      // Get token without specifying scopes to let Descope handle defaults
+      console.log("[CRMDealsTool] Getting token without hardcoded scopes");
       const tokenResponse = await getOAuthTokenWithScopeValidation(
         userId,
         "custom-crm",
         {
           appId: "custom-crm",
           userId,
-          scopes: ["deals:read"],
-          operation: "tool_calling",
+          operation: "deals.list",
+          toolId: this.config.id,
         }
       );
 
       if (!tokenResponse || "error" in tokenResponse) {
-        const errorMsg =
-          tokenResponse && "error" in tokenResponse
-            ? tokenResponse.error
-            : "Failed to get CRM access token";
+        // Only extract scope information if available in the token response
+        const requiredScopes =
+          "requiredScopes" in tokenResponse && tokenResponse.requiredScopes
+            ? tokenResponse.requiredScopes
+            : undefined;
+        const currentScopes =
+          "currentScopes" in tokenResponse && tokenResponse.currentScopes
+            ? tokenResponse.currentScopes
+            : undefined;
 
-        return {
-          success: false,
-          error: errorMsg,
-          ui: {
-            type: "connection_required",
-            service: "custom-crm",
-            message: "CRM access is required to view deals.",
-            connectButton: {
-              text: "Connect CRM",
-              action: "connection://custom-crm",
-            },
-          },
-        };
+        // Use standardized connection request
+        return createConnectionRequest({
+          provider: "custom-crm",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes,
+          currentScopes,
+          customMessage: "CRM access is required to view deals.",
+          toolId: this.config.id,
+          operation: "deals.list",
+        });
       }
 
       // Extract the actual token from the response
-      const accessToken = tokenResponse.token?.accessToken;
+      const accessToken = tokenResponse.token!.accessToken;
 
       // Use our enhanced deals fetching function
       const responseData = await fetchCRMDeals(
-        accessToken!,
+        accessToken,
         data.dealId,
         data.contactId,
         data.stage,
@@ -266,17 +335,31 @@ export class CRMDealsTool extends Tool<{
       };
     } catch (error) {
       console.error("CRM Deals Tool Error:", error);
+
+      // Check if this is an authentication error
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("401") ||
+        errorMsg.includes("403");
+
+      if (isAuthError) {
+        return createConnectionRequest({
+          provider: "custom-crm",
+          customMessage:
+            "There was an error connecting to your CRM. Please reconnect.",
+          toolId: this.config.id,
+        });
+      }
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to fetch deals",
+        error: errorMsg,
         ui: {
-          type: "connection_required",
-          service: "custom-crm",
-          message: "There was an error connecting to your CRM",
-          connectButton: {
-            text: "Reconnect CRM",
-            action: "connection://custom-crm",
-          },
+          type: "error",
+          message: "Failed to fetch deals from your CRM. Please try again.",
         },
       };
     }
@@ -290,16 +373,21 @@ export class DealStakeholdersTool extends Tool<{
   config: ToolConfig = {
     id: "crm-deal-stakeholders",
     name: "Deal Stakeholders",
-    description:
-      "Get all stakeholders (contacts) associated with a specific deal",
+    description: "Get stakeholders for a specific deal from the CRM system",
     scopes: ["deals:read", "contacts:read"],
     requiredFields: ["dealId"],
-    optionalFields: [],
     capabilities: [
-      "Identify all people involved in a deal",
-      "Get contact information for meeting scheduling",
-      "Find primary and additional contacts for a deal",
+      "Retrieve stakeholders for a deal, including customers and internal team members",
+      "Get contact information for everyone involved in a deal",
     ],
+    oauthConfig: {
+      provider: "custom-crm",
+      defaultScopes: ["deals:read", "contacts:read"],
+      requiredScopes: ["openid"],
+      scopeMapping: {
+        "stakeholders.list": ["deals:read", "contacts:read"],
+      },
+    },
   };
 
   validate(data: { dealId: string }): ToolResponse | null {
@@ -324,8 +412,8 @@ export class DealStakeholdersTool extends Tool<{
         {
           appId: "custom-crm",
           userId,
-          scopes: ["deals:read", "contacts:read"],
-          operation: "tool_calling",
+          operation: "stakeholders.list",
+          toolId: this.config.id,
         }
       );
 
@@ -335,19 +423,21 @@ export class DealStakeholdersTool extends Tool<{
             ? tokenResponse.error
             : "Failed to get CRM access token";
 
-        return {
-          success: false,
-          error: errorMsg,
-          ui: {
-            type: "connection_required",
-            service: "custom-crm",
-            message: "CRM access is required to view deal stakeholders.",
-            connectButton: {
-              text: "Connect CRM",
-              action: "connection://custom-crm",
-            },
-          },
-        };
+        // Get currentScopes if available in the error response
+        const currentScopes =
+          tokenResponse &&
+          "error" in tokenResponse &&
+          "currentScopes" in tokenResponse
+            ? tokenResponse.currentScopes
+            : undefined;
+
+        return createConnectionRequest({
+          provider: "custom-crm",
+          customMessage: "CRM access is required to view deal stakeholders.",
+          toolId: this.config.id,
+          operation: "stakeholders.list",
+          currentScopes,
+        });
       }
 
       // Extract the actual token from the response
@@ -365,22 +455,12 @@ export class DealStakeholdersTool extends Tool<{
       };
     } catch (error) {
       console.error("Deal Stakeholders Tool Error:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to fetch deal stakeholders",
-        ui: {
-          type: "connection_required",
-          service: "custom-crm",
-          message: "There was an error connecting to your CRM",
-          connectButton: {
-            text: "Reconnect CRM",
-            action: "connection://custom-crm",
-          },
-        },
-      };
+      return createConnectionRequest({
+        provider: "custom-crm",
+        customMessage: "There was an error connecting to your CRM",
+        toolId: this.config.id,
+        isReconnect: true,
+      });
     }
   }
 }

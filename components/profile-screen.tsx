@@ -37,6 +37,7 @@ import {
   Share,
   Trash,
   ArrowUpDown,
+  InfoIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -64,13 +65,10 @@ import { availableModels } from "@/lib/ai/providers";
 import { useEffect as useClientEffect } from "react";
 import { disconnectOAuthProvider } from "@/lib/oauth-utils";
 import {
-  isConnected,
   setConnected,
   getAllConnectionStatuses,
   OAuthProvider as ConnectionProvider,
 } from "@/lib/connection-manager";
-<<<<<<< Updated upstream
-=======
 import { DEFAULT_SCOPES } from "@/lib/oauth-utils";
 import {
   Tooltip,
@@ -78,7 +76,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
->>>>>>> Stashed changes
 
 interface OAuthProvider {
   id: string;
@@ -566,17 +563,21 @@ export default function ProfileScreen({
 
   // Add helper function to format scope strings
   function formatScope(scope: string): string {
-    // Remove URL parts and common prefixes
-    const cleanScope = scope
-      .replace("https://www.googleapis.com/auth/", "")
-      .replace("https://www.googleapis.com/", "")
-      .replace(".readonly", " (read only)");
+    // Replace dots with spaces and capitalize first letter of each word
+    const formattedScope = scope
+      .replace(/\./g, " ")
+      .replace(/:/g, ": ")
+      .replace(/\b\w/g, (l) => l.toUpperCase());
 
-    // Split on dots and underscores, capitalize each word
-    return cleanScope
-      .split(/[._]/)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+    // Format OAuth URLs more nicely
+    if (scope.includes("googleapis.com")) {
+      return scope
+        .replace("https://www.googleapis.com/auth/", "")
+        .replace(/\./g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+
+    return formattedScope;
   }
 
   // Add a function to format token expiry time
@@ -1022,7 +1023,7 @@ export default function ProfileScreen({
                 </CardContent>
               </Card>
 
-              <Card className="w-full">
+              <Card className="w-full card-hover">
                 <CardHeader>
                   <CardTitle>Data Access</CardTitle>
                   <CardDescription>
@@ -1031,27 +1032,6 @@ export default function ProfileScreen({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-<<<<<<< Updated upstream
-                  <div className="space-y-4">
-                    {oauthProviders.map((provider) => (
-                      <div key={provider.id} className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Image
-                            src={provider.icon}
-                            alt={provider.name}
-                            width={24}
-                            height={24}
-                            className="rounded-sm"
-                          />
-                          <h3 className="font-medium">{provider.name}</h3>
-                          <Badge
-                            variant={
-                              provider.connected ? "default" : "secondary"
-                            }
-                          >
-                            {provider.connected ? "Connected" : "Not Connected"}
-                          </Badge>
-=======
                   <div className="space-y-6">
                     {oauthProviders.map((provider) => {
                       // Get the required scopes for this provider
@@ -1224,22 +1204,9 @@ export default function ProfileScreen({
                               </Button>
                             </div>
                           )}
->>>>>>> Stashed changes
                         </div>
-                        {provider.connected && provider.tokenData?.scopes && (
-                          <div className="pl-8 text-sm text-gray-600 dark:text-gray-400">
-                            <p className="font-medium mb-1">
-                              Granted Permissions:
-                            </p>
-                            <ul className="list-disc pl-4 space-y-1">
-                              {provider.tokenData.scopes.map((scope) => (
-                                <li key={scope}>{formatScope(scope)}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>

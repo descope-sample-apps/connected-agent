@@ -1,4 +1,10 @@
-import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import {
+  Tool,
+  ToolConfig,
+  ToolResponse,
+  toolRegistry,
+  createConnectionRequest,
+} from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
 import { getRequiredScopes } from "@/lib/openapi-utils";
@@ -100,20 +106,25 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
       );
 
       if (!tokenResponse || "error" in tokenResponse) {
-        return {
-          success: false,
-          error: "Google Meet access required",
-          ui: {
-            type: "connection_required",
-            service: "google-meet",
-            message:
-              "Please connect your Google Meet to create video conferences",
-            connectButton: {
-              text: "Connect Google Meet",
-              action: "connection://google-meet",
-            },
-          },
-        };
+        // Extract scope information if available
+        const requiredScopes =
+          "requiredScopes" in tokenResponse
+            ? tokenResponse.requiredScopes
+            : this.config.scopes;
+        const currentScopes =
+          "currentScopes" in tokenResponse
+            ? tokenResponse.currentScopes
+            : undefined;
+
+        // Use standardized connection request
+        return createConnectionRequest({
+          provider: "google-meet",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes: requiredScopes,
+          currentScopes: currentScopes,
+          customMessage:
+            "Please connect your Google Meet to create video conferences",
+        });
       }
 
       // Set up Google Calendar API client
@@ -179,6 +190,8 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
         },
       };
     } catch (error) {
+      console.error("Error creating Google Meet:", error);
+
       // Check if this is an insufficient permissions error
       const isInsufficientPermissions =
         error instanceof Error &&
@@ -193,22 +206,14 @@ export class GoogleMeetTool extends Tool<GoogleMeetEvent> {
           "meetings.space"
         );
 
-        return {
-          success: false,
-          status: "error",
-          error: "Insufficient permissions to create Google Meet",
-          ui: {
-            type: "connection_required",
-            service: "google-meet",
-            message:
-              "You need additional permissions to create Google Meet meetings. Please reconnect with the required scopes.",
-            requiredScopes: requiredScopes,
-            connectButton: {
-              text: "Reconnect Google Meet",
-              action: "connection://google-meet",
-            },
-          },
-        };
+        // Use standardized connection request for reconnection
+        return createConnectionRequest({
+          provider: "google-meet",
+          isReconnect: true,
+          requiredScopes: requiredScopes,
+          customMessage:
+            "You need additional permissions to create Google Meet meetings. Please reconnect with the required scopes.",
+        });
       }
 
       // Default error response

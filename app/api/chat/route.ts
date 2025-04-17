@@ -691,21 +691,18 @@ export async function POST(request: Request) {
         }) => {
           try {
             if (!crmContactsTool) {
-              return {
-                success: false,
-                error: "CRM contacts tool not available",
-                message:
-                  "Unable to access CRM contacts. Please connect your CRM.",
-                ui: {
-                  type: "connection_required",
-                  service: "custom-crm",
-                  message: "Please connect your CRM to access contacts",
-                  connectButton: {
-                    text: "Connect CRM",
-                    action: "connection://custom-crm",
-                  },
-                },
-              };
+              // Import the createConnectionRequest function
+              const { createConnectionRequest } = await import(
+                "@/lib/tools/base"
+              );
+
+              // Use the standardized connection request function
+              return createConnectionRequest({
+                provider: "custom-crm",
+                customMessage: "CRM access is required to view contacts.",
+                toolId: "crm-contacts",
+                operation: "contacts.list",
+              });
             }
 
             // If only a name is provided, let's first search for the contact
@@ -717,26 +714,82 @@ export async function POST(request: Request) {
 
               // Get CRM access token
               const tokenResponse = await getCRMToken(userId, "tool_calling");
+              console.log("[getCRMContacts] Token response:", {
+                hasToken: tokenResponse && "token" in tokenResponse,
+                hasError: tokenResponse && "error" in tokenResponse,
+                error:
+                  tokenResponse && "error" in tokenResponse
+                    ? tokenResponse.error
+                    : null,
+              });
 
-              if (!tokenResponse) {
-                return {
-                  success: false,
-                  error: "Failed to get CRM access token",
-                  message: "CRM connection is required to look up contacts.",
-                  ui: {
-                    type: "connection_required",
-                    service: "custom-crm",
-                    message: "Please connect your CRM to access contacts",
-                    connectButton: {
-                      text: "Connect CRM",
-                      action: "connection://custom-crm",
-                    },
-                  },
-                };
+              // Handle connection required responses directly
+              if (
+                !tokenResponse ||
+                ("error" in tokenResponse &&
+                  tokenResponse.error === "connection_required")
+              ) {
+                // Only use scopes if they come from the token response
+                const requiredScopes =
+                  tokenResponse &&
+                  "requiredScopes" in tokenResponse &&
+                  Array.isArray(tokenResponse.requiredScopes) &&
+                  tokenResponse.requiredScopes.length > 0
+                    ? tokenResponse.requiredScopes
+                    : undefined;
+
+                console.log(
+                  "[getCRMContacts] Connection required - returning UI prompt with scopes:",
+                  requiredScopes || "none (letting Descope handle defaults)"
+                );
+
+                // Import the createConnectionRequest function
+                const { createConnectionRequest } = await import(
+                  "@/lib/tools/base"
+                );
+
+                // Use the standardized connection request function
+                return createConnectionRequest({
+                  provider: "custom-crm",
+                  isReconnect: false,
+                  requiredScopes,
+                  customMessage: "CRM access is required to view contacts.",
+                  toolId: "crm-contacts",
+                  operation: "contacts.list",
+                });
+              }
+
+              // If we have insufficient scopes, handle that specifically
+              if (
+                tokenResponse &&
+                "error" in tokenResponse &&
+                tokenResponse.error === "insufficient_scopes"
+              ) {
+                console.log(
+                  "[getCRMContacts] Insufficient scopes - returning reconnect prompt"
+                );
+
+                // Import the createConnectionRequest function
+                const { createConnectionRequest } = await import(
+                  "@/lib/tools/base"
+                );
+
+                // Use the standardized connection request function
+                return createConnectionRequest({
+                  provider: "custom-crm",
+                  isReconnect: true,
+                  requiredScopes: tokenResponse.requiredScopes,
+                  currentScopes: tokenResponse.currentScopes,
+                  customMessage:
+                    "Additional CRM permissions are required to look up contacts.",
+                  toolId: "crm-contacts",
+                  operation: "contacts.list",
+                });
               }
 
               // Use type guard to safely access token
               if (
+                tokenResponse &&
                 "token" in tokenResponse &&
                 tokenResponse.token &&
                 tokenResponse.token.accessToken
@@ -846,26 +899,31 @@ export async function POST(request: Request) {
                   };
                 }
               } else {
-                return {
-                  success: false,
-                  error: "CRM authentication required",
-                  message:
-                    "Unable to authenticate with the CRM service. Please reconnect your CRM in settings.",
-                  ui: {
-                    type: "connection_required",
-                    service: "custom-crm",
-                    message: "Please connect your CRM to access contacts",
-                    connectButton: {
-                      text: "Connect CRM",
-                      action: "connection://custom-crm",
-                    },
-                  },
-                };
+                console.log(
+                  "[getCRMContacts] Unknown token error - returning generic connection error"
+                );
+                // Import the createConnectionRequest function
+                const { createConnectionRequest } = await import(
+                  "@/lib/tools/base"
+                );
+
+                // Use the standardized connection request function
+                return createConnectionRequest({
+                  provider: "custom-crm",
+                  customMessage:
+                    "Unable to authenticate with the CRM service. Please reconnect your CRM.",
+                  toolId: "crm-contacts",
+                  operation: "contacts.list",
+                });
               }
             }
 
             // If we have an email or ID, use the regular tool execution
             // Search by whatever parameter was provided
+            console.log(
+              "[getCRMContacts] Using crmContactsTool.execute with:",
+              { name, email, id }
+            );
             const result = await crmContactsTool.execute(userId, {
               name,
               email,
@@ -1318,6 +1376,18 @@ When handling date and time references:
 - Ask for clarification if the user provides vague time references
 - Confirm specific dates and times before scheduling
 - Interpret relative terms (tomorrow, next week) relative to today's date
+
+IMPORTANT: SERVICES CONNECTION HANDLING
+When you need to access a service that requires connection or authentication:
+1. DO NOT mention reconnecting multiple times or repeat yourself
+2. Instead, ALWAYS use the appropriate tool (getCRMContacts, createCalendarEvent, etc.) which will automatically handle connection requirements
+3. NEVER say phrases like "I need to reconnect" or "Let me reconnect" - the system will show the proper UI
+4. If a tool returns an error indicating connection is required, simply state ONCE that you need the service connected
+5. For CRM contacts specifically, always use the getCRMContacts tool - do not explain that CRM access is needed
+
+Example response when CRM service is not connected:
+"To provide John Doe's contact information, I'll need to check the CRM system."
+Then use the getCRMContacts tool, which will handle showing the connection UI.
 `;
 
     // Return a streaming response
@@ -1415,8 +1485,9 @@ When handling date and time references:
                 }
 
                 // Find the last assistant message
-                const assistantMessage =
-                  assistantMessages[assistantMessages.length - 1];
+                const assistantMessage = assistantMessages[
+                  assistantMessages.length - 1
+                ] as any; // Cast to any to allow attaching ui property
                 const assistantId = nanoid();
 
                 // Ensure assistantMessage content is correctly formatted for saving
@@ -1430,7 +1501,7 @@ When handling date and time references:
                 } else if (Array.isArray(assistantMessage.content)) {
                   // If content is already an array of parts, use it directly
                   // Ensure the parts conform to the expected structure if necessary
-                  messageParts = assistantMessage.content.map((part) => {
+                  messageParts = assistantMessage.content.map((part: any) => {
                     if (typeof part === "object" && part !== null) {
                       if (part.type === "text") {
                         return { type: "text", text: part.text || "" };
@@ -1458,21 +1529,103 @@ When handling date and time references:
                   ];
                 }
 
-                // Check for connection requirements
-                const messageText =
-                  typeof assistantMessage.content === "string"
-                    ? assistantMessage.content
-                    : messageParts.map((part) => part.text || "").join(" ");
-
                 // Extract UI elements if present
                 const uiElements =
                   extractUIElementsFromToolResponses(assistantMessage);
                 if (uiElements) {
+                  console.log(
+                    "[onFinish] Found UI elements to add to messageParts:",
+                    {
+                      type: uiElements.type,
+                      service: uiElements.service,
+                      hasConnectButton: !!uiElements.connectButton,
+                      hasRequiredScopes: !!uiElements.requiredScopes,
+                      requiredScopesCount:
+                        uiElements.requiredScopes?.length || 0,
+                    }
+                  );
                   messageParts.push({
                     type: "connection",
                     connection: uiElements,
                   });
+
+                  // Also add the UI element directly to the message object for easier detection
+                  assistantMessage.ui = uiElements;
+
+                  console.log(
+                    "[onFinish] Added connection UI element to messageParts:",
+                    uiElements.requiredScopes
+                      ? `with ${uiElements.requiredScopes.length} scopes`
+                      : "without scopes (using Descope defaults)"
+                  );
                 }
+                // If no UI elements were explicitly found but the message appears to be a connection request
+                else if (isConnectionRequestResponse(assistantMessage)) {
+                  console.log(
+                    "[onFinish] Message appears to be a connection request but no UI element was found"
+                  );
+
+                  // Determine the service from message content
+                  const content =
+                    typeof assistantMessage.content === "string"
+                      ? assistantMessage.content.toLowerCase()
+                      : "";
+
+                  let service: string = "custom-crm"; // Default to CRM
+                  if (content.includes("calendar")) service = "google-calendar";
+                  else if (content.includes("slack")) service = "slack";
+                  else if (content.includes("zoom")) service = "zoom";
+                  else if (content.includes("meet")) service = "google-meet";
+                  else if (
+                    content.includes("docs") ||
+                    content.includes("drive")
+                  )
+                    service = "google-docs";
+
+                  // Create a synthetic UI element
+                  const syntheticUIElement = {
+                    type: "connection_required",
+                    service: service,
+                    message: `Please connect your ${service
+                      .replace("custom-", "")
+                      .replace("-", " ")} to continue.`,
+                    connectButton: {
+                      text: `Connect ${service
+                        .replace("custom-", "")
+                        .replace("-", " ")}`,
+                      action: `connection://${service}`,
+                    },
+                    alternativeMessage:
+                      "This will allow the assistant to access the necessary data.",
+                  };
+
+                  console.log(
+                    "[onFinish] Created synthetic UI element:",
+                    syntheticUIElement
+                  );
+
+                  // Add to message parts
+                  messageParts.push({
+                    type: "connection",
+                    connection: syntheticUIElement,
+                  });
+
+                  // Also add directly to the message object for easier detection
+                  assistantMessage.ui = syntheticUIElement;
+
+                  console.log(
+                    "[onFinish] Added synthetic connection UI element to messageParts"
+                  );
+                }
+
+                // Log the final messageParts structure before saving
+                console.log("[onFinish] Saving message with parts:", {
+                  partTypes: messageParts.map((part) => part.type),
+                  hasConnectionPart: messageParts.some(
+                    (part) => part.type === "connection"
+                  ),
+                  messagePartsCount: messageParts.length,
+                });
 
                 // Save the assistant message with its structured content
                 await saveMessages({
@@ -1562,118 +1715,132 @@ export async function DELETE(request: Request) {
 // Add this function to extract UI elements from tool responses
 function extractUIElementsFromToolResponses(message: any): any {
   try {
+    console.log("[extractUIElementsFromToolResponses] Processing message:", {
+      hasToolResponses: !!message.tool_responses,
+      toolResponsesCount: message.tool_responses?.length || 0,
+      hasToolActions: !!message.toolActions,
+      toolActionsCount: message.toolActions?.length || 0,
+    });
+
+    // Check if the message contains direct UI information
+    if (message.ui && message.ui.type === "connection_required") {
+      console.log(
+        "[extractUIElementsFromToolResponses] Found direct UI connection element"
+      );
+      return message.ui;
+    }
+
     // Check if the message contains tool responses
     const toolResponses = message.tool_responses || [];
 
     // Look for connection_required UI elements in any tool response
     for (const response of toolResponses) {
+      console.log(
+        "[extractUIElementsFromToolResponses] Checking tool response:",
+        {
+          hasOutput: !!response?.output,
+          hasUI: !!response?.output?.ui,
+          uiType: response?.output?.ui?.type,
+        }
+      );
+
       if (response?.output?.ui?.type === "connection_required") {
+        console.log(
+          "[extractUIElementsFromToolResponses] Found connection_required UI in tool response"
+        );
         return response.output.ui;
       }
     }
 
-    // Also check if the message content contains any connection text markers
-    if (message.content && typeof message.content === "string") {
-      // More detailed regex to detect various connection patterns
-      const connectionPatterns = [
-        // Connect to service patterns
-        /connect(?:\s+your|\s+to)?\s+(Google Meet|Google Calendar|Google Docs|CRM|Slack|Zoom)\s+(?:account|to continue)/i,
-        // Additional permissions patterns
-        /additional\s+permissions\s+(?:for|required\s+for)\s+(Google Meet|Google Calendar|Google Docs|CRM|Slack|Zoom)/i,
-        // Need access patterns
-        /need\s+(?:to\s+)?(?:connect|access)\s+(?:to\s+)?(Google Meet|Google Calendar|Google Docs|CRM|Slack|Zoom)/i,
-      ];
+    // ALSO check toolActions array where CRM tools might be storing their output
+    if (message.toolActions && Array.isArray(message.toolActions)) {
+      for (const action of message.toolActions) {
+        console.log(
+          "[extractUIElementsFromToolResponses] Checking tool action:",
+          {
+            hasOutput: !!action?.output,
+            hasUI: !!action?.output?.ui,
+            uiType: action?.output?.ui?.type,
+          }
+        );
 
-      // Try each pattern to find a match
-      let match = null;
-      let matchedPattern = null;
-
-      for (const pattern of connectionPatterns) {
-        const result = message.content.match(pattern);
-        if (result) {
-          match = result;
-          matchedPattern = pattern;
-          break;
+        if (action?.output?.ui?.type === "connection_required") {
+          console.log(
+            "[extractUIElementsFromToolResponses] Found connection_required UI in tool action"
+          );
+          return action.output.ui;
         }
-      }
-
-      if (match) {
-        // Determine the service type from the content
-        let service = "unknown";
-        const serviceName = match[1].toLowerCase();
-
-        if (serviceName.includes("meet")) service = "google-meet";
-        else if (serviceName.includes("calendar")) service = "google-calendar";
-        else if (serviceName.includes("docs")) service = "google-docs";
-        else if (serviceName.includes("crm")) service = "custom-crm";
-        else if (serviceName.includes("slack")) service = "slack";
-        else if (serviceName.includes("zoom")) service = "zoom";
-
-        // Determine if this is a reconnect request
-        const isReconnect =
-          matchedPattern?.source.includes("additional") ||
-          message.content.toLowerCase().includes("additional permission") ||
-          message.content.toLowerCase().includes("more permission");
-
-        // Get appropriate display name
-        const displayName =
-          service === "google-calendar"
-            ? "Google Calendar"
-            : service === "google-docs"
-            ? "Google Docs"
-            : service === "google-meet"
-            ? "Google Meet"
-            : service === "custom-crm"
-            ? "CRM"
-            : service === "slack"
-            ? "Slack"
-            : service === "zoom"
-            ? "Zoom"
-            : service;
-
-        // Build appropriate message
-        const connectionMessage = isReconnect
-          ? `Additional permissions are required for ${displayName}.`
-          : `Please connect your ${displayName} account to continue.`;
-
-        // Set default required scopes based on service
-        let requiredScopes: string[] = [];
-        if (service === "google-calendar") {
-          requiredScopes = ["https://www.googleapis.com/auth/calendar"];
-        } else if (service === "google-docs") {
-          requiredScopes = ["https://www.googleapis.com/auth/documents"];
-        } else if (service === "google-meet") {
-          requiredScopes = [
-            "https://www.googleapis.com/auth/calendar",
-            "https://www.googleapis.com/auth/meetings.space.created",
-          ];
-        }
-
-        return {
-          type: "connection_required",
-          service,
-          message: connectionMessage,
-          connectButton: {
-            text: isReconnect
-              ? `Reconnect ${displayName}`
-              : `Connect ${displayName}`,
-            action: `connection://${service}`,
-          },
-          alternativeMessage:
-            requiredScopes.length > 0
-              ? `The following permissions are needed: ${requiredScopes
-                  .map((s) => s.split("/").pop())
-                  .join(", ")}`
-              : "This will allow the assistant to access the necessary data to fulfill your request.",
-          requiredScopes:
-            requiredScopes.length > 0 ? requiredScopes : undefined,
-        };
       }
     }
 
+    // Check if a toolResponse property exists with UI element
+    if (
+      message.toolResponse &&
+      message.toolResponse.ui &&
+      message.toolResponse.ui.type === "connection_required"
+    ) {
+      console.log(
+        "[extractUIElementsFromToolResponses] Found connection_required UI in toolResponse"
+      );
+      return message.toolResponse.ui;
+    }
+
+    // If no UI element found in tool responses, return null
     return null;
   } catch (error) {
     console.error("Error extracting UI elements:", error);
     return null;
   }
+}
+
+// Helper function to determine if a message needs to have a connection request attached
+function isConnectionRequestResponse(message: any): boolean {
+  // Check for common connection request patterns in the message content
+  if (typeof message.content === "string") {
+    const content = message.content.toLowerCase();
+
+    if (
+      (content.includes("connect") &&
+        (content.includes("crm") ||
+          content.includes("custom-crm") ||
+          content.includes("calendar") ||
+          content.includes("slack"))) ||
+      content.includes("connection required") ||
+      content.includes("permissions required") ||
+      content.includes("authorization") ||
+      content.includes("oauth")
+    ) {
+      console.log(
+        "[isConnectionRequestResponse] Detected connection request in message content"
+      );
+      return true;
+    }
+  }
+
+  // Check if any tool response has a connection UI
+  if (message.tool_responses && Array.isArray(message.tool_responses)) {
+    for (const response of message.tool_responses) {
+      if (response?.output?.ui?.type === "connection_required") {
+        console.log(
+          "[isConnectionRequestResponse] Found connection UI in tool response"
+        );
+        return true;
+      }
+    }
+  }
+
+  // Check for connection UI in toolActions
+  if (message.toolActions && Array.isArray(message.toolActions)) {
+    for (const action of message.toolActions) {
+      if (action?.output?.ui?.type === "connection_required") {
+        console.log(
+          "[isConnectionRequestResponse] Found connection UI in tool action"
+        );
+        return true;
+      }
+    }
+  }
+
+  // No connection request patterns found
+  return false;
 }

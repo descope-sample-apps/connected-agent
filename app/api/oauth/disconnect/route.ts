@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     // Track disconnect initiated event
-    trackOAuthEvent("disconnect_initiated", {
+    trackOAuthEvent("connection_disconnect_initiated", {
       userId,
       provider: providerId,
     });
@@ -93,13 +93,13 @@ export async function POST(request: Request) {
 
     // Always track the event, regardless of outcome
     if (success) {
-      trackOAuthEvent("disconnect_successful", {
+      trackOAuthEvent("connection_disconnect_successful", {
         userId,
         provider: providerId,
         ...(errorDetails && { errorDetails }),
       });
     } else {
-      trackOAuthEvent("disconnect_initiated", {
+      trackOAuthEvent("connection_disconnect_initiated", {
         userId,
         provider: providerId,
         status: "failed",

@@ -1,4 +1,10 @@
-import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import {
+  Tool,
+  ToolConfig,
+  ToolResponse,
+  createConnectionRequest,
+  toolRegistry,
+} from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { google } from "googleapis";
 
@@ -13,16 +19,19 @@ export class CalendarListTool extends Tool<ListEventsArgs> {
   config: ToolConfig = {
     id: "google-calendar-list",
     name: "Google Calendar List",
-    description: "List upcoming events from Google Calendar",
-    scopes: ["https://www.googleapis.com/auth/calendar"],
+    description: "List events from Google Calendar",
+    scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
     requiredFields: [],
     optionalFields: ["maxResults", "timeMin", "timeMax", "calendarId"],
     capabilities: [
-      "View upcoming calendar events",
-      "Check availability",
-      "See event details",
-      "View event schedules",
+      "List calendar events",
+      "Get upcoming meetings",
+      "View calendar availability",
     ],
+    parameters: {
+      maxResults: 10,
+      calendarId: "primary",
+    },
   };
 
   validate(data: ListEventsArgs): ToolResponse | null {
@@ -44,25 +53,30 @@ export class CalendarListTool extends Tool<ListEventsArgs> {
       );
 
       if (!tokenResponse || "error" in tokenResponse) {
-        return {
-          success: false,
-          error: "Google Calendar access required",
-          ui: {
-            type: "connection_required",
-            service: "google-calendar",
-            message: "Please connect your Google Calendar to view events",
-            connectButton: {
-              text: "Connect Google Calendar",
-              action: "connection://google-calendar",
-            },
-          },
-        };
+        // Extract scope information if available
+        const requiredScopes =
+          "requiredScopes" in tokenResponse
+            ? tokenResponse.requiredScopes
+            : this.config.scopes;
+        const currentScopes =
+          "currentScopes" in tokenResponse
+            ? tokenResponse.currentScopes
+            : undefined;
+
+        // Use standardized connection request
+        return createConnectionRequest({
+          provider: "google-calendar",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes: requiredScopes,
+          currentScopes: currentScopes,
+          customMessage: "Please connect your Google Calendar to view events",
+        });
       }
 
       // Set up Google Calendar API client
       const oauth2Client = new google.auth.OAuth2();
       oauth2Client.setCredentials({
-        access_token: tokenResponse.token.accessToken,
+        access_token: tokenResponse.token!.accessToken,
       });
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
@@ -99,21 +113,29 @@ export class CalendarListTool extends Tool<ListEventsArgs> {
       };
     } catch (error) {
       console.error("Error listing calendar events:", error);
+      // Check if this is an authentication/permission error
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("401") ||
+        errorMsg.includes("403");
+
+      if (isAuthError) {
+        return createConnectionRequest({
+          provider: "google-calendar",
+          customMessage: "Calendar access is required to view events",
+        });
+      }
+
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to list calendar events",
+        error: errorMsg,
         ui: {
-          type: "connection_required",
-          service: "google-calendar",
+          type: "error",
           message:
             "There was an error listing your calendar events. Please try again.",
-          connectButton: {
-            text: "Retry",
-            action: "retry",
-          },
         },
       };
     }

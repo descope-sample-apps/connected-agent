@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils";
 import { Message } from "ai";
 import { ToolResponseRenderer } from "@/components/ui/tool-response-renderer";
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import React, { useMemo, useState, useEffect, useRef } from "react";
 import { User, Bot, Sparkles } from "lucide-react";
 
 // Add keyframe animations

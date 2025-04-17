@@ -18,6 +18,7 @@ const SERVICE_LOGOS = {
   "google-meet": "/logos/google-meet-logo.png",
   "google-calendar": "/logos/google-calendar.png",
   crm: "/logos/crm-logo.png",
+  "custom-crm": "/logos/crm-logo.png",
   slack: "/logos/slack-logo.svg",
 };
 
@@ -26,6 +27,7 @@ const SERVICE_NAMES = {
   "google-meet": "Google Meet",
   "google-calendar": "Google Calendar",
   crm: "CRM System",
+  "custom-crm": "CRM System",
 };
 
 interface ChatMessageProps {
@@ -430,7 +432,11 @@ export default function ChatMessage({
       return <FileText className="h-4 w-4 text-purple-500" />;
     } else if (serviceLower === "zoom" || serviceLower.includes("zoom")) {
       return <Video className="h-4 w-4 text-indigo-500" />;
-    } else if (serviceLower === "crm" || serviceLower.includes("crm")) {
+    } else if (
+      serviceLower === "crm" ||
+      serviceLower === "custom-crm" ||
+      serviceLower.includes("crm")
+    ) {
       return <Database className="h-4 w-4 text-purple-500" />;
     } else {
       return <ExternalLink className="h-4 w-4 text-indigo-500" />;

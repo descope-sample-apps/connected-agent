@@ -28,6 +28,7 @@ interface UIElement {
   alternativeMessage?: string;
   requiredScopes?: string[];
   currentScopes?: string[];
+  toolId?: string;
 }
 
 // Extend the AIMessage type for our custom properties
@@ -895,6 +896,7 @@ export default function Chat({
           ((message.content.toLowerCase().includes("connect") &&
             (message.content.toLowerCase().includes("calendar") ||
               message.content.toLowerCase().includes("crm") ||
+              message.content.toLowerCase().includes("custom-crm") ||
               message.content.toLowerCase().includes("service") ||
               message.content.toLowerCase().includes("google docs") ||
               message.content.toLowerCase().includes("documents") ||
@@ -1113,6 +1115,7 @@ export default function Chat({
                         state: {
                           chatId: id,
                           originalUrl: window.location.href,
+                          toolId: message.ui.toolId,
                         },
                       });
 

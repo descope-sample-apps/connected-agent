@@ -22,6 +22,8 @@ export interface ToolResponse {
     };
     alternativeMessage?: string;
     requiredScopes?: string[];
+    currentScopes?: string[];
+    toolId?: string;
   };
 }
 
@@ -34,6 +36,12 @@ export interface ToolConfig {
   optionalFields?: string[];
   capabilities?: string[];
   parameters?: Record<string, any>;
+  oauthConfig?: {
+    provider?: string; // The OAuth provider ID (e.g., "custom-crm", "google-calendar")
+    defaultScopes?: string[]; // Default scopes to request when no scopes are specified
+    requiredScopes?: string[]; // Scopes that are always required
+    scopeMapping?: Record<string, string[]>; // Map operations to required scopes
+  };
 }
 
 export abstract class Tool<InputType> {
@@ -267,6 +275,59 @@ class ToolRegistry {
     return undefined;
   }
 
+  // Get OAuth configuration for a tool
+  getToolOAuthConfig(toolId: string): {
+    provider: string;
+    defaultScopes: string[];
+    requiredScopes: string[];
+    scopeMapping?: Record<string, string[]>;
+  } | null {
+    console.log(`[ToolRegistry] Getting OAuth config for tool: ${toolId}`);
+
+    const tool = this.getTool(toolId);
+    if (!tool) {
+      console.error(
+        `[ToolRegistry] Tool not found for OAuth config: ${toolId}`
+      );
+      return null;
+    }
+
+    // If the tool has no OAuth config, return null
+    if (!tool.config.oauthConfig) {
+      console.log(`[ToolRegistry] No OAuth config for tool: ${toolId}`);
+      return null;
+    }
+
+    // Extract the provider ID from the tool ID if not specified
+    const provider = tool.config.oauthConfig.provider || toolId.split("-")[0];
+
+    return {
+      provider,
+      defaultScopes: tool.config.oauthConfig.defaultScopes || [],
+      requiredScopes: tool.config.oauthConfig.requiredScopes || [],
+      scopeMapping: tool.config.oauthConfig.scopeMapping,
+    };
+  }
+
+  // Get scopes for a specific operation on a tool
+  getToolScopesForOperation(toolId: string, operation: string): string[] {
+    const oauthConfig = this.getToolOAuthConfig(toolId);
+    if (!oauthConfig) {
+      return [];
+    }
+
+    // Check if there's a scope mapping for this operation
+    if (oauthConfig.scopeMapping && oauthConfig.scopeMapping[operation]) {
+      return [
+        ...oauthConfig.requiredScopes,
+        ...oauthConfig.scopeMapping[operation],
+      ];
+    }
+
+    // Fall back to required + default scopes
+    return [...oauthConfig.requiredScopes, ...oauthConfig.defaultScopes];
+  }
+
   // Execute a tool with proper logging
   async executeTool<T>(
     toolId: string,
@@ -313,14 +374,62 @@ export function createConnectionRequest(options: {
   requiredScopes?: string[];
   currentScopes?: string[];
   customMessage?: string;
+  toolId?: string;
+  operation?: string;
 }): ToolResponse {
   const {
     provider,
     isReconnect = false,
-    requiredScopes = [],
+    requiredScopes: explicitScopes,
     currentScopes = [],
     customMessage,
+    toolId,
+    operation,
   } = options;
+
+  // Get scopes from the tool registry if a toolId is provided and no explicit scopes
+  let requiredScopes = explicitScopes;
+  if ((!requiredScopes || requiredScopes.length === 0) && toolId) {
+    console.log(
+      `[createConnectionRequest] No explicit scopes provided, looking up tool scopes for ${toolId}`
+    );
+
+    if (operation) {
+      // Get scopes specific to the operation
+      requiredScopes = toolRegistry.getToolScopesForOperation(
+        toolId,
+        operation
+      );
+      console.log(
+        `[createConnectionRequest] Using operation-specific scopes for ${toolId}:${operation}:`,
+        requiredScopes
+      );
+    } else {
+      // Get default tool scopes
+      const oauthConfig = toolRegistry.getToolOAuthConfig(toolId);
+      if (oauthConfig) {
+        requiredScopes = [
+          ...oauthConfig.requiredScopes,
+          ...oauthConfig.defaultScopes,
+        ];
+        console.log(
+          `[createConnectionRequest] Using default tool scopes for ${toolId}:`,
+          requiredScopes
+        );
+      }
+    }
+  }
+
+  console.log("[createConnectionRequest] Creating request:", {
+    provider,
+    isReconnect,
+    hasRequiredScopes: !!requiredScopes && requiredScopes.length > 0,
+    requiredScopesCount: requiredScopes?.length || 0,
+    currentScopesCount: currentScopes.length,
+    hasCustomMessage: !!customMessage,
+    usedToolId: !!toolId,
+    operation: operation || "none",
+  });
 
   // Format provider name for display
   const getDisplayName = (provider: OAuthProvider): string => {
@@ -355,7 +464,7 @@ export function createConnectionRequest(options: {
     "This will allow the assistant to access the necessary data to fulfill your request.";
 
   // Add scope information if available
-  if (requiredScopes.length > 0) {
+  if (requiredScopes && requiredScopes.length > 0) {
     const scopeText = requiredScopes
       .map((scope) => scope.split("/").pop() || scope)
       .join(", ");
@@ -368,7 +477,7 @@ export function createConnectionRequest(options: {
     ? `Reconnect ${displayName}`
     : `Connect ${displayName}`;
 
-  return {
+  const response: ToolResponse = {
     success: false,
     status: "error",
     error: isReconnect
@@ -383,8 +492,25 @@ export function createConnectionRequest(options: {
         action: `connection://${provider}`,
       },
       alternativeMessage,
-      requiredScopes: requiredScopes.length > 0 ? requiredScopes : undefined,
+      // Only include requiredScopes if they are explicitly provided
+      ...(requiredScopes && requiredScopes.length > 0 && { requiredScopes }),
       ...(currentScopes.length > 0 && { currentScopes }),
+      ...(toolId && { toolId }),
     },
   };
+
+  console.log("[createConnectionRequest] Created response:", {
+    success: response.success,
+    status: response.status,
+    error: response.error,
+    hasUI: !!response.ui,
+    uiType: response.ui?.type,
+    service: response.ui?.service,
+    message: response.ui?.message,
+    buttonText: response.ui?.connectButton?.text,
+    buttonAction: response.ui?.connectButton?.action,
+    hasRequiredScopes: !!response.ui?.requiredScopes,
+  });
+
+  return response;
 }

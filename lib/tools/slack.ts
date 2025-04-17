@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { getSlackToken } from "@/lib/descope";
-import { Tool, ToolResponse, ToolConfig } from "./base";
+import {
+  Tool,
+  ToolResponse,
+  ToolConfig,
+  createConnectionRequest,
+} from "./base";
 
 /**
  * SlackTool provides functionality to interact with Slack
@@ -128,38 +133,34 @@ export class SlackTool extends Tool<any> {
       const tokenResponse = await getSlackToken(userId, "tool_calling");
 
       if (!tokenResponse) {
-        return {
-          success: false,
-          error: "Slack connection is required",
-          ui: {
-            type: "connection_required",
-            service: "slack",
-            message:
-              "Please connect your Slack to access messages and channels",
-            connectButton: {
-              text: "Connect Slack",
-              action: "connection://slack",
-            },
-          },
-        };
+        return createConnectionRequest({
+          provider: "slack",
+          customMessage:
+            "Please connect your Slack to access messages and channels",
+        });
       }
 
       // Check if token response indicates an error
       if ("error" in tokenResponse) {
-        return {
-          success: false,
-          error: "Slack connection is required",
-          ui: {
-            type: "connection_required",
-            service: "slack",
-            message:
-              "Please connect your Slack to access messages and channels",
-            connectButton: {
-              text: "Connect Slack",
-              action: "connection://slack",
-            },
-          },
-        };
+        // Extract scope information if available
+        const requiredScopes =
+          "requiredScopes" in tokenResponse
+            ? tokenResponse.requiredScopes
+            : this.config.scopes;
+        const currentScopes =
+          "currentScopes" in tokenResponse
+            ? tokenResponse.currentScopes
+            : undefined;
+
+        // Use standardized connection request
+        return createConnectionRequest({
+          provider: "slack",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes: requiredScopes,
+          currentScopes: currentScopes,
+          customMessage:
+            "Please connect your Slack to access messages and channels",
+        });
       }
 
       const accessToken = tokenResponse.token.accessToken;
@@ -184,9 +185,27 @@ export class SlackTool extends Tool<any> {
       }
     } catch (error) {
       console.error("Error executing Slack tool:", error);
+
+      // Check if this is an authentication error
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("401") ||
+        errorMsg.includes("403");
+
+      if (isAuthError) {
+        return createConnectionRequest({
+          provider: "slack",
+          customMessage:
+            "Slack authentication is required to perform this action",
+        });
+      }
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errorMsg,
       };
     }
   }

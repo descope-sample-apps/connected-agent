@@ -10,6 +10,7 @@ interface OAuthConnectParams {
     redirectTo?: string;
     originalUrl?: string;
     chatId?: string;
+    toolId?: string; // Optional toolId for scope lookup
     [key: string]: any;
   };
   chatId?: string; // Optional chat ID to return to after OAuth flow
@@ -50,9 +51,10 @@ type OAuthResponse = TokenResponse | OAuthErrorResponse;
 interface OAuthOptions {
   appId: string;
   userId: string;
-  scopes: string[];
+  scopes?: string[]; // Make scopes optional
   options?: Record<string, any>;
   operation?: string; // Added to support tool_calling operation
+  toolId?: string; // Added to support tool-specific scope lookup
 }
 
 // Add default scopes for providers when none are specified
@@ -66,28 +68,6 @@ export const DEFAULT_SCOPES: Record<string, string[]> = {
   "custom-crm": ["openid", "contacts:read", "deals:read"],
 };
 
-// Add a function to get scopes from OpenAPI spec
-async function getScopesFromOpenAPISpec(provider: string): Promise<string[]> {
-  console.log(`[OAuth] Getting scopes from OpenAPI spec for ${provider}`);
-  try {
-    // Use the getRequiredScopes function from openapi-utils
-    // We'll use a generic 'connect' operation which should return the basic/default
-    // scopes needed for connection
-    const scopes = await getRequiredScopes(provider, "connect");
-    console.log(
-      `[OAuth] Retrieved scopes from OpenAPI spec for ${provider}:`,
-      scopes
-    );
-    return scopes;
-  } catch (error) {
-    console.error(
-      `[OAuth] Error getting scopes from OpenAPI spec for ${provider}:`,
-      error
-    );
-    return [];
-  }
-}
-
 export async function getOAuthTokenWithScopeValidation(
   userId: string,
   provider: string,
@@ -99,6 +79,7 @@ export async function getOAuthTokenWithScopeValidation(
       provider,
       requiredScopes: options.scopes,
       operation: options.operation || "check_connection",
+      toolId: options.toolId || "none",
     });
 
     // Get token from Descope (it handles refresh automatically)
@@ -106,13 +87,19 @@ export async function getOAuthTokenWithScopeValidation(
       userId,
       provider,
       options.operation || "check_connection",
-      { withRefreshToken: false }
+      { withRefreshToken: false },
+      options.toolId // Pass toolId for scope lookup
     );
 
     console.log("[OAuth] Token response:", {
       hasToken: !!token,
       hasError: token && "error" in token,
       provider,
+      requiredScopes:
+        token && "requiredScopes" in token ? token.requiredScopes : null,
+      currentScopes:
+        token && "currentScopes" in token ? token.currentScopes : null,
+      error: token && "error" in token ? token.error : null,
     });
 
     // If token is null, return error response
@@ -128,10 +115,16 @@ export async function getOAuthTokenWithScopeValidation(
     // Check if token has an error property
     if ("error" in token) {
       console.error(`Token error for ${options.appId}: ${token.error}`);
+      const requiredScopes = token.requiredScopes || options.scopes || [];
+      console.log(
+        `[OAuth] Returning error with required scopes:`,
+        requiredScopes
+      );
+
       return {
         error: token.error,
         provider: options.appId,
-        requiredScopes: token.requiredScopes || options.scopes || [],
+        requiredScopes: requiredScopes,
         currentScopes: token.currentScopes,
       };
     }
@@ -170,9 +163,10 @@ export async function connectToOAuthProvider({
     }
 
     // Create a state parameter that includes the redirectTo and any other state
-    let stateObject: { redirectTo: string; chatId?: string } = {
-      redirectTo: "chat",
-    };
+    let stateObject: { redirectTo: string; chatId?: string; toolId?: string } =
+      {
+        redirectTo: "chat",
+      };
 
     // If we have a chat ID, include it in the state for returning to the same chat
     if (chatId) {
@@ -185,22 +179,30 @@ export async function connectToOAuthProvider({
       stateObject = { ...stateObject, ...state };
     }
 
+    // Check if toolId is present in state
+    const toolId = stateObject.toolId;
+    if (toolId) {
+      console.log("Including toolId in OAuth request:", toolId);
+    }
+
     const stateParam = JSON.stringify(stateObject);
 
     // Track this OAuth connection attempt
-    trackOAuthEvent("connect_initiated", {
+    trackOAuthEvent("connection_initiated", {
       provider: appId,
       scopesCount: scopes?.length || 0,
       hasScopes: !!scopes && scopes.length > 0,
+      hasToolId: !!toolId,
     });
 
-    // Include scopes in the request only if provided
+    // Include scopes and toolId in the request
     const requestBody = {
       appId,
       options: {
         redirectUrl,
         state: stateParam,
         ...(scopes && { scopes }),
+        ...(toolId && { toolId }), // Include toolId in options if available
       },
     };
 
@@ -254,7 +256,6 @@ export async function handleOAuthPopup(
   callbacks?: OAuthPopupCallbacks
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    // Store origin for comparison
     const appOrigin = window.location.origin;
     console.log("Opening OAuth popup with URL:", authUrl);
 
@@ -456,8 +457,8 @@ export async function disconnectOAuthProvider({
   providerId,
 }: OAuthDisconnectParams): Promise<boolean> {
   try {
-    // Track disconnect initiated
-    trackOAuthEvent("disconnect_initiated", {
+    // Track the disconnect attempt
+    trackOAuthEvent("connection_disconnect_initiated", {
       provider: providerId,
     });
 
@@ -478,12 +479,10 @@ export async function disconnectOAuthProvider({
 
     const data = await response.json();
 
-    // Track disconnect success if we got a positive response
-    if (data.success) {
-      trackOAuthEvent("disconnect_successful", {
-        provider: providerId,
-      });
-    }
+    // Track the successful disconnect
+    trackOAuthEvent("connection_disconnect_successful", {
+      provider: providerId,
+    });
 
     return data.success === true;
   } catch (error) {

@@ -1,4 +1,10 @@
-import { Tool, ToolConfig, ToolResponse, toolRegistry } from "./base";
+import {
+  Tool,
+  ToolConfig,
+  ToolResponse,
+  toolRegistry,
+  createConnectionRequest,
+} from "./base";
 import { getOAuthTokenWithScopeValidation } from "../oauth-utils";
 import { getRequiredScopes } from "../openapi-utils";
 
@@ -172,19 +178,25 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
 
       if ("error" in crmTokenResponse) {
         console.error("[DealsTool] CRM token error:", crmTokenResponse.error);
-        return {
-          success: false,
-          error: crmTokenResponse.error,
-          ui: {
-            type: "connection_required",
-            service: "custom-crm",
-            message: "Please connect your CRM to access deals",
-            connectButton: {
-              text: "Connect CRM",
-              action: "connection://custom-crm",
-            },
-          },
-        };
+
+        // Extract scope information
+        const requiredScopes =
+          "requiredScopes" in crmTokenResponse
+            ? crmTokenResponse.requiredScopes
+            : crmScopes;
+        const currentScopes =
+          "currentScopes" in crmTokenResponse
+            ? crmTokenResponse.currentScopes
+            : undefined;
+
+        // Use standardized connection request
+        return createConnectionRequest({
+          provider: "custom-crm",
+          isReconnect: currentScopes && currentScopes.length > 0,
+          requiredScopes: requiredScopes,
+          currentScopes: currentScopes,
+          customMessage: "Please connect your CRM to access deals",
+        });
       }
 
       // Determine if we're fetching or creating
@@ -225,10 +237,32 @@ export class DealsTool extends Tool<Deal | { id?: string }> {
         data: deal,
       };
     } catch (error) {
+      console.error("[DealsTool] Execution error:", error);
+
+      // Check if this is an authentication error
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const isAuthError =
+        errorMsg.includes("auth") ||
+        errorMsg.includes("permission") ||
+        errorMsg.includes("token") ||
+        errorMsg.includes("401") ||
+        errorMsg.includes("403");
+
+      if (isAuthError) {
+        return createConnectionRequest({
+          provider: "custom-crm",
+          customMessage:
+            "Error accessing your CRM. Please reconnect your account.",
+        });
+      }
+
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to process deal",
+        error: errorMsg,
+        ui: {
+          type: "error",
+          message: "Failed to access CRM deals. Please try again.",
+        },
       };
     }
   }

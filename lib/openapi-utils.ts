@@ -1,5 +1,6 @@
 import { OpenAPIV3 } from "openapi-types";
 import { DEFAULT_SCOPES } from "./oauth-utils";
+import { toolRegistry } from "./tools/base";
 
 // Cache for OpenAPI specs to avoid repeated fetches
 const specCache: Record<string, OpenAPIV3.Document> = {};
@@ -117,6 +118,64 @@ export async function getRequiredScopes(
   // If no default scopes are found, return empty array
   console.log(
     `No scopes found for ${provider}:${operation}, returning empty array`
+  );
+  return [];
+}
+
+/**
+ * Gets required scopes with enhanced logic:
+ * 1. First tries to get scopes from the tool registry if toolId is provided
+ * 2. Then falls back to hardcoded operation-specific scopes
+ * 3. Finally falls back to default scopes for the provider
+ */
+export async function getToolScopes(
+  provider: string,
+  operation: string,
+  toolId?: string
+): Promise<string[]> {
+  console.log(
+    `[getToolScopes] Getting scopes for ${provider}:${operation}, toolId: ${
+      toolId || "none"
+    }`
+  );
+
+  // If a toolId is provided, try to get scopes from the tool registry first
+  if (toolId) {
+    const toolScopes = toolRegistry.getToolScopesForOperation(
+      toolId,
+      operation
+    );
+    if (toolScopes && toolScopes.length > 0) {
+      console.log(
+        `[getToolScopes] Using tool registry scopes for ${toolId}:${operation}:`,
+        toolScopes
+      );
+      return toolScopes;
+    }
+  }
+
+  // Then try operation-specific hardcoded scopes
+  const operationScopes = await getRequiredScopes(provider, operation);
+  if (operationScopes && operationScopes.length > 0) {
+    console.log(
+      `[getToolScopes] Using operation-specific scopes for ${provider}:${operation}:`,
+      operationScopes
+    );
+    return operationScopes;
+  }
+
+  // Finally fall back to default scopes for the provider
+  if (DEFAULT_SCOPES[provider]) {
+    console.log(
+      `[getToolScopes] Using default scopes for ${provider}:`,
+      DEFAULT_SCOPES[provider]
+    );
+    return DEFAULT_SCOPES[provider];
+  }
+
+  // If no scopes found anywhere, return empty array
+  console.log(
+    `[getToolScopes] No scopes found for ${provider}:${operation}, returning empty array`
   );
   return [];
 }
