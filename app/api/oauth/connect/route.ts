@@ -12,6 +12,8 @@ export async function POST(request: Request) {
   try {
     const requestData = await request.json();
 
+    const { appId, options } = requestData;
+
     console.log(`OAuth Connect Request for app: ${appId}`);
     console.log(`Options:`, JSON.stringify(options, null, 2));
 
