@@ -480,168 +480,6 @@ export default function LandingPage() {
                         &nbsp;&nbsp;<span className="text-white">{"}"}</span>
                         <br />
                         <span className="text-white">{"}"}</span>
-                        <span className="text-white">;</span>
-                        <br />
-                        <br />
-                        <span className="text-purple-400">async</span>{" "}
-                        <span className="text-purple-400">function</span>{" "}
-                        <span className="text-yellow-400">
-                          accessGoogleCalendar
-                        </span>
-                        <span className="text-white">(</span>
-                        <span className="text-blue-400">params</span>
-                        <span className="text-white">) {"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;<span className="text-purple-400">
-                          try
-                        </span>{" "}
-                        <span className="text-white">{"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-gray-400">
-                          // Get OAuth token through Descope
-                        </span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-purple-400">const</span>{" "}
-                        <span className="text-blue-400">token</span>{" "}
-                        <span className="text-white">=</span>{" "}
-                        <span className="text-purple-400">await</span>{" "}
-                        <span className="text-yellow-400">getOAuthToken</span>
-                        <span className="text-white">(</span>
-                        <span className="text-white">{"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-green-400">appId</span>
-                        <span className="text-white">:</span>{" "}
-                        <span className="text-blue-400">params</span>
-                        <span className="text-white">.</span>
-                        <span className="text-green-400">provider</span>
-                        <span className="text-white">,</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-green-400">scopes</span>
-                        <span className="text-white">:</span>{" "}
-                        <span className="text-blue-400">params</span>
-                        <span className="text-white">.</span>
-                        <span className="text-green-400">scopes</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-white">{"}"}</span>
-                        <span className="text-white">)</span>
-                        <span className="text-white">;</span>
-                        <br />
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-gray-400">
-                          // Use token to fetch calendar data
-                        </span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-purple-400">const</span>{" "}
-                        <span className="text-blue-400">response</span>{" "}
-                        <span className="text-white">=</span>{" "}
-                        <span className="text-purple-400">await</span>{" "}
-                        <span className="text-yellow-400">fetch</span>
-                        <span className="text-white">(</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-orange-400">
-                          "https://www.googleapis.com/calendar/v3/calendars/primary/events"
-                        </span>
-                        <span className="text-white">,</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-white">{"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-green-400">headers</span>
-                        <span className="text-white">: {"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-green-400">Authorization</span>
-                        <span className="text-white">:</span>{" "}
-                        <span className="text-orange-400">
-                          {"`Bearer ${token}`"}
-                        </span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-white">{"}"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-white">{"}"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-white">)</span>
-                        <span className="text-white">;</span>
-                        <br />
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-purple-400">return</span>{" "}
-                        <span className="text-purple-400">await</span>{" "}
-                        <span className="text-blue-400">response</span>
-                        <span className="text-white">.</span>
-                        <span className="text-yellow-400">json</span>
-                        <span className="text-white">()</span>
-                        <span className="text-white">;</span>
-                        <br />
-                        &nbsp;&nbsp;<span className="text-white">
-                          {"}"}
-                        </span>{" "}
-                        <span className="text-purple-400">catch</span>{" "}
-                        <span className="text-white">(</span>
-                        <span className="text-blue-400">error</span>
-                        <span className="text-white">) {"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-gray-400">
-                          // Handle connection needed case
-                        </span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-purple-400">if</span>{" "}
-                        <span className="text-white">(</span>
-                        <span className="text-blue-400">error</span>
-                        <span className="text-white">.</span>
-                        <span className="text-green-400">code</span>{" "}
-                        <span className="text-white">===</span>{" "}
-                        <span className="text-orange-400">
-                          "token_not_found"
-                        </span>
-                        <span className="text-white">) {"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-purple-400">return</span>{" "}
-                        <span className="text-white">{"{"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-green-400">needsConnection</span>
-                        <span className="text-white">:</span>{" "}
-                        <span className="text-purple-400">true</span>
-                        <span className="text-white">,</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-green-400">provider</span>
-                        <span className="text-white">:</span>{" "}
-                        <span className="text-blue-400">params</span>
-                        <span className="text-white">.</span>
-                        <span className="text-green-400">provider</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-white">{"}"}</span>
-                        <span className="text-white">;</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-white">{"}"}</span>
-                        <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
-                        <span className="text-purple-400">throw</span>{" "}
-                        <span className="text-blue-400">error</span>
-                        <span className="text-white">;</span>
-                        <br />
-                        &nbsp;&nbsp;<span className="text-white">{"}"}</span>
-                        <br />
-                        <span className="text-white">{"}"}</span>
                       </code>
                     </pre>
                   </div>
@@ -843,6 +681,12 @@ export default function LandingPage() {
               Terms of Service
             </a>
           </div>
+
+          <p className="text-xs text-muted-foreground mt-4 text-center w-full max-w-[280px] mx-auto px-1 pt-3 border-t border-gray-100 dark:border-gray-800">
+            In addition to our Privacy Policy, it's important to note that
+            Google Workspace APIs are not used to develop, improve, or train
+            generalized AI and/or ML models.
+          </p>
         </div>
       </footer>
     </div>
