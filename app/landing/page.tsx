@@ -38,7 +38,7 @@ export default function LandingPage() {
 
         <div className="flex items-center gap-3">
           <a
-            href="https://docs.descope.com/outbound/"
+            href="https://docs.descope.com/outbound-apps"
             target="_blank"
             rel="noreferrer"
             className="text-sm text-muted-foreground hover:text-indigo-500 transition-colors duration-200 flex items-center gap-1"
@@ -47,7 +47,7 @@ export default function LandingPage() {
             <span>Docs</span>
           </a>
           <a
-            href="https://github.com/descope"
+            href="https://github.com/descope-sample-apps/connected-agent"
             target="_blank"
             rel="noreferrer"
             className="text-sm text-muted-foreground hover:text-indigo-500 transition-colors duration-200 flex items-center gap-1"
@@ -61,14 +61,21 @@ export default function LandingPage() {
       {/* Hero Section */}
       <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-            Connected Agent Platform
+          <h1 className="text-4xl md:text-6xl font-bold mb-8 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent leading-tight pb-2">
+            ConnectedAgent Sample App
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            A powerful platform that connects your applications with Descope SDK
-            for seamless authentication and user management.
+          <p className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto">
+            A powerful AI chatbot that uses Descope Outbound Apps for seamless
+            connections to your AI tools.
           </p>
-          <AnimatedBeamComponent />
+
+          <div className="-mt-4 mb-12">
+            <AnimatedBeamComponent />
+            <p className="text-center text-muted-foreground mt-4 max-w-xl mx-auto">
+              Connect your AI assistant to dozens of services securely with just
+              a few lines of code
+            </p>
+          </div>
 
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/login">
@@ -532,7 +539,6 @@ export default function LandingPage() {
                         <span className="text-white">)</span>
                         <span className="text-white">;</span>
                         <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
                         <br />
                         &nbsp;&nbsp;&nbsp;&nbsp;
                         <span className="text-gray-400">
@@ -577,7 +583,6 @@ export default function LandingPage() {
                         <span className="text-white">)</span>
                         <span className="text-white">;</span>
                         <br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;
                         <br />
                         &nbsp;&nbsp;&nbsp;&nbsp;
                         <span className="text-purple-400">return</span>{" "}
@@ -655,17 +660,16 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Adding Inbound Apps Section */}
       <div className="py-16 md:py-20 bg-white dark:bg-gray-900">
         <div className="container mx-auto px-4">
           <div className="flex flex-col items-center text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent inline-block">
-              For the other side of things, become an OAuth Provider
+              Let's Flip the Script... want to become an OAuth Provider instead?
             </h2>
             <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mt-2 mb-4"></div>
             <p className="text-lg text-muted-foreground max-w-2xl">
-              Are you looking to become your own OAuth provider like Google,
-              HubSpot, or Zoom?
+              Transform your application into a OAuth provider that other
+              platforms can seamlessly integrate with.
             </p>
           </div>
 
@@ -673,12 +677,13 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-2 gap-0">
               <div className="p-8 md:p-10 flex flex-col justify-center">
                 <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  Create Your Own Inbound Applications
+                  Expand Your Platform's Capabilities
                 </h3>
                 <p className="text-muted-foreground mb-6">
-                  If you're building a service that wants to offer OAuth
-                  connectivity like Google, HubSpot, Zoom and other major
-                  platforms, check out our dedicated solution.
+                  Elevate your application by becoming a service provider that
+                  others can connect to. Create secure integration points that
+                  allow third-party applications to leverage your platform's
+                  functionality through standardized OAuth protocols.
                 </p>
                 <a
                   href="https://10x-crm.app"
@@ -686,12 +691,14 @@ export default function LandingPage() {
                   rel="noreferrer"
                   className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
                 >
-                  Learn more at 10x-crm.app
+                  Explore 10x CRM for more details
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </div>
               <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-8 md:p-10 text-white">
-                <h3 className="text-xl font-semibold mb-4">Key Benefits</h3>
+                <h3 className="text-xl font-semibold mb-4">
+                  Provider Benefits
+                </h3>
                 <ul className="space-y-3">
                   <li className="flex items-start">
                     <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
@@ -707,7 +714,7 @@ export default function LandingPage() {
                         />
                       </svg>
                     </span>
-                    <span>Become a provider in major ecosystems</span>
+                    <span>Control access to your platform's resources</span>
                   </li>
                   <li className="flex items-start">
                     <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
@@ -723,7 +730,10 @@ export default function LandingPage() {
                         />
                       </svg>
                     </span>
-                    <span>Secure token management and user permissions</span>
+                    <span>
+                      Implement time-based scopes for precise scoped access
+                      control
+                    </span>
                   </li>
                   <li className="flex items-start">
                     <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
@@ -739,7 +749,10 @@ export default function LandingPage() {
                         />
                       </svg>
                     </span>
-                    <span>Full developer portal for your integrators</span>
+                    <span>
+                      Allow outbound apps to easily manage scoped tokens for
+                      your application and APIs
+                    </span>
                   </li>
                   <li className="flex items-start">
                     <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
@@ -755,7 +768,10 @@ export default function LandingPage() {
                         />
                       </svg>
                     </span>
-                    <span>Customizable scopes and permissions</span>
+                    <span>
+                      Make it easy for end users to grant consent to your app's
+                      resources
+                    </span>
                   </li>
                 </ul>
               </div>
