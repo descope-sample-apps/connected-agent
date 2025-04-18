@@ -1,0 +1,68 @@
+@keyframes beam-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes beam-show {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes beam-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.beam-container {
+  opacity: 0;
+  animation: beam-show 0.5s ease forwards;
+}
+
+.beam-container-center {
+  opacity: 0;
+  animation: beam-show 0.5s ease forwards;
+}
+
+.beam-parent {
+  position: relative;
+  transform: translateZ(0);
+}
+
+.beam {
+  background: linear-gradient(
+    180deg,
+    var(--beam-color-1) 0%,
+    var(--beam-color-2) 100%
+  );
+  transform: translateX(-50%) translateZ(0);
+  transform-origin: top;
+  animation: beam-fade 2s ease forwards;
+}
+
+.beam-cross {
+  animation: beam-fade 2s ease forwards;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--beam-color-1) 50%,
+    transparent 100%
+  );
+  transform-origin: center;
+  transform: translateY(-50%) translateZ(0);
+}
+
+.beam-container-center .beam-parent {
+  animation: beam-rotate 15s linear infinite;
+}

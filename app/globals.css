@@ -227,3 +227,180 @@
     animation: none;
   }
 }
+
+/* Add animations for connection diagram */
+@keyframes orbit1 {
+  0% {
+    transform: translate(-400px, -300px) rotate(0deg) translateX(150px)
+      rotate(0deg) translate(400px, 300px);
+  }
+  100% {
+    transform: translate(-400px, -300px) rotate(360deg) translateX(150px)
+      rotate(-360deg) translate(400px, 300px);
+  }
+}
+
+@keyframes orbit2 {
+  0% {
+    transform: translate(-400px, -300px) rotate(45deg) translateX(170px)
+      rotate(-45deg) translate(400px, 300px);
+  }
+  100% {
+    transform: translate(-400px, -300px) rotate(405deg) translateX(170px)
+      rotate(-405deg) translate(400px, 300px);
+  }
+}
+
+@keyframes orbit3 {
+  0% {
+    transform: translate(-400px, -300px) rotate(190deg) translateX(160px)
+      rotate(-190deg) translate(400px, 300px);
+  }
+  100% {
+    transform: translate(-400px, -300px) rotate(550deg) translateX(160px)
+      rotate(-550deg) translate(400px, 300px);
+  }
+}
+
+@keyframes orbit4 {
+  0% {
+    transform: translate(-400px, -300px) rotate(240deg) translateX(180px)
+      rotate(-240deg) translate(400px, 300px);
+  }
+  100% {
+    transform: translate(-400px, -300px) rotate(600deg) translateX(180px)
+      rotate(-600deg) translate(400px, 300px);
+  }
+}
+
+@keyframes orbit5 {
+  0% {
+    transform: translate(-400px, -300px) rotate(120deg) translateX(140px)
+      rotate(-120deg) translate(400px, 300px);
+  }
+  100% {
+    transform: translate(-400px, -300px) rotate(480deg) translateX(140px)
+      rotate(-480deg) translate(400px, 300px);
+  }
+}
+
+/* Let's try a simpler approach for orbiting with absolute positioning */
+@keyframes simple-orbit1 {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes simple-orbit2 {
+  0% {
+    transform: rotate(45deg);
+  }
+  100% {
+    transform: rotate(405deg);
+  }
+}
+
+@keyframes simple-orbit3 {
+  0% {
+    transform: rotate(190deg);
+  }
+  100% {
+    transform: rotate(550deg);
+  }
+}
+
+@keyframes simple-orbit4 {
+  0% {
+    transform: rotate(240deg);
+  }
+  100% {
+    transform: rotate(600deg);
+  }
+}
+
+@keyframes simple-orbit5 {
+  0% {
+    transform: rotate(120deg);
+  }
+  100% {
+    transform: rotate(480deg);
+  }
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: 20;
+  }
+}
+
+@keyframes dash-reverse {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+@keyframes ping-slow {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.animate-orbit-1 {
+  animation: simple-orbit1 25s linear infinite;
+}
+
+.animate-orbit-2 {
+  animation: simple-orbit2 28s linear infinite;
+}
+
+.animate-orbit-3 {
+  animation: simple-orbit3 30s linear infinite;
+}
+
+.animate-orbit-4 {
+  animation: simple-orbit4 32s linear infinite;
+}
+
+.animate-orbit-5 {
+  animation: simple-orbit5 27s linear infinite;
+}
+
+.animate-dash {
+  animation: dash 20s linear infinite;
+}
+
+.animate-dash-reverse {
+  animation: dash-reverse 15s linear infinite;
+}
+
+.animate-ping-slow {
+  animation: ping-slow 4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.stroke-dasharray-5-3 {
+  stroke-dasharray: 5 3;
+}
+
+@media (prefers-reduced-motion) {
+  .animate-orbit-1,
+  .animate-orbit-2,
+  .animate-orbit-3,
+  .animate-orbit-4,
+  .animate-orbit-5,
+  .animate-dash,
+  .animate-dash-reverse,
+  .animate-ping-slow {
+    animation: none;
+  }
+}

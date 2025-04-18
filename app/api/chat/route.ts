@@ -69,7 +69,6 @@ function extractTitle(message: UIMessage): string {
   return textContent.slice(0, 30) + (textContent.length > 30 ? "..." : "");
 }
 
-// Create a wrapper for dataStream that handles the append method
 function createStreamAdapter(dataStream: any) {
   // If dataStream already has an append method, return it
   if (dataStream && typeof dataStream.append === "function") {
@@ -201,166 +200,6 @@ function createStreamAdapter(dataStream: any) {
       }
     },
   };
-}
-
-// Add link detection and formatting for better display
-function formatLinksForDisplay(content: string): string {
-  // Check if the content has markdown links
-  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-  let formattedContent = content;
-
-  console.log("formattedContent", formattedContent);
-
-  // Replace markdown links with a special format the frontend can recognize and render
-  formattedContent = formattedContent.replace(
-    markdownLinkRegex,
-    (match, text, url) => {
-      // Create a special format that's easy for the frontend to parse
-      return `<link:${url}:${text}>`;
-    }
-  );
-
-  // Also detect plain URLs and format them
-  const urlRegex = /(https?:\/\/[^\s]+)(?=[,.!?;:]?(\s|$))/g;
-  formattedContent = formattedContent.replace(urlRegex, (match, url) => {
-    // Don't replace URLs that are already inside our special link format
-    if (formattedContent.includes(`<link:${url}:`)) {
-      return match;
-    }
-    return `<link:${url}:${url}>`;
-  });
-
-  return formattedContent;
-}
-
-// Define the new CRM tool schemas
-const crmContactsSchema = {
-  type: "function",
-  function: {
-    name: "get_crm_contacts",
-    description: "Get contact information from the CRM system",
-    parameters: {
-      type: "object",
-      properties: {
-        search: {
-          type: "string",
-          description:
-            "Optional search term to filter contacts by name, email, or company",
-        },
-      },
-      required: [],
-    },
-  },
-};
-
-const crmContactSearchSchema = {
-  type: "function",
-  function: {
-    name: "search_crm_contact_by_name",
-    description: "Search for a specific contact by name in the CRM system",
-    parameters: {
-      type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description:
-            "The name of the contact to search for (e.g., 'John Doe')",
-        },
-      },
-      required: ["name"],
-    },
-  },
-};
-
-const crmDealsSchema = {
-  type: "function",
-  function: {
-    name: "get_crm_deals",
-    description: "Get deal information from the CRM system",
-    parameters: {
-      type: "object",
-      properties: {
-        dealId: {
-          type: "string",
-          description: "Optional specific deal ID to retrieve",
-        },
-        contactId: {
-          type: "string",
-          description: "Optional contact ID to filter deals by contact",
-        },
-        stage: {
-          type: "string",
-          description:
-            "Optional deal stage to filter by (discovery, proposal, negotiation, closed_won, closed_lost)",
-          enum: [
-            "discovery",
-            "proposal",
-            "negotiation",
-            "closed_won",
-            "closed_lost",
-          ],
-        },
-      },
-      required: [],
-    },
-  },
-};
-
-const dealStakeholdersSchema = {
-  type: "function",
-  function: {
-    name: "get_deal_stakeholders",
-    description:
-      "Get all stakeholders (contacts) associated with a specific deal",
-    parameters: {
-      type: "object",
-      properties: {
-        dealId: {
-          type: "string",
-          description: "The deal ID to get stakeholders for",
-        },
-      },
-      required: ["dealId"],
-    },
-  },
-};
-
-interface ParsedDate {
-  date: Date;
-  formatted: string;
-  time: string;
-}
-
-// Helper function to verify date clarity and prompt for more details if needed
-function verifyDateClarity(
-  dateString: string,
-  timeString: string
-): string | null {
-  // Check if date string is too vague
-  const vagueDateTerms = ["later", "sometime", "soon", "when", "eventually"];
-
-  // If date string contains vague terms, ask for clarification
-  if (vagueDateTerms.some((term) => dateString.toLowerCase().includes(term))) {
-    const context = getCurrentDateContext();
-    return `I noticed the date "${dateString}" is a bit unclear. Today is ${context.currentDate}. Could you please provide a more specific date?`;
-  }
-
-  // If time string is too vague, ask for clarification
-  const vagueTimeTerms = [
-    "later",
-    "morning",
-    "afternoon",
-    "evening",
-    "sometime",
-  ];
-  if (
-    vagueTimeTerms.some((term) => timeString.toLowerCase().includes(term)) &&
-    !timeString.includes(":")
-  ) {
-    return `Could you please specify a more exact time than "${timeString}"? For example, "9:00 AM" or "3:30 PM".`;
-  }
-
-  return null; // No clarification needed
 }
 
 export async function POST(request: Request) {
@@ -1335,16 +1174,6 @@ export async function POST(request: Request) {
         },
       };
     }
-
-    // Add them to your existing tools array
-    // Note: You should place this where your existing tools array is defined
-    const tools = [
-      // ... your existing tools ...
-      crmContactsSchema,
-      crmContactSearchSchema,
-      crmDealsSchema,
-      dealStakeholdersSchema,
-    ];
 
     // Check and increment usage before processing the message
     try {
