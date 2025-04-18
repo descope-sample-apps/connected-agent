@@ -27,7 +27,7 @@ import {
 } from "@/lib/connection-manager";
 
 interface UserMenuProps {
-  onProfileClick?: () => void;
+  onProfileClick?: (tab?: string) => void;
 }
 
 interface Connection {
@@ -352,9 +352,21 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
         </div>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onProfileClick}>
+        <DropdownMenuItem
+          onClick={() => {
+            if (onProfileClick) onProfileClick();
+          }}
+        >
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            if (onProfileClick) onProfileClick("connections");
+          }}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          <span>Connections</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={signOut}>

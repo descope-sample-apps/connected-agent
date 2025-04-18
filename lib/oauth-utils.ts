@@ -66,6 +66,7 @@ export const DEFAULT_SCOPES: Record<string, string[]> = {
     "https://www.googleapis.com/auth/meetings.space.created",
   ],
   "custom-crm": ["openid", "contacts:read", "deals:read"],
+  slack: ["chat:write", "channels:manage", "users:read"],
 };
 
 export async function getOAuthTokenWithScopeValidation(

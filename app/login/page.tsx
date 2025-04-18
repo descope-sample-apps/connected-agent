@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Descope } from "@descope/nextjs-sdk";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { useTheme } from "next-themes";
 import { nanoid } from "nanoid";
 import { identifyUser } from "@/lib/analytics";
 
 export default function LoginPage() {
   const router = useRouter();
   const [isDescopeReady, setIsDescopeReady] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const onSuccess = (user: any) => {
     // Identify the user in analytics when they log in
@@ -65,7 +67,7 @@ export default function LoginPage() {
                   flowId="sign-up-or-in"
                   onSuccess={onSuccess}
                   onReady={onReady}
-                  theme="light"
+                  theme={theme}
                 />
               </div>
             </div>

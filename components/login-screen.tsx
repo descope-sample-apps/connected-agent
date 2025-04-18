@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Descope } from "@descope/nextjs-sdk";
-import { useSession } from "@descope/nextjs-sdk/client";
-import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
 import {
   Card,
   CardContent,
@@ -13,10 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Sparkles } from "lucide-react";
 
 export default function LoginScreen() {
   const [isDescopeReady, setIsDescopeReady] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const onReady = () => {
     setIsDescopeReady(true);
@@ -47,9 +45,9 @@ export default function LoginScreen() {
             >
               <Descope
                 flowId="sign-up-or-in"
+                theme={theme === "system" ? "light" : theme}
                 redirectOnSuccess={"/"}
                 onReady={onReady}
-                theme="light"
               />
             </div>
           </div>

@@ -15,18 +15,9 @@ import {
 } from "lucide-react";
 import React from "react";
 import AnimatedBeamComponent from "@/components/animated-beam";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LandingPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-
-  // Redirect authenticated users to chat page
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.push("/chat");
-    }
-  }, [isAuthenticated, isLoading, router]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
       {/* Header */}
@@ -36,6 +27,7 @@ export default function LandingPage() {
         </h1>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <a
             href="https://docs.descope.com/outbound-apps"
             target="_blank"

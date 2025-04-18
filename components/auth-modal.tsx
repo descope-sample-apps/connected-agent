@@ -9,16 +9,17 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/context/auth-context";
 import { Descope } from "@descope/nextjs-sdk";
-import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bot } from "lucide-react";
 import { trackOAuthEvent } from "@/lib/analytics";
+import { useTheme } from "next-themes";
 
 export default function AuthModal() {
   const { showAuthModal, setShowAuthModal } = useAuth();
   const [isReady, setIsReady] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { theme } = useTheme();
 
   // Check for any redirect parameters in URL
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function AuthModal() {
         <div className="flex flex-col items-center justify-center p-6">
           <Descope
             flowId="sign-up-or-in"
+            theme={theme === "system" ? "light" : theme}
             onSuccess={handleSuccess}
             onReady={() => setIsReady(true)}
           />
