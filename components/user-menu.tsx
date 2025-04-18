@@ -309,7 +309,7 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
               connections.map((connection) => (
                 <div
                   key={connection.id}
-                  className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                  className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent/50 hover:text-accent-foreground cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 relative flex items-center justify-center">

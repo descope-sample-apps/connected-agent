@@ -19,7 +19,7 @@ export default function ActionCard({
 }: ActionCardProps) {
   return (
     <Card
-      className="overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer border-gray-100 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-800"
+      className="overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer border-gray-100 dark:border-gray-800 hover:border-indigo-100 dark:hover:border-indigo-900/50"
       onClick={onClick}
     >
       <div className="p-3">
