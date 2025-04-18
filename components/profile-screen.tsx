@@ -171,6 +171,12 @@ export default function ProfileScreen({
       icon: "/logos/crm-logo.png",
       connected: false,
     },
+    {
+      id: "slack",
+      name: "Slack",
+      icon: "/logos/slack-logo.svg",
+      connected: false,
+    },
   ]);
 
   // Replace the mock data with a function to fetch real chat history

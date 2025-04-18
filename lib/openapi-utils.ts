@@ -85,6 +85,12 @@ export async function getRequiredScopes(
       "deals.list": ["deals.read"],
       connect: ["openid", "contacts:read", "deals:read"], // Both for connection
     },
+    slack: {
+      "chat:write": ["chat:write"],
+      "channels:manage": ["channels:manage"],
+      "users:read": ["users:read"],
+      connect: ["chat:write", "channels:manage", "users:read"],
+    },
   };
 
   // Check if we have scopes for this specific operation
