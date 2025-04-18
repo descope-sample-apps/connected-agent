@@ -23,7 +23,7 @@ export default function WelcomeScreen() {
       </p>
       <Button
         onClick={() => setShowAuthModal(true)}
-        className="px-6 py-6 text-lg rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all duration-300"
+        className="px-6 py-6 text-lg rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-500/90 hover:to-purple-600/90 text-white shadow-md hover:shadow-lg transition-all duration-300"
       >
         Sign In to Get Started <ArrowRight className="ml-2 h-5 w-5" />
       </Button>

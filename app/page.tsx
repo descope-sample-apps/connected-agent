@@ -27,20 +27,12 @@ import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import { useTimezone } from "@/context/timezone-context";
 import {
-  Calendar,
-  FileText,
-  Video,
   Send,
-  Settings,
   HelpCircle,
   PanelRightClose,
   PanelRightOpen,
-  Save,
-  Share2,
-  MessageSquare,
   ExternalLink,
   Sparkles,
-  ArrowRight,
 } from "lucide-react";
 import SaveChatDialog from "@/components/save-chat-dialog";
 import { toast } from "@/components/ui/use-toast";
@@ -53,6 +45,7 @@ import Image from "next/image";
 import { nanoid } from "nanoid";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarHistory } from "@/components/sidebar-history";
+import AnimatedBeamComponent from "@/components/animated-beam";
 
 type PromptType =
   | "crm-lookup"
@@ -382,8 +375,6 @@ interface ChatMessageProps {
   onReconnectComplete: () => void;
 }
 
-const connectionMarkerRegex = /<connection:(.*?)>/;
-
 // Create a separate component that uses useSearchParams
 function ChatParamsHandler({
   isAuthenticated,
@@ -489,7 +480,6 @@ export default function Home() {
   const [showGoogleMeetPrompt, setShowGoogleMeetPrompt] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const promptExplanationRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [isHandlingChatChange, setIsHandlingChatChange] = useState(false);
@@ -597,6 +587,10 @@ export default function Home() {
 
   // Load chat messages when currentChatId changes
   useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/overview");
+    }
+
     const fetchChatMessages = async () => {
       if (!currentChatId || !isAuthenticated) return;
 
@@ -1220,28 +1214,31 @@ export default function Home() {
 
         // Case 1: If msg.parts exists and is an array
         if (msg.parts && Array.isArray(msg.parts) && msg.parts.length > 0) {
-          processedParts = msg.parts.map((part) => {
-            // If part is a string, convert it to the right format
-            if (typeof part === "string") {
-              return { type: "text", text: part };
-            }
-            // If part is an object with text property
-            else if (typeof part === "object" && part !== null) {
-              if ("text" in part) {
-                return { type: "text", text: String(part.text || "") };
-              } else if ("type" in part && "text" in part) {
-                return {
-                  type: String(part.type),
-                  text: String(part.text || ""),
-                };
+          processedParts = msg.parts
+            .map((part) => {
+              // If part is a string, convert it to the right format
+              if (typeof part === "string") {
+                return { type: "text", text: part };
               }
-              // Try to extract content from other possible structures
-              else if ("content" in part) {
-                return { type: "text", text: String(part.content || "") };
+              // If part is an object with text property
+              else if (typeof part === "object" && part !== null) {
+                if ("text" in part) {
+                  return { type: "text", text: String(part.text || "") };
+                } else if ("type" in part && "text" in part) {
+                  return {
+                    type: String(part.type),
+                    text: String(part.text || ""),
+                  };
+                }
+                // Try to extract content from other possible structures
+                else if ("content" in part) {
+                  return { type: "text", text: String(part.content || "") };
+                }
               }
-            }
-            return { type: "text", text: "" };
-          });
+              // Default empty part (this was causing the issue)
+              return { type: "text", text: "" };
+            })
+            .filter((part) => part.text.trim() !== ""); // Filter out empty text parts
         }
         // Case 2: If no parts but msg.content exists
         else if (typeof msg.content === "string" && msg.content.trim() !== "") {
