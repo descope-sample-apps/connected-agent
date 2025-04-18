@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useChat, Message as AIMessage } from "ai/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, AlertCircle, AlertTriangle } from "lucide-react";
 import InChatConnectionPrompt from "@/components/in-chat-connection-prompt";
 import { useConnectionNotification } from "@/hooks/use-connection-notification";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
@@ -15,6 +15,8 @@ import { trackPrompt } from "@/lib/analytics";
 import { useAuth } from "@/context/auth-context";
 import { OAuthProvider } from "@/lib/tools/base";
 import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 // Define message types
 interface UIElement {
@@ -50,6 +52,7 @@ interface ChatProps {
   selectedVisibilityType?: string;
   isReadonly?: boolean;
   onNewChat?: () => void;
+  initialPrompt?: string;
 }
 
 export default function Chat({
@@ -59,69 +62,34 @@ export default function Chat({
   selectedVisibilityType = "private",
   isReadonly = false,
   onNewChat,
+  initialPrompt = "",
 }: ChatProps) {
-  // Process initialMessages to ensure proper format
-  const processedInitialMessages = useMemo(() => {
-    return initialMessages.map((msg: ExtendedMessage) => {
-      // If the message has parts, ensure content is properly derived from them
-      if (msg.parts && msg.parts.length > 0) {
-        // Remove empty parts first
-        const filteredParts = Array.isArray(msg.parts)
-          ? msg.parts.filter((part) => {
-              if (typeof part === "object" && part.type === "text") {
-                return part.text && part.text.trim() !== "";
-              }
-              return true; // Keep non-text parts
-            })
-          : msg.parts;
-
-        // Extract text content from parts to avoid showing raw JSON in the UI
-        const textContent = filteredParts
-          .map((part) => {
-            if (typeof part === "object" && part.type === "text") {
-              return part.text || "";
-            }
-            return "";
-          })
-          .filter(Boolean)
-          .join("\n");
-
-        return {
-          ...msg,
-          content: textContent || msg.content,
-          parts: filteredParts, // Use the filtered parts
-          id: msg.id ? `db-${msg.id}` : msg.id, // Mark as coming from database
-        };
-      }
-      return {
-        ...msg,
-        id: msg.id ? `db-${msg.id}` : msg.id, // Mark all initial messages as from database
-      };
-    });
-  }, [initialMessages]);
+  const [input, setInput] = useState(initialPrompt);
+  const [isLoading, setIsLoading] = useState(false);
+  const [promptStartTime, setPromptStartTime] = useState<number | null>(null);
+  const [usageCount, setUsageCount] = useState<number>(0);
+  const [usageLimit, setUsageLimit] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
+  const [messagesWithActions, setMessagesWithActions] = useState<string[]>([]);
 
   const {
-    messages,
-    input,
-    handleInputChange,
-    handleSubmit: chatHandleSubmit,
-    isLoading: isChatLoading,
-    error,
+    messages: chatMessages,
+    append,
+    reload,
+    stop,
   } = useChat({
     api: "/api/chat",
     body: {
       id,
       selectedChatModel,
     },
-    initialMessages: processedInitialMessages,
-    id: id || undefined, // Use id as key to reset chat when id changes
+    initialMessages,
+    id: id || undefined,
     onResponse: async (response) => {
-      // Check for errors in the response
       if (response.status === 429) {
         try {
           const errorData = await response.json();
 
-          // Check if this is a monthly usage limit exceeded error
           if (errorData?.error?.includes("Monthly usage limit exceeded")) {
             toast({
               title: "Monthly Usage Limit Reached",
@@ -131,7 +99,6 @@ export default function Chat({
               variant: "destructive",
             });
           } else {
-            // Generic rate limit message for other 429 errors
             toast({
               title: "Service Temporarily Unavailable",
               description:
@@ -140,7 +107,6 @@ export default function Chat({
             });
           }
         } catch (error) {
-          // If we can't parse the response, use a generic message
           toast({
             title: "Rate Limit Exceeded",
             description:
@@ -151,7 +117,6 @@ export default function Chat({
         return;
       }
 
-      // Check for authentication errors
       if (response.status === 401) {
         toast({
           title: "Authentication Error",
@@ -161,12 +126,10 @@ export default function Chat({
         return;
       }
 
-      // Check for OAuth-related errors
       if (response.status === 403) {
         try {
           const errorData = await response.json();
           if (errorData?.error === "insufficient_scopes") {
-            // The error response will be handled by the UI element in the message
             return;
           }
         } catch (error) {
@@ -174,15 +137,12 @@ export default function Chat({
         }
       }
 
-      // Ensure we scroll to bottom when new content arrives
       scrollToBottom();
     },
     onFinish: (message) => {
       setIsLoading(false);
-      // Final scroll to bottom after completion
       scrollToBottom();
 
-      // Track prompt completion in analytics
       trackPrompt("prompt_completed", {
         chatId: id,
         modelName: selectedChatModel,
@@ -190,7 +150,6 @@ export default function Chat({
         responseTime: Date.now() - (promptStartTime || Date.now()),
       });
 
-      // Also track directly with Segment for consistency
       if (
         typeof window !== "undefined" &&
         window.analytics &&
@@ -208,8 +167,8 @@ export default function Chat({
     onError: (error) => {
       console.error("Streaming error:", error);
       setIsLoading(false);
+      setError(error.message || "An error occurred");
 
-      // Track prompt error in analytics
       trackPrompt("prompt_completed", {
         chatId: id,
         modelName: selectedChatModel,
@@ -217,7 +176,6 @@ export default function Chat({
         responseTime: Date.now() - (promptStartTime || Date.now()),
       });
 
-      // Also track directly with Segment for consistency
       if (
         typeof window !== "undefined" &&
         window.analytics &&
@@ -233,132 +191,42 @@ export default function Chat({
         });
       }
 
-      // Check for stream parsing errors
-      if (error.message && error.message.includes("Failed to parse stream")) {
-        console.warn("Stream parsing error detected:", error.message);
-
-        // If it's a parsing error related to connection_required, don't show an error toast
-        if (
-          error.message.includes("connection_required") ||
-          error.message.includes('"type"') ||
-          error.message.includes("Google Docs")
-        ) {
-          console.log(
-            "Connection requirement detected in failed stream, not showing error toast"
-          );
-          return;
-        }
-      }
-
-      // Check for authentication errors
-      if (error.message && error.message.includes("Unauthorized")) {
-        toast({
-          title: "Authentication Error",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Check for rate limiting errors
-      if (
-        error.message &&
-        (error.message.includes("429") ||
-          error.message.includes("Too Many Requests") ||
-          error.message.includes("rate limit") ||
-          error.message.includes("Rate limit") ||
-          error.message.includes("ratelimit"))
-      ) {
-        // Determine if this is a monthly limit or general rate limit
-        const isMonthlyLimit = error.message.includes("Monthly usage limit");
-
-        toast({
-          title: isMonthlyLimit
-            ? "Monthly Usage Limit Reached"
-            : "Rate Limit Exceeded",
-          description: isMonthlyLimit
-            ? "You've reached your monthly usage limit for this service. Please check your subscription or try again next month."
-            : "The service is currently experiencing high demand. Please try again in a few moments.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Try to parse the error message as JSON if it's in that format
       try {
-        if (
-          error.message &&
-          (error.message.includes('{"error"') ||
-            error.message.includes('{"message"'))
-        ) {
-          // Extract the JSON part from the error message
-          let jsonStr = error.message;
+        if (error.message) {
+          const jsonMatch = error.message.match(/\{.*\}/);
+          if (jsonMatch) {
+            const errorData = JSON.parse(jsonMatch[0]);
 
-          // Find the first { and last } to extract JSON
-          const startIndex = jsonStr.indexOf("{");
-          const endIndex = jsonStr.lastIndexOf("}") + 1;
-
-          if (startIndex >= 0 && endIndex > startIndex) {
-            jsonStr = jsonStr.substring(startIndex, endIndex);
-
-            const errorObject = JSON.parse(jsonStr);
-
-            // Extract status code if present
-            const statusCode =
-              errorObject.status ||
-              (errorObject.error && errorObject.error.status);
-            const isRateLimit =
-              statusCode === 429 ||
-              (errorObject.error &&
-                (errorObject.error.includes("rate limit") ||
-                  errorObject.error.includes("Rate limit") ||
-                  errorObject.error.includes("429")));
-
-            // Handle rate limit errors specifically
-            if (isRateLimit) {
-              const isMonthlyLimit =
-                (errorObject.error &&
-                  errorObject.error.includes("Monthly usage limit")) ||
-                (errorObject.message &&
-                  errorObject.message.includes("Monthly usage limit"));
-
+            if (errorData.message) {
+              setError(errorData.message);
               toast({
-                title: isMonthlyLimit
-                  ? "Monthly Usage Limit Reached"
-                  : "Rate Limit Exceeded",
-                description:
-                  errorObject.message ||
-                  (isMonthlyLimit
-                    ? "You've reached your monthly usage limit for this service."
-                    : "The service is currently experiencing high demand. Please try again in a few moments."),
-                variant: "destructive",
-              });
-              return;
-            }
-
-            // For other error types
-            if (errorObject.error || errorObject.message) {
-              toast({
-                title: "Service Error",
-                description: errorObject.message || errorObject.error,
+                title: "Error",
+                description: errorData.message,
                 variant: "destructive",
               });
               return;
             }
           }
+
+          setError(error.message);
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
         }
       } catch (parseError) {
-        // Parsing failed, continue to default error handling
-        console.error("Error parsing error message:", parseError);
+        setError(
+          error.message || "An error occurred while processing your request."
+        );
+        toast({
+          title: "Error",
+          description:
+            error.message || "An error occurred while processing your request.",
+          variant: "destructive",
+        });
       }
-
-      // Default error toast
-      toast({
-        title: "Error",
-        description:
-          "An error occurred while processing your request. Please try again.",
-        variant: "destructive",
-      });
     },
   });
 
@@ -369,25 +237,14 @@ export default function Chat({
     monthlyLimit: number;
   } | null>(null);
 
-  // Track when prompt started for timing
-  const [promptStartTime, setPromptStartTime] = useState<number | null>(null);
-
-  // Messages that have action cards to display
-  const [messagesWithActions, setMessagesWithActions] = useState<string[]>([]);
-
-  // Reference to scroll to the bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Get the last message for connection detection
   const lastMessage =
-    messages.length > 0 ? messages[messages.length - 1] : null;
+    chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null;
 
-  // Filter out empty messages
   const filteredMessages = useMemo(() => {
-    return messages
+    return chatMessages
       .filter((message) => {
-        // Skip empty messages
         if (
           !message.content &&
           (!message.parts || message.parts.length === 0)
@@ -397,13 +254,11 @@ export default function Chat({
         return true;
       })
       .map((message: ExtendedMessage) => {
-        // For messages with parts but no content, extract content from parts
         if (
           (!message.content || message.content === "") &&
           message.parts &&
           message.parts.length > 0
         ) {
-          // Extract text content from parts to create proper content field
           const textContent = message.parts
             .map((part) => {
               if (typeof part === "object" && part.type === "text") {
@@ -421,9 +276,8 @@ export default function Chat({
         }
         return message;
       });
-  }, [messages]);
+  }, [chatMessages]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [filteredMessages]);
@@ -432,14 +286,12 @@ export default function Chat({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Use our custom hook to detect connection needs
   const { provider, isNeeded, hideNotification, checkConnections } =
     useConnectionNotification({
       message: lastMessage?.role === "assistant" ? lastMessage.content : "",
       isLLMResponse: lastMessage?.role === "assistant",
       onConnectionSucceeded: () => {
-        // Resend the last user message to get a complete response after connection
-        const lastUserMessage = [...messages]
+        const lastUserMessage = [...chatMessages]
           .reverse()
           .find((m) => m.role === "user");
         if (lastUserMessage) {
@@ -451,7 +303,6 @@ export default function Chat({
       },
     });
 
-  // Function to mark the last successful connection time in localStorage
   const markServiceConnected = (service: string) => {
     if (typeof window !== "undefined") {
       const timestamp = Date.now();
@@ -462,7 +313,6 @@ export default function Chat({
     }
   };
 
-  // Function to check if a service was recently connected
   const wasRecentlyConnected = (service: string, maxAgeMs: number = 30000) => {
     if (typeof window === "undefined") return false;
 
@@ -476,21 +326,17 @@ export default function Chat({
     return now - timestamp < maxAgeMs;
   };
 
-  // Listen for connection success events
   useEffect(() => {
     const handleConnectionSuccess = (event: CustomEvent) => {
       console.log("Connection success event received:", event.detail);
 
-      // Mark this service as connected in localStorage
       if (event.detail && event.detail.service) {
         markServiceConnected(event.detail.service);
       }
 
-      // See if we should retry immediately (set from UI button)
       const retryImmediately = event.detail?.retryImmediately === true;
 
-      // Resend the last user message to get a complete response after connection
-      const lastUserMessage = [...messages]
+      const lastUserMessage = [...chatMessages]
         .reverse()
         .find((m) => m.role === "user");
 
@@ -500,41 +346,31 @@ export default function Chat({
           lastUserMessage.content
         );
 
-        // Set a loading state to indicate we're retrying
         setIsLoading(true);
-
-        // Hide any connection prompts
         hideNotification();
 
-        // Check connections to refresh state
         checkConnections().then(() => {
-          // For button-triggered reconnects, use a shorter delay
           const delayTime = retryImmediately ? 100 : 1000;
 
-          // Introduce a small delay to ensure the connection state is updated
           setTimeout(() => {
-            // Get the message we want to resend
             const messageToResend = lastUserMessage.content;
 
-            // Set the input value first (for UI consistency)
-            handleInputChange({
-              target: { value: messageToResend },
-            } as React.ChangeEvent<HTMLInputElement>);
+            setInput(messageToResend);
 
-            // Then manually trigger the submit with a proper event object
             const event = {
               preventDefault: () => {},
             } as React.FormEvent<HTMLFormElement>;
-            chatHandleSubmit(event);
+            append({
+              content: messageToResend,
+              role: "user",
+            });
 
-            // Reset loading state after submission
             setTimeout(() => {
               setIsLoading(false);
             }, 100);
           }, delayTime);
         });
       } else {
-        // If no message to resend, just refresh the connection state
         setIsLoading(true);
         checkConnections().then(() => {
           hideNotification();
@@ -543,37 +379,30 @@ export default function Chat({
       }
     };
 
-    // Add event listener
     window.addEventListener(
       "connection-success",
       handleConnectionSuccess as EventListener
     );
 
-    // Cleanup
     return () => {
       window.removeEventListener(
         "connection-success",
         handleConnectionSuccess as EventListener
       );
     };
-  }, [messages, id, hideNotification, checkConnections]);
+  }, [chatMessages, id, hideNotification, checkConnections]);
 
-  // Process message content to look for action triggers
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
+    const lastMessage = chatMessages[chatMessages.length - 1];
     if (lastMessage?.role === "assistant" && lastMessage.content) {
       const content = lastMessage.content.toLowerCase();
 
-      // Check for connection requirements in the text using multiple patterns
       if (
-        // Look for common connection phrases
         ((content.includes("connect") &&
           (content.includes("calendar") ||
             content.includes("crm") ||
             content.includes("service"))) ||
-          // Look for markdown link patterns related to connections
           (content.includes("connect") && content.includes("](connection:")) ||
-          // Look for phrases about needing access
           (content.includes("need") &&
             (content.includes("access") || content.includes("connect")))) &&
         !messagesWithActions.includes(lastMessage.id)
@@ -582,17 +411,21 @@ export default function Chat({
           "Detected connection requirement in message:",
           lastMessage.id
         );
-        setMessagesWithActions((prev) => [...prev, lastMessage.id]);
 
-        // Automatically scroll to the bottom when connection prompt appears
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
+        // Use timeout to debounce and prevent excessive updates
+        const timeoutId = setTimeout(() => {
+          setMessagesWithActions((prev) => [...prev, lastMessage.id]);
+
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 100);
+        }, 300); // Debounce for 300ms
+
+        return () => clearTimeout(timeoutId);
       }
     }
-  }, [messages, messagesWithActions]);
+  }, [chatMessages, messagesWithActions]);
 
-  // Fetch usage information
   useEffect(() => {
     const fetchUsage = async () => {
       try {
@@ -608,7 +441,6 @@ export default function Chat({
     fetchUsage();
   }, []);
 
-  // Function to enhance connection details for Google Drive
   const getEnhancedGoogleDocsConnectionDetails = () => {
     return {
       text: "Connect Google Docs & Drive",
@@ -620,21 +452,17 @@ export default function Chat({
     };
   };
 
-  // Function to render a connection prompt if needed
   const renderConnectionPrompt = (message: ExtendedMessage) => {
-    let service: OAuthProvider = "google-calendar"; // Default
+    let service: OAuthProvider = "google-calendar";
     let requiredScopes: string[] = [];
     let isReconnect = false;
     let customMessage = "";
 
-    // 1. First check if message has structured UI element (preferred source)
     if (message.ui) {
-      // Use the structured UI data if available
       service = message.ui.service as OAuthProvider;
       requiredScopes = message.ui.requiredScopes || [];
       customMessage = message.ui.message;
 
-      // If message has requiredScopes, it's likely a reconnect flow
       isReconnect = requiredScopes.length > 0;
 
       return (
@@ -651,11 +479,8 @@ export default function Chat({
       );
     }
 
-    // 2. Otherwise, extract from content as fallback
-    // Extract connection information from the message content
     const content = message.content.toLowerCase();
 
-    // Determine the service type from content
     if (content.includes("crm")) service = "custom-crm";
     if (content.includes("calendar")) service = "google-calendar";
     if (content.includes("docs")) service = "google-docs";
@@ -663,13 +488,11 @@ export default function Chat({
     if (content.includes("slack")) service = "slack";
     if (content.includes("zoom")) service = "zoom";
 
-    // Check if it's likely a reconnect message
     isReconnect =
       content.includes("additional permission") ||
       content.includes("more permission") ||
       content.includes("reconnect");
 
-    // Extract the action URL if available
     const actionMatch = message.content.match(
       /\[([^\]]+)\]\(connection:\/\/([^)]+)\)/
     );
@@ -680,18 +503,14 @@ export default function Chat({
       ? `connection://${actionMatch[2]}`
       : `connection://${service}`;
 
-    // Handle specific scopes for different services
     if (service === "google-docs") {
-      // Check if the error specifically mentions Drive
       const isDriveError = content.includes("drive");
 
       if (isDriveError) {
-        // Use enhanced details for Google Drive
         const enhancedDetails = getEnhancedGoogleDocsConnectionDetails();
         connectButtonText = enhancedDetails.text;
         requiredScopes = enhancedDetails.requiredScopes;
 
-        // Build the message based on whether it seems to be a reconnect
         let messageText = isReconnect
           ? `Additional permissions are required for Google Docs & Drive.`
           : enhancedDetails.message;
@@ -722,7 +541,6 @@ export default function Chat({
       );
     }
 
-    // Build the message based on whether it seems to be a reconnect
     let messageText = isReconnect
       ? `Additional permissions are required for ${getDisplayName(service)}.`
       : `To continue, you need to connect your ${getDisplayName(service)}.`;
@@ -747,7 +565,6 @@ export default function Chat({
     );
   };
 
-  // Helper to format provider display names consistently
   const getDisplayName = (provider: string): string => {
     switch (provider) {
       case "google-calendar":
@@ -767,43 +584,34 @@ export default function Chat({
     }
   };
 
-  // Render a standard message bubble
   const renderMessage = (message: ExtendedMessage) => {
-    // Skip rendering if message content is empty
     if (!message.content && (!message.parts || message.parts.length === 0)) {
       return null;
     }
 
-    // Check if this message has an action card
     const hasActionCard = message.actionCard !== undefined;
     const hasToolActions =
       message.toolActions && message.toolActions.length > 0;
 
-    // Try to detect embedded connection UI in the message content
     let connectionUI = null;
     if (message.role === "assistant") {
       try {
-        // First check for UI elements in tool responses
         if (message.toolActions && message.toolActions.length > 0) {
           for (const action of message.toolActions) {
             if (action.output?.ui?.type === "connection_required") {
-              // Extract the UI element
               connectionUI = action.output.ui;
               break;
             }
           }
         }
 
-        // Process errors that mention Google Drive specifically
         if (!connectionUI && message.content) {
-          // Check for Google Drive specific errors
           if (
             message.content.toLowerCase().includes("drive") &&
             (message.content.toLowerCase().includes("scope") ||
               message.content.toLowerCase().includes("permission") ||
               message.content.toLowerCase().includes("access"))
           ) {
-            // Create a UI element for Google Drive error
             message = {
               ...message,
               ui: {
@@ -823,24 +631,20 @@ export default function Chat({
           }
         }
 
-        // Then check for simple connection text pattern if no UI element found
         if (!connectionUI && message.content) {
           const simpleConnectionRegex = /Connection to ([\w-]+) required/i;
           const simpleMatch = message.content.match(simpleConnectionRegex);
 
           if (simpleMatch && simpleMatch[1]) {
-            // Create a UI element from the simple text
             const serviceName = simpleMatch[1].toLowerCase();
             let service: OAuthProvider = "google-docs";
 
-            // Map the service name
             if (serviceName.includes("calendar")) service = "google-calendar";
             else if (serviceName.includes("meet")) service = "google-meet";
             else if (serviceName.includes("crm")) service = "custom-crm";
             else if (serviceName.includes("slack")) service = "slack";
             else if (serviceName.includes("zoom")) service = "zoom";
 
-            // Attach a UI element to the message
             message = {
               ...message,
               ui: {
@@ -864,13 +668,11 @@ export default function Chat({
           }
         }
 
-        // Finally try the more complex JSON format if still no UI found
         if (!connectionUI && !message.ui && message.content) {
           const connectionUIRegex = /\{\"type\":\"connection_ui\"[^}]+\}/;
           const match = message.content.match(connectionUIRegex);
           if (match) {
             connectionUI = JSON.parse(match[0]);
-            // If we found valid UI, pass it to the message
             if (connectionUI) {
               message = {
                 ...message,
@@ -887,14 +689,13 @@ export default function Chat({
           }
         }
       } catch (e) {
-        // Ignore parse errors
         console.log("Error parsing embedded connection UI:", e);
       }
     }
 
     const showConnectionPrompt =
       message.role === "assistant" &&
-      (message.ui?.type === "connection_required" || // Structured UI
+      (message.ui?.type === "connection_required" ||
         (message.content &&
           ((message.content.toLowerCase().includes("connect") &&
             (message.content.toLowerCase().includes("calendar") ||
@@ -914,13 +715,11 @@ export default function Chat({
             message.content.includes("permissions") ||
             message.content.includes("authorization") ||
             message.content.includes('type":"connection_ui') ||
-            // Check for UI elements in tool responses
             (message.toolActions &&
               message.toolActions.some(
                 (action) => action.output?.ui?.type === "connection_required"
               )))));
 
-    // Check what kind of streaming placeholder we have
     const isToolInvocation =
       message.role === "assistant" &&
       message.content &&
@@ -928,7 +727,6 @@ export default function Chat({
         message.content.includes('{"type":"function-execution"}') ||
         message.content.includes('"name":"'));
 
-    // When message content is ONLY a step marker, we should hide it entirely
     if (
       message.content &&
       typeof message.content === "string" &&
@@ -942,7 +740,6 @@ export default function Chat({
           parsedJson.type &&
           (parsedJson.type === "step-end" || parsedJson.type.startsWith("step"))
         ) {
-          // This is ONLY a step marker with no other content
           return null;
         }
       } catch (e) {
@@ -953,12 +750,11 @@ export default function Chat({
     const isGeneralStreamingPlaceholder =
       message.role === "assistant" &&
       message.content &&
-      !isToolInvocation && // Don't treat tool activity as a placeholder
+      !isToolInvocation &&
       (message.content.includes('{"type":"step-end"}') ||
         (message.content.startsWith("{") &&
           message.content.includes('"type":')));
 
-    // Extract tool name if available
     let toolName = "";
     if (isToolInvocation) {
       try {
@@ -971,7 +767,6 @@ export default function Chat({
       }
     }
 
-    // Format the tool name for display
     const formatToolName = (name: string) => {
       if (!name) return "";
       return name
@@ -1058,14 +853,12 @@ export default function Chat({
           ) : (
             <div className="prose prose-sm">
               {message.parts && message.parts.length > 0
-                ? // Handle messages that have been loaded from database with parts structure
-                  message.parts
+                ? message.parts
                     .filter((part) => {
-                      // Filter out empty parts
                       if (typeof part === "object" && part.type === "text") {
                         return part.text && part.text.trim() !== "";
                       }
-                      return part; // Keep non-text parts
+                      return part;
                     })
                     .map((part, idx) => {
                       if (typeof part === "object" && part.type === "text") {
@@ -1076,15 +869,12 @@ export default function Chat({
                         return null;
                       }
                     })
-                : // Handle messages that come directly from the AI with content as string
-                  message.content}
+                : message.content}
             </div>
           )}
 
-          {/* Render connection prompt if needed */}
           {showConnectionPrompt && renderConnectionPrompt(message)}
 
-          {/* Render action card if present */}
           {hasActionCard && message.actionCard && (
             <div className="mt-4">
               <ActionCard
@@ -1096,7 +886,6 @@ export default function Chat({
             </div>
           )}
 
-          {/* Render UI element if present */}
           {message.ui && (
             <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 shadow-inner">
               <p className="text-gray-700 dark:text-gray-200 mb-3 font-medium">
@@ -1114,13 +903,10 @@ export default function Chat({
                       );
                       console.log(`Connecting to ${service}...`);
 
-                      // Show loading state
                       setIsLoading(true);
 
-                      // Get the redirect URL
                       const redirectUrl = `${window.location.origin}/api/oauth/callback`;
 
-                      // Get auth URL with any required scopes
                       const authUrl = await connectToOAuthProvider({
                         appId: service,
                         redirectUrl,
@@ -1132,19 +918,15 @@ export default function Chat({
                         },
                       });
 
-                      // Open popup for connection
                       await handleOAuthPopup(authUrl, {
                         onSuccess: () => {
-                          // Show success toast
                           toast({
                             title: "Connected successfully",
                             description: `Successfully connected to ${message.ui?.service}`,
                           });
 
-                          // Mark the service as connected in localStorage
                           markServiceConnected(service);
 
-                          // Dispatch a custom event that triggers retry of the last message
                           const event = new CustomEvent("connection-success", {
                             detail: {
                               service: service,
@@ -1153,11 +935,9 @@ export default function Chat({
                           });
                           window.dispatchEvent(event);
 
-                          // Reset loading state
                           setIsLoading(false);
                         },
                         onError: (error) => {
-                          // Show error toast
                           toast({
                             title: "Connection failed",
                             description:
@@ -1165,14 +945,12 @@ export default function Chat({
                             variant: "destructive",
                           });
 
-                          // Reset loading state
                           setIsLoading(false);
                         },
                       });
                     } catch (error) {
                       console.error("Error connecting:", error);
 
-                      // Show error toast
                       toast({
                         title: "Connection failed",
                         description:
@@ -1182,7 +960,6 @@ export default function Chat({
                         variant: "destructive",
                       });
 
-                      // Reset loading state
                       setIsLoading(false);
                     }
                   }
@@ -1211,15 +988,13 @@ export default function Chat({
     );
   };
 
-  // Custom submit handler to manage loading state
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    // Set prompt start time for analytics
     setPromptStartTime(Date.now());
+    setError(null);
 
-    // Track prompt submission in analytics
     trackPrompt("prompt_submitted", {
       userId: user?.id,
       promptText: input.trim(),
@@ -1227,7 +1002,6 @@ export default function Chat({
       modelName: selectedChatModel,
     });
 
-    // Also track directly with Segment for consistency
     if (
       typeof window !== "undefined" &&
       window.analytics &&
@@ -1244,7 +1018,10 @@ export default function Chat({
 
     setIsLoading(true);
     try {
-      await chatHandleSubmit(e);
+      await append({
+        content: input.trim(),
+        role: "user",
+      });
     } catch (error) {
       console.error("Error submitting message:", error);
       setIsLoading(false);
@@ -1254,10 +1031,10 @@ export default function Chat({
         variant: "destructive",
       });
     }
+    setInput("");
   };
 
   useEffect(() => {
-    // Add CSS for the typing indicator
     const style = document.createElement("style");
     style.innerHTML = `
       .typing-indicator {
@@ -1305,7 +1082,27 @@ export default function Chat({
 
   return (
     <div className="flex flex-col h-full relative bg-muted/20">
-      {/* Usage information */}
+      {error && (
+        <div className="mb-4 mx-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => {
+                setError(null);
+                reload();
+              }}
+            >
+              Retry
+            </Button>
+          </Alert>
+        </div>
+      )}
+
       {usage && (
         <div className="px-4 py-2 bg-gray-50 border-b">
           <div className="flex items-center justify-between text-sm text-gray-600">
@@ -1322,237 +1119,467 @@ export default function Chat({
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
-        {filteredMessages.length > 0 ? (
-          <div className="max-w-4xl mx-auto p-6 pt-10 pb-24">
-            {filteredMessages.map((message, index) => (
-              <div key={message.id || index}>
-                {renderMessage(message as ExtendedMessage)}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-6 border border-indigo-100 dark:border-indigo-900/40 shadow-md">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-10 w-10 text-indigo-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                />
-              </svg>
-            </div>
-
-            {/* Hero Section */}
-            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-              CRM Assistant
-            </h1>
-            <p className="text-muted-foreground text-center max-w-md mb-8 text-lg">
-              Your AI-powered assistant for managing CRM data, calendar, and
-              business tasks.
-            </p>
-
-            {/* Features Section */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-10">
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
-                <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-lg mb-2">
-                  Natural Conversations
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  Ask questions in plain English about your CRM data, schedule
-                  meetings, or manage tasks.
-                </p>
+      <div className="flex-1 overflow-auto p-4 sm:p-6 pb-0 sm:pb-0">
+        <div className="max-w-4xl mx-auto">
+          {filteredMessages.length === 0 && (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+              <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-6 border border-indigo-100 dark:border-indigo-900/40 shadow-md">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-10 w-10 text-indigo-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
-                <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                    />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-lg mb-2">
-                  Integrated Services
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  Connect your CRM, Google Calendar, Google Meet, and other
-                  tools to work seamlessly.
-                </p>
-              </div>
+              <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                CRM Assistant
+              </h1>
+              <p className="text-muted-foreground text-center max-w-md mb-8 text-lg">
+                Your AI-powered assistant for managing CRM data, calendar, and
+                business tasks.
+              </p>
 
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
-                <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Secure Access</h3>
-                <p className="text-muted-foreground text-sm">
-                  OAuth integration keeps your data secure while enabling
-                  powerful AI assistance.
-                </p>
-              </div>
-            </div>
-
-            {/* How It Works Section */}
-            <div className="w-full max-w-4xl mb-10 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 p-8 rounded-xl border border-indigo-100 dark:border-indigo-900/40">
-              <h2 className="text-2xl font-bold mb-4 text-center">
-                How It Works
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-                <div className="flex flex-col items-center">
-                  <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
-                    <span className="text-xl font-bold text-indigo-600">1</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-10">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                  <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+                      />
+                    </svg>
                   </div>
-                  <h3 className="font-medium text-center mb-2">
-                    Connect Your Services
+                  <h3 className="font-semibold text-lg mb-2">
+                    Natural Conversations
                   </h3>
-                  <p className="text-sm text-center text-muted-foreground">
-                    Securely connect your CRM, calendar, and other services with
-                    OAuth.
+                  <p className="text-muted-foreground text-sm">
+                    Ask questions in plain English about your CRM data, schedule
+                    meetings, or manage tasks.
                   </p>
                 </div>
 
-                <div className="flex flex-col items-center">
-                  <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
-                    <span className="text-xl font-bold text-indigo-600">2</span>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                  <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                      />
+                    </svg>
                   </div>
-                  <h3 className="font-medium text-center mb-2">
-                    Ask Questions
+                  <h3 className="font-semibold text-lg mb-2">
+                    Integrated Services
                   </h3>
-                  <p className="text-sm text-center text-muted-foreground">
-                    Ask anything about your data, schedule meetings, or create
-                    reports.
+                  <p className="text-muted-foreground text-sm">
+                    Connect your CRM, Google Calendar, Google Meet, and other
+                    tools to work seamlessly.
                   </p>
                 </div>
 
-                <div className="flex flex-col items-center">
-                  <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
-                    <span className="text-xl font-bold text-indigo-600">3</span>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                  <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                      />
+                    </svg>
                   </div>
-                  <h3 className="font-medium text-center mb-2">Get Results</h3>
-                  <p className="text-sm text-center text-muted-foreground">
-                    Receive instant answers and actions based on your connected
-                    data.
+                  <h3 className="font-semibold text-lg mb-2">Secure Access</h3>
+                  <p className="text-muted-foreground text-sm">
+                    OAuth integration keeps your data secure while enabling
+                    powerful AI assistance.
                   </p>
                 </div>
               </div>
 
-              <div className="flex justify-center mt-6">
-                <a
-                  href="/how-it-works"
-                  className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg shadow-sm text-sm text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-100 dark:border-indigo-800 transition-colors"
-                >
-                  Learn more about Inbound Apps
-                </a>
+              <div className="w-full max-w-4xl mb-10 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 p-8 rounded-xl border border-indigo-100 dark:border-indigo-900/40">
+                <h2 className="text-2xl font-bold mb-4 text-center">
+                  How It Works
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                  <div className="flex flex-col items-center">
+                    <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                      <span className="text-xl font-bold text-indigo-600">
+                        1
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-center mb-2">
+                      Connect Your Services
+                    </h3>
+                    <p className="text-sm text-center text-muted-foreground">
+                      Securely connect your CRM, calendar, and other services
+                      with OAuth.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                      <span className="text-xl font-bold text-indigo-600">
+                        2
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-center mb-2">
+                      Ask Questions
+                    </h3>
+                    <p className="text-sm text-center text-muted-foreground">
+                      Ask anything about your data, schedule meetings, or create
+                      reports.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                      <span className="text-xl font-bold text-indigo-600">
+                        3
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-center mb-2">
+                      Get Results
+                    </h3>
+                    <p className="text-sm text-center text-muted-foreground">
+                      Receive instant answers and actions based on your
+                      connected data.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-center mt-6">
+                  <a
+                    href="/how-it-works"
+                    className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg shadow-sm text-sm text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-100 dark:border-indigo-800 transition-colors"
+                  >
+                    Learn more about Inbound Apps
+                  </a>
+                </div>
+              </div>
+
+              <div className="w-full max-w-4xl mb-10">
+                <h2 className="text-2xl font-bold mb-4 text-center">
+                  Try asking about...
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Show me recent deals with Acme Inc
+                    </span>
+                  </button>
+
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Schedule a meeting with Sarah tomorrow at 2pm PST
+                    </span>
+                  </button>
+
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Create a report of this month's sales
+                    </span>
+                  </button>
+
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Find contacts who haven't been reached in 30 days
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="w-full max-w-4xl text-center pb-6">
+                <h2 className="text-lg font-medium mb-3">Resources</h2>
+                <div className="flex justify-center space-x-4 text-sm">
+                  <a
+                    href="/docs"
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Documentation
+                  </a>
+                  <a
+                    href="/privacy"
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Privacy Policy
+                  </a>
+                  <a
+                    href="/support"
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Support
+                  </a>
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Example Queries Section */}
-            <div className="w-full max-w-4xl mb-10">
-              <h2 className="text-2xl font-bold mb-4 text-center">
-                Try asking about...
-              </h2>
+          {filteredMessages.length > 0 ? (
+            <div className="max-w-4xl mx-auto p-6 pt-10 pb-24">
+              {filteredMessages.map((message, index) => (
+                <div key={message.id || index}>
+                  {renderMessage(message as ExtendedMessage)}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+              <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-6 border border-indigo-100 dark:border-indigo-900/40 shadow-md">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-10 w-10 text-indigo-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
-                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
-                    Show me recent deals with Acme Inc
-                  </span>
-                </button>
+              <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                CRM Assistant
+              </h1>
+              <p className="text-muted-foreground text-center max-w-md mb-8 text-lg">
+                Your AI-powered assistant for managing CRM data, calendar, and
+                business tasks.
+              </p>
 
-                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
-                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
-                    Schedule a meeting with Sarah tomorrow at 2pm PST
-                  </span>
-                </button>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-10">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                  <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">
+                    Natural Conversations
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    Ask questions in plain English about your CRM data, schedule
+                    meetings, or manage tasks.
+                  </p>
+                </div>
 
-                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
-                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
-                    Create a report of this month's sales
-                  </span>
-                </button>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                  <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">
+                    Integrated Services
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    Connect your CRM, Google Calendar, Google Meet, and other
+                    tools to work seamlessly.
+                  </p>
+                </div>
 
-                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
-                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
-                    Find contacts who haven't been reached in 30 days
-                  </span>
-                </button>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                  <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">Secure Access</h3>
+                  <p className="text-muted-foreground text-sm">
+                    OAuth integration keeps your data secure while enabling
+                    powerful AI assistance.
+                  </p>
+                </div>
+              </div>
+
+              <div className="w-full max-w-4xl mb-10 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 p-8 rounded-xl border border-indigo-100 dark:border-indigo-900/40">
+                <h2 className="text-2xl font-bold mb-4 text-center">
+                  How It Works
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                  <div className="flex flex-col items-center">
+                    <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                      <span className="text-xl font-bold text-indigo-600">
+                        1
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-center mb-2">
+                      Connect Your Services
+                    </h3>
+                    <p className="text-sm text-center text-muted-foreground">
+                      Securely connect your CRM, calendar, and other services
+                      with OAuth.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                      <span className="text-xl font-bold text-indigo-600">
+                        2
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-center mb-2">
+                      Ask Questions
+                    </h3>
+                    <p className="text-sm text-center text-muted-foreground">
+                      Ask anything about your data, schedule meetings, or create
+                      reports.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                      <span className="text-xl font-bold text-indigo-600">
+                        3
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-center mb-2">
+                      Get Results
+                    </h3>
+                    <p className="text-sm text-center text-muted-foreground">
+                      Receive instant answers and actions based on your
+                      connected data.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-center mt-6">
+                  <a
+                    href="/how-it-works"
+                    className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg shadow-sm text-sm text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-100 dark:border-indigo-800 transition-colors"
+                  >
+                    Learn more about Inbound Apps
+                  </a>
+                </div>
+              </div>
+
+              <div className="w-full max-w-4xl mb-10">
+                <h2 className="text-2xl font-bold mb-4 text-center">
+                  Try asking about...
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Show me recent deals with Acme Inc
+                    </span>
+                  </button>
+
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Schedule a meeting with Sarah tomorrow at 2pm PST
+                    </span>
+                  </button>
+
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Create a report of this month's sales
+                    </span>
+                  </button>
+
+                  <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Find contacts who haven't been reached in 30 days
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="w-full max-w-4xl text-center pb-6">
+                <h2 className="text-lg font-medium mb-3">Resources</h2>
+                <div className="flex justify-center space-x-4 text-sm">
+                  <a
+                    href="/docs"
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Documentation
+                  </a>
+                  <a
+                    href="/privacy"
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Privacy Policy
+                  </a>
+                  <a
+                    href="/support"
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Support
+                  </a>
+                </div>
               </div>
             </div>
-
-            {/* Documentation and Resources */}
-            <div className="w-full max-w-4xl text-center pb-6">
-              <h2 className="text-lg font-medium mb-3">Resources</h2>
-              <div className="flex justify-center space-x-4 text-sm">
-                <a
-                  href="/docs"
-                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
-                  Documentation
-                </a>
-                <a
-                  href="/privacy"
-                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
-                  Privacy Policy
-                </a>
-                <a
-                  href="/support"
-                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
-                  Support
-                </a>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {!isReadonly && (
@@ -1560,7 +1587,7 @@ export default function Chat({
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <Input
               value={input}
-              onChange={handleInputChange}
+              onChange={(e) => setInput(e.target.value)}
               placeholder="Type your message..."
               className="flex-1 border-gray-200 dark:border-gray-700 focus-visible:ring-indigo-500"
               disabled={isLoading}

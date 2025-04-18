@@ -137,8 +137,8 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       "Create calendar events with contacts from your CRM using your Google Calendar",
     logo: "/logos/google-calendar.png",
     examples: [
-      "Schedule a product demo with John Doe from Acme Inc tomorrow at 2 PM",
-      "Set up a cloud migration discussion with Jane Lane next week",
+      "Schedule a product demo with John Doe from Acme Inc tomorrow at 2 PM PST",
+      "Set up a cloud migration discussion with Jane Lane next Friday at 10 AM PST",
       "Book a site visit with Michael Chen from TechCorp for Friday afternoon",
     ],
     steps: [
@@ -417,9 +417,8 @@ function ChatParamsHandler({
 
       // Clean up URL (remove chatId parameter) before loading messages
       if (typeof window !== "undefined") {
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete("chatId");
-        window.history.replaceState({}, "", newUrl.toString());
+        // Instead of just removing the parameter, replace with the chat path
+        window.history.replaceState({}, "", `/chat/${chatIdParam}`);
       }
 
       // Delay reload to ensure state is updated

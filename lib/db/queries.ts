@@ -223,15 +223,6 @@ export async function saveMessages({
 
     console.log("Updating chat last message time for chat:", chatId);
 
-    // Update the chat's lastMessageAt timestamp
-    await db
-      .update(chats)
-      .set({
-        lastMessageAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(chats.id, chatId));
-
     // Get existing message IDs for this chat to avoid duplicates
     const existingMessagesResult = await db
       .select({ id: messages.id })
@@ -251,6 +242,15 @@ export async function saveMessages({
       );
       return;
     }
+
+    // Only update the chat timestamp if we have new messages
+    await db
+      .update(chats)
+      .set({
+        lastMessageAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(chats.id, chatId));
 
     // Prepare messages with proper date handling
     const messagesToInsert = newMessages.map((message) => {
