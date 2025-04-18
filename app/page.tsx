@@ -1433,6 +1433,14 @@ export default function Home() {
     }
   }, [messages.length, isChatLoading]);
 
+  const handleProfileClick = (tab?: string) => {
+    if (tab === "connections") {
+      router.push("/profile/connections");
+    } else {
+      setShowProfileScreen(true);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1636,7 +1644,7 @@ export default function Home() {
                 </Tooltip>
               </TooltipProvider>
               {isAuthenticated ? (
-                <UserMenu onProfileClick={() => setShowProfileScreen(true)} />
+                <UserMenu onProfileClick={handleProfileClick} />
               ) : (
                 <Button
                   size="sm"

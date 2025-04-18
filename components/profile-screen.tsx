@@ -906,7 +906,19 @@ export default function ProfileScreen({
           </Card>
         </TabsContent>
 
-        <TabsContent value="connections" className="space-y-6">
+        <TabsContent value="connections" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Connected Services</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => (window.location.href = "/profile/connections")}
+              className="flex items-center gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open in Dedicated Page
+            </Button>
+          </div>
           {isLoading ? (
             <LoadingSpinner />
           ) : (

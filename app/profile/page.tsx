@@ -140,14 +140,23 @@ export default function ProfilePage() {
               </div>
               <div className="flex items-center justify-between">
                 <Label>Connected Services</Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchConnections}
-                  disabled={isLoading}
-                >
-                  Refresh
-                </Button>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchConnections}
+                    disabled={isLoading}
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => router.push("/profile/connections")}
+                  >
+                    Manage Connections
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 {connections.map((connection) => (
