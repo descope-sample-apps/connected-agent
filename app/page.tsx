@@ -1214,28 +1214,31 @@ export default function Home() {
 
         // Case 1: If msg.parts exists and is an array
         if (msg.parts && Array.isArray(msg.parts) && msg.parts.length > 0) {
-          processedParts = msg.parts.map((part) => {
-            // If part is a string, convert it to the right format
-            if (typeof part === "string") {
-              return { type: "text", text: part };
-            }
-            // If part is an object with text property
-            else if (typeof part === "object" && part !== null) {
-              if ("text" in part) {
-                return { type: "text", text: String(part.text || "") };
-              } else if ("type" in part && "text" in part) {
-                return {
-                  type: String(part.type),
-                  text: String(part.text || ""),
-                };
+          processedParts = msg.parts
+            .map((part) => {
+              // If part is a string, convert it to the right format
+              if (typeof part === "string") {
+                return { type: "text", text: part };
               }
-              // Try to extract content from other possible structures
-              else if ("content" in part) {
-                return { type: "text", text: String(part.content || "") };
+              // If part is an object with text property
+              else if (typeof part === "object" && part !== null) {
+                if ("text" in part) {
+                  return { type: "text", text: String(part.text || "") };
+                } else if ("type" in part && "text" in part) {
+                  return {
+                    type: String(part.type),
+                    text: String(part.text || ""),
+                  };
+                }
+                // Try to extract content from other possible structures
+                else if ("content" in part) {
+                  return { type: "text", text: String(part.content || "") };
+                }
               }
-            }
-            return { type: "text", text: "" };
-          });
+              // Default empty part (this was causing the issue)
+              return { type: "text", text: "" };
+            })
+            .filter((part) => part.text.trim() !== ""); // Filter out empty text parts
         }
         // Case 2: If no parts but msg.content exists
         else if (typeof msg.content === "string" && msg.content.trim() !== "") {

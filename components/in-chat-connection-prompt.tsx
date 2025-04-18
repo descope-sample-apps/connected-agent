@@ -19,6 +19,7 @@ import {
   FileText,
 } from "lucide-react";
 import { trackOAuthEvent } from "@/lib/analytics";
+import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 
 interface InChatConnectionPromptProps {
   service: string;
@@ -161,7 +162,7 @@ export default function InChatConnectionPrompt({
           });
         }
       } else if (connectButtonAction) {
-        // Use the direct connection flow
+        // Use the direct connection flow with popup
         try {
           // Extract the service from the action URI
           const serviceType = connectButtonAction.replace("connection://", "");
@@ -173,23 +174,49 @@ export default function InChatConnectionPrompt({
             localStorage.getItem("currentChatId") ||
             `chat-${Date.now()}`;
 
-          // Build a direct URL back to the current chat
-          const directRedirectUrl = `${window.location.origin}/chat/${currentChatId}`;
-          console.log(
-            `Setting OAuth redirect directly to: ${directRedirectUrl}`
-          );
+          // Build redirect URL to the OAuth callback endpoint
+          const redirectUrl = `${
+            window.location.origin
+          }/api/oauth/callback?redirectTo=chat${
+            currentChatId ? `&chatId=${currentChatId}` : ""
+          }`;
+          console.log(`Setting OAuth redirect to: ${redirectUrl}`);
 
-          // Initiate direct connection flow with the required scopes
-          const authUrl = await fetch(
-            `/api/oauth/connect/${serviceType}?scopes=${requiredScopes.join(
-              ","
-            )}&chatId=${currentChatId}`
-          )
-            .then((res) => res.json())
-            .then((data) => data.url);
+          // Initiate direct connection flow with the required scopes using OAuth utils
+          const authUrl = await connectToOAuthProvider({
+            appId: serviceType,
+            redirectUrl,
+            scopes: requiredScopes,
+            state: {
+              redirectTo: "chat",
+              chatId: currentChatId,
+            },
+          });
 
-          // Directly redirect to the OAuth provider
-          window.location.href = authUrl;
+          // Use the popup approach instead of redirecting
+          await handleOAuthPopup(authUrl, {
+            onSuccess: () => {
+              // Track successful connection
+              trackOAuthEvent("connection_successful", {
+                service: service.toLowerCase(),
+                provider_id: getProviderId(),
+              });
+              setIsLoading(false);
+
+              // Reload the page to run the prompt again with the new connection
+              window.location.reload();
+            },
+            onError: (error) => {
+              console.error("OAuth error:", error);
+              // Track failed connection
+              trackOAuthEvent("connection_failed", {
+                service: service.toLowerCase(),
+                provider_id: getProviderId(),
+                error: String(error),
+              });
+              setIsLoading(false);
+            },
+          });
         } catch (e) {
           console.error("Error initiating OAuth flow:", e);
           setIsLoading(false);
@@ -203,7 +230,6 @@ export default function InChatConnectionPrompt({
         provider_id: getProviderId(),
         error: String(error),
       });
-    } finally {
       setIsLoading(false);
     }
   };

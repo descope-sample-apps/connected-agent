@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useOAuth } from "@/context/oauth-context";
 import Image from "next/image";
-import { connectToOAuthProvider } from "@/lib/oauth-utils";
+import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 import ReactMarkdown from "react-markdown";
 
 // Service logo mapping
@@ -76,22 +76,38 @@ export default function ChatMessage({
       const currentChatId =
         localStorage.getItem("currentChatId") || `chat-${Date.now()}`;
 
-      // Build a direct URL back to the current chat
-      const directRedirectUrl = `${window.location.origin}/chat/${currentChatId}`;
-      console.log(`Setting OAuth redirect directly to: ${directRedirectUrl}`);
+      // Build redirect URL to the OAuth callback endpoint
+      const redirectUrl = `${
+        window.location.origin
+      }/api/oauth/callback?redirectTo=chat${
+        currentChatId ? `&chatId=${currentChatId}` : ""
+      }`;
+      console.log(`Setting OAuth redirect to: ${redirectUrl}`);
 
       // Initiate direct connection flow
       const authUrl = await connectToOAuthProvider({
         appId: serviceType,
-        redirectUrl: directRedirectUrl,
-        // No need for chatId in state since it's in the redirect URL
+        redirectUrl,
         state: {
           redirectTo: "chat",
+          chatId: currentChatId,
         },
       });
 
-      // Directly redirect to the OAuth provider
-      window.location.href = authUrl;
+      // Use the popup approach instead of redirecting
+      await handleOAuthPopup(authUrl, {
+        onSuccess: () => {
+          console.log("OAuth connection successful");
+          // Call the reconnection complete callback to refresh the chat
+          onReconnectComplete();
+        },
+        onError: (error) => {
+          console.error("OAuth connection failed:", error);
+          // Fallback to dialog approach if connection fails
+          setReconnectInfo({ appId: serviceType, scopes: [] });
+          setShowReconnectDialog(true);
+        },
+      });
     } catch (e) {
       console.error("Error initiating OAuth flow:", e);
       // Fallback to dialog approach if direct connection fails
@@ -460,9 +476,7 @@ export default function ChatMessage({
           (message.parts || [])
             .filter(
               (part) =>
-                part?.type === "text" &&
-                part?.text &&
-                part?.type !== "step-start"
+                part?.type === "text" && part?.text && part.text.trim() !== ""
             )
             .map((part) => part.text)
             .join("\n") || message.content // fallback to raw content

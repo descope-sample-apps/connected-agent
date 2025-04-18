@@ -121,6 +121,14 @@ export async function saveMessage(
     return part;
   });
 
+  // Filter out any parts with empty text
+  processedParts = processedParts.filter((part: any) => {
+    if (typeof part === "object" && part !== null && "text" in part) {
+      return part.text && part.text.trim() !== "";
+    }
+    return true;
+  });
+
   const message = await db
     .insert(messages)
     .values({
@@ -270,11 +278,26 @@ export async function saveMessages({
         createdAt = new Date();
       }
 
+      // Filter out empty parts
+      const filteredParts = Array.isArray(message.parts)
+        ? message.parts.filter((part: any) => {
+            if (
+              typeof part === "object" &&
+              part !== null &&
+              part.type === "text" &&
+              "text" in part
+            ) {
+              return part.text && part.text.trim() !== "";
+            }
+            return true; // Keep non-text parts
+          })
+        : message.parts;
+
       return {
         id: message.id,
         chatId: message.chatId,
         role: message.role,
-        parts: message.parts,
+        parts: filteredParts,
         attachments: message.attachments || [],
         metadata: message.metadata || {},
         createdAt: createdAt,

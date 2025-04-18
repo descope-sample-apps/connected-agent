@@ -65,8 +65,18 @@ export default function Chat({
     return initialMessages.map((msg: ExtendedMessage) => {
       // If the message has parts, ensure content is properly derived from them
       if (msg.parts && msg.parts.length > 0) {
+        // Remove empty parts first
+        const filteredParts = Array.isArray(msg.parts)
+          ? msg.parts.filter((part) => {
+              if (typeof part === "object" && part.type === "text") {
+                return part.text && part.text.trim() !== "";
+              }
+              return true; // Keep non-text parts
+            })
+          : msg.parts;
+
         // Extract text content from parts to avoid showing raw JSON in the UI
-        const textContent = msg.parts
+        const textContent = filteredParts
           .map((part) => {
             if (typeof part === "object" && part.type === "text") {
               return part.text || "";
@@ -79,6 +89,7 @@ export default function Chat({
         return {
           ...msg,
           content: textContent || msg.content,
+          parts: filteredParts, // Use the filtered parts
           id: msg.id ? `db-${msg.id}` : msg.id, // Mark as coming from database
         };
       }
@@ -1048,15 +1059,23 @@ export default function Chat({
             <div className="prose prose-sm">
               {message.parts && message.parts.length > 0
                 ? // Handle messages that have been loaded from database with parts structure
-                  message.parts.map((part, idx) => {
-                    if (typeof part === "object" && part.type === "text") {
-                      return <div key={idx}>{part.text}</div>;
-                    } else if (typeof part === "string") {
-                      return <div key={idx}>{part}</div>;
-                    } else {
-                      return null;
-                    }
-                  })
+                  message.parts
+                    .filter((part) => {
+                      // Filter out empty parts
+                      if (typeof part === "object" && part.type === "text") {
+                        return part.text && part.text.trim() !== "";
+                      }
+                      return part; // Keep non-text parts
+                    })
+                    .map((part, idx) => {
+                      if (typeof part === "object" && part.type === "text") {
+                        return <div key={idx}>{part.text}</div>;
+                      } else if (typeof part === "string") {
+                        return <div key={idx}>{part}</div>;
+                      } else {
+                        return null;
+                      }
+                    })
                 : // Handle messages that come directly from the AI with content as string
                   message.content}
             </div>
@@ -1490,7 +1509,7 @@ export default function Chat({
 
                 <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
                   <span className="text-indigo-600 dark:text-indigo-400 font-medium">
-                    Schedule a meeting with Sarah tomorrow at 2pm
+                    Schedule a meeting with Sarah tomorrow at 2pm PST
                   </span>
                 </button>
 
