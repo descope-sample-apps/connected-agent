@@ -31,7 +31,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
       {/* Header */}
-      <header className="border-b bg-white dark:bg-gray-900 px-6 py-4 flex items-center justify-between shadow-sm">
+      <header className="border-b bg-white dark:bg-gray-900 px-6 py-3 flex items-center justify-between shadow-sm">
         <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
           ConnectedAgent
         </h1>
@@ -59,19 +59,19 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <div className="container mx-auto px-4 py-12 md:py-16">
+      <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-8 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent leading-tight pb-2">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent leading-tight">
             ConnectedAgent Sample App
           </h1>
-          <p className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-muted-foreground mb-6 max-w-2xl mx-auto">
             A powerful AI chatbot that uses Descope Outbound Apps for seamless
             connections to your AI tools.
           </p>
 
-          <div className="-mt-4 mb-12">
+          <div className="mb-8">
             <AnimatedBeamComponent />
-            <p className="text-center text-muted-foreground mt-4 max-w-xl mx-auto">
+            <p className="text-center text-muted-foreground mt-2 max-w-xl mx-auto text-sm md:text-base">
               Connect your AI assistant to dozens of services securely with just
               a few lines of code
             </p>
@@ -81,20 +81,20 @@ export default function LandingPage() {
             <Link href="/login">
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 py-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 py-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
               >
                 Get Started <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
             <a
-              href="https://docs.descope.com/outbound/guides/outboundappflow/"
+              href="https://docs.descope.com/outbound-apps"
               target="_blank"
               rel="noreferrer"
             >
               <Button
                 variant="outline"
                 size="lg"
-                className="px-6 py-6 rounded-xl border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                className="px-6 py-5 rounded-xl border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
               >
                 Outbound Apps Docs <ExternalLink className="ml-2 h-4 w-4" />
               </Button>
@@ -104,12 +104,12 @@ export default function LandingPage() {
       </div>
 
       {/* Key Features Section */}
-      <div className="py-16 md:py-20 bg-white dark:bg-gray-900">
+      <div className="py-12 md:py-16 bg-white dark:bg-gray-900">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
             Powerful Connection Capabilities
           </h2>
-          <p className="text-xl text-muted-foreground text-center mb-16 max-w-3xl mx-auto">
+          <p className="text-xl text-muted-foreground text-center mb-12 max-w-3xl mx-auto">
             Build AI agents that seamlessly connect to the tools your users
             already love
           </p>
@@ -171,12 +171,12 @@ export default function LandingPage() {
       </div>
 
       {/* Features Section */}
-      <div className="py-16 md:py-20">
+      <div className="py-12 md:py-16">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-10 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
             How It Works
           </h2>
-          <div className="space-y-16 md:space-y-24">
+          <div className="space-y-16 md:space-y-20">
             {/* Feature 1 */}
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div className="p-8 border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow bg-white dark:bg-gray-800">
@@ -368,13 +368,13 @@ export default function LandingPage() {
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
                   </div>
                   <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Usage in AI Functions
+                    Example Usage with AI Function Calling
                   </h3>
                 </div>
                 <div className="px-5 py-4">
                   <p className="text-sm text-muted-foreground mb-3">
-                    Integrate with AI function calling to enable seamless access
-                    to external services:
+                    Integrate with function calling to enable seamless access to
+                    external services:
                   </p>
                   <div className="bg-gray-950 text-gray-100 rounded-lg overflow-x-auto shadow-inner border border-gray-800">
                     <pre
@@ -382,10 +382,6 @@ export default function LandingPage() {
                       style={{ minWidth: "800px", maxWidth: "100%" }}
                     >
                       <code className="language-javascript whitespace-pre-wrap break-all">
-                        <span className="text-gray-400">
-                          // Example AI function call
-                        </span>
-                        <br />
                         <span className="text-purple-400">const</span>{" "}
                         <span className="text-blue-400">
                           functionDefinition
@@ -486,10 +482,6 @@ export default function LandingPage() {
                         <span className="text-white">{"}"}</span>
                         <span className="text-white">;</span>
                         <br />
-                        <br />
-                        <span className="text-gray-400">
-                          // AI function implementation
-                        </span>
                         <br />
                         <span className="text-purple-400">async</span>{" "}
                         <span className="text-purple-400">function</span>{" "}
