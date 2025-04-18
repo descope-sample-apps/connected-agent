@@ -1192,7 +1192,18 @@ export async function POST(request: Request) {
           { status: 429 }
         );
       }
-      throw error;
+
+      // For other errors, return a generic error response
+      console.error("Error checking user usage:", error);
+      return Response.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Error checking usage",
+          message:
+            "There was an error processing your request. Please try again.",
+        },
+        { status: 500 }
+      );
     }
 
     // Get system prompt with date context added
@@ -1493,7 +1504,27 @@ Then use the getCRMContacts tool, which will handle showing the connection UI.
       },
       onError: (error) => {
         console.error("Error in chat processing:", error);
-        return "Sorry, there was an error processing your request. Please try again.";
+
+        // Check if this is a monthly usage limit error or other expected error
+        if (error instanceof Error) {
+          // Format the error as a structured JSON response
+          const errorResponse = {
+            error: error.name || "Error",
+            message:
+              error.message ||
+              "Sorry, there was an error processing your request. Please try again.",
+          };
+
+          // Return formatted error response string
+          return JSON.stringify(errorResponse);
+        }
+
+        // Default error message
+        return JSON.stringify({
+          error: "ChatProcessingError",
+          message:
+            "An error occurred while processing your request. Please try again.",
+        });
       },
     });
   } catch (error) {

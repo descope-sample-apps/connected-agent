@@ -137,8 +137,8 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       "Create calendar events with contacts from your CRM using your Google Calendar",
     logo: "/logos/google-calendar.png",
     examples: [
-      "Schedule a product demo with John Doe from Acme Inc tomorrow at 2 PM",
-      "Set up a cloud migration discussion with Jane Lane next week",
+      "Schedule a product demo with John Doe from Acme Inc tomorrow at 2 PM PST",
+      "Set up a cloud migration discussion with Jane Lane next Friday at 10 AM PST",
       "Book a site visit with Michael Chen from TechCorp for Friday afternoon",
     ],
     steps: [
@@ -347,34 +347,6 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
   },
 } as const;
 
-interface GoogleMeetPromptProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  meetingDetails: MeetingDetails;
-}
-
-interface ChatMessageProps {
-  message: {
-    role: string;
-    content: string;
-    parts?: Array<{
-      type: string;
-      text?: string;
-      reasoning?: string;
-      toolInvocation?: {
-        name: string;
-        arguments: Record<string, any>;
-      };
-      source?: {
-        type: string;
-        content: string;
-      };
-    }>;
-  };
-  onReconnectComplete: () => void;
-}
-
 // Create a separate component that uses useSearchParams
 function ChatParamsHandler({
   isAuthenticated,
@@ -390,7 +362,6 @@ function ChatParamsHandler({
   reload: () => void;
 }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   // Reference to track if we've already processed the URL params
   const processedRef = useRef(false);
@@ -417,9 +388,8 @@ function ChatParamsHandler({
 
       // Clean up URL (remove chatId parameter) before loading messages
       if (typeof window !== "undefined") {
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete("chatId");
-        window.history.replaceState({}, "", newUrl.toString());
+        // Instead of just removing the parameter, replace with the chat path
+        window.history.replaceState({}, "", `/chat/${chatIdParam}`);
       }
 
       // Delay reload to ensure state is updated
@@ -503,8 +473,8 @@ export default function Home() {
     body: {
       id: currentChatId,
       selectedChatModel: selectedModel,
-      timezone, // Include the timezone in the request
-      timezoneOffset, // Include the timezone offset in the request
+      timezone,
+      timezoneOffset,
     },
     credentials: "include",
     onFinish: (message) => {
@@ -819,34 +789,6 @@ export default function Home() {
     });
   };
 
-  const generateDefaultTitle = useCallback(() => {
-    const firstUserMessage = messages
-      .find((m) => m.role === "user")
-      ?.parts.find((p) => p.type === "text")?.text;
-    let title = "";
-
-    if (firstUserMessage) {
-      const words = firstUserMessage.split(" ");
-      title = words.slice(0, 5).join(" ");
-      if (words.length > 5) title += "...";
-    }
-
-    if (!title || title.length < 10) {
-      const now = new Date();
-      title = `Chat ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
-    }
-
-    return title;
-  }, [messages]);
-
-  const handleShareChat = () => {
-    if (!currentChatId) {
-      const chatId = `chat-${Date.now()}`;
-      setCurrentChatId(chatId);
-    }
-    setShowShareDialog(true);
-  };
-
   const handleLoadChat = (chatId: string) => {
     setCurrentChatId(chatId);
     setShowProfileScreen(false);
@@ -929,21 +871,17 @@ export default function Home() {
       if (promptText.includes("John Doe") && promptType === "slack") {
         enhancedPrompt = "Show me recent messages from the #general channel";
       } else if (promptText.includes("just John") && promptType === "slack") {
-        // Test partial name matching
         enhancedPrompt = "Show me recent messages from the #general channel";
       } else if (
         promptText.includes("schedule with John") &&
         promptType === "slack"
       ) {
-        // Test scheduling with partial name
         enhancedPrompt = "Show me recent messages from the #general channel";
       } else if (promptText.includes("Jane Lane") && promptType === "slack") {
         enhancedPrompt = "Show me recent messages from the #general channel";
       } else if (promptText.includes("just Jane") && promptType === "slack") {
-        // Test partial name matching for Jane
         enhancedPrompt = "Show me recent messages from the #general channel";
       } else if (promptText.includes("Michael") && promptType === "slack") {
-        // Test partial name matching for Michael
         enhancedPrompt = "Show me recent messages from the #general channel";
       } else {
         enhancedPrompt = `${promptText} (Please use tools to respond to this query)`;
@@ -961,8 +899,6 @@ export default function Home() {
   const checkOAuthAndPrompt = useCallback(
     (action: () => void) => {
       if (!isAuthenticated) {
-        // Instead of showing modal, we'll show the WelcomeScreen
-        // which now has the inline authentication
         return;
       }
 
@@ -970,7 +906,6 @@ export default function Home() {
       // For now, we'll just execute the action
       action();
 
-      // After submitting, check for any errors that might indicate OAuth issues
       setTimeout(() => {
         if (error) {
           toast({
@@ -1066,21 +1001,6 @@ export default function Home() {
     },
   ];
 
-  const handleQuickActionSchedule = () => {
-    const prompt =
-      "Schedule a follow-up meeting with John Doe from Acme Inc about the Enterprise Software License deal for next Tuesday at 2pm for 60 minutes.";
-    chatHandleSubmit(new Event("submit") as any, {
-      data: { fromQuickAction: true },
-    });
-  };
-
-  const [meetingDetails, setMeetingDetails] = useState({
-    title: "Follow-up Meeting",
-    date: "April 10, 2025",
-    time: "2:00 PM",
-    participants: [],
-  });
-
   useEffect(() => {
     // Monitor messages for meeting creation responses
     const lastMessage = messages[messages.length - 1];
@@ -1131,19 +1051,6 @@ export default function Home() {
       role: "user",
       content: `I've created a summary document for the deal: ${documentUrl}`,
     });
-  };
-
-  const handleCreateDealSummary = (dealId?: string) => {
-    if (!isAuthenticated) {
-      setShowProfileScreen(true);
-      return;
-    }
-
-    if (dealId) {
-      setSelectedDealId(dealId);
-    }
-
-    setShowDealSummaryPrompt(true);
   };
 
   // Update the sidebar toggle to save preferences

@@ -59,14 +59,7 @@ const providers = {
     id: "slack",
     name: "Slack",
     icon: "/logos/slack-logo.svg",
-    scopes: [
-      "chat:write",
-      "channels:read",
-      "channels:write",
-      "users:read.email",
-      "search:read",
-      "channels:history",
-    ],
+    scopes: ["channels:manage", "channels:write", "users:read"],
     keywords: [
       "slack",
       "channel",

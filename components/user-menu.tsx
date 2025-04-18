@@ -83,24 +83,6 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
     try {
       setIsLoading(true);
 
-      // Use values from localStorage instead of API call
-      const localConnectionStatuses = getAllConnectionStatuses();
-
-      console.log(
-        "Local connection statuses from localStorage:",
-        localConnectionStatuses
-      );
-
-      // Update connections based on localStorage values
-      setConnections((prev) =>
-        prev.map((connection) => ({
-          ...connection,
-          connected:
-            localConnectionStatuses[connection.id as OAuthProvider] || false,
-        }))
-      );
-
-      /* Commenting out server API call temporarily
       const response = await fetch("/api/oauth/connections", {
         headers: {
           "Cache-Control": "no-cache",
@@ -125,7 +107,6 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
           connected: data.connections[connection.id]?.connected || false,
         }))
       );
-      */
     } catch (error) {
       console.error("Error fetching connections:", error);
     } finally {
