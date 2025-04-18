@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/tooltip";
 import ChatMessage from "@/components/chat-message";
 import ActionCard from "@/components/action-card";
-import AuthModal from "@/components/auth-modal";
 import UserMenu from "@/components/user-menu";
 import WelcomeScreen from "@/components/welcome-screen";
 import GoogleMeetPrompt from "@/components/google-meet-prompt";
@@ -1435,7 +1434,7 @@ export default function Home() {
 
   const handleProfileClick = (tab?: string) => {
     if (tab === "connections") {
-      router.push("/profile/connections");
+      router.push("/connections");
     } else {
       setShowProfileScreen(true);
     }

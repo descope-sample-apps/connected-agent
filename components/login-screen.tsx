@@ -45,6 +45,7 @@ export default function LoginScreen() {
             >
               <Descope
                 flowId="sign-up-or-in"
+                theme={theme === "system" ? "light" : theme}
                 redirectOnSuccess={"/"}
                 onReady={onReady}
               />
