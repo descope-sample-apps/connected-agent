@@ -14,8 +14,7 @@ import {
   Calendar,
   CheckCircle,
 } from "lucide-react";
-import React, { useRef } from "react";
-import { cn } from "@/lib/utils";
+import React from "react";
 import AnimatedBeamComponent from "@/components/animated-beam";
 
 export default function LandingPage() {
@@ -60,7 +59,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <div className="container mx-auto px-4 py-16 md:py-20">
+      <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="text-center">
           <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
             Connected Agent Platform
@@ -69,6 +68,8 @@ export default function LandingPage() {
             A powerful platform that connects your applications with Descope SDK
             for seamless authentication and user management.
           </p>
+          <AnimatedBeamComponent />
+
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/login">
               <Button
@@ -91,38 +92,6 @@ export default function LandingPage() {
                 Outbound Apps Docs <ExternalLink className="ml-2 h-4 w-4" />
               </Button>
             </a>
-          </div>
-        </div>
-      </div>
-
-      {/* Connections Animation Section */}
-      <div className="py-16 md:py-20">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-            Connect to Popular Services
-          </h2>
-          <p className="text-xl text-muted-foreground text-center mb-8 max-w-3xl mx-auto">
-            Descope enables secure connections to dozens of popular services
-            through OAuth, without storing credentials
-          </p>
-
-          <div className="relative max-w-4xl mx-auto h-[400px]">
-            <AnimatedBeamComponent />
-          </div>
-
-          <p className="text-center text-muted-foreground mt-4 mb-6 max-w-3xl mx-auto">
-            Securely connect your AI assistant to popular services with
-            Descope's OAuth integration. No credentials are stored in your
-            application.
-          </p>
-
-          {/* Service icons row - simplified */}
-          <div className="flex flex-wrap justify-center gap-4 mb-10">
-            <div className="flex items-center bg-white dark:bg-gray-800 py-2 px-4 rounded-full shadow-sm border border-gray-100 dark:border-gray-700">
-              <span className="text-sm font-medium">
-                Connect to 40+ Popular Services
-              </span>
-            </div>
           </div>
         </div>
       </div>
@@ -231,8 +200,8 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div className="relative h-[400px] bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 order-2 md:order-1">
                 <Image
-                  src="/images/dashboard-config.png"
-                  alt="Dashboard Configuration"
+                  src="/images/app-connect.png"
+                  alt="Application Connect"
                   fill
                   className="object-cover"
                 />
@@ -244,10 +213,11 @@ export default function LandingPage() {
                   </span>
                 </div>
                 <h3 className="text-2xl font-semibold mb-4">
-                  Design and Build Your Tools
+                  Connect to Your Outbound Apps
                 </h3>
                 <p className="text-muted-foreground text-lg">
-                  Design your tools using the sample code in this application.
+                  Connect via OAuth to your Outbound Apps for Descope to manage
+                  the tokens.
                 </p>
               </div>
             </div>
@@ -264,8 +234,8 @@ export default function LandingPage() {
                   Fetch Token for Tools with Descope SDK
                 </h3>
                 <p className="text-muted-foreground text-lg">
-                  Use Descope SDK to fetch the token and connect to
-                  applications.
+                  In your tool calls, use the Descope SDK to fetch the token and
+                  connect to applications.
                 </p>
               </div>
               <div className="relative h-[400px] bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
@@ -281,17 +251,21 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Integration Details */}
-      <div className="py-16 md:py-20 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30">
+      {/* Integration Details - improved styling */}
+      <div className="py-16 md:py-20 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 dark:from-indigo-950/30 dark:to-purple-950/30">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-            Descope SDK Integration
-          </h2>
-          <p className="text-xl text-muted-foreground text-center mb-12 max-w-3xl mx-auto">
-            Seamlessly integrate secure OAuth connections into your AI
-            applications
-          </p>
-          <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col items-center text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent inline-block">
+              Descope SDK Integration
+            </h2>
+            <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mt-2 mb-4"></div>
+            <p className="text-lg text-muted-foreground max-w-2xl">
+              Seamlessly integrate secure OAuth connections into your AI
+              applications
+            </p>
+          </div>
+
+          <div className="max-w-5xl mx-auto">
             <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm mb-12 border border-gray-100 dark:border-gray-800">
               <h3 className="text-2xl font-semibold mb-6">Key Features</h3>
               <ul className="space-y-4">
@@ -378,191 +352,302 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            {/* Enhanced Code Example Section */}
-            <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-              <div className="bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-                <div className="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 py-3 px-5">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                    Token Access Example
-                  </h3>
-                </div>
-                <div className="p-5">
-                  <p className="text-muted-foreground mb-4">
-                    Use a generic tool with outbound app functions to securely
-                    access provider tokens:
-                  </p>
-                  <div className="bg-gray-950 text-gray-100 rounded-lg p-5 overflow-x-auto shadow-inner border border-gray-800">
-                    <pre className="text-sm font-mono leading-relaxed whitespace-pre">
-                      <code>
-                        {`export class OAuthTool extends Tool {
-  config() {
-    return {
-      name: "oauth_tool",
-      description: "Access external services securely",
-      inputSchema: {
-        provider: {
-          type: "string",
-          description: "Provider name (google, slack, etc.)",
-        },
-        scopes: {
-          type: "array",
-          description: "Required OAuth scopes",
-        }
-      }
-    };
-  }
-
-  async execute({ provider, scopes }) {
-    try {
-      // Get token using Descope SDK
-      const token = await getOAuthToken({
-        appId: provider,
-        scopes: scopes
-      });
-      
-      // Make API calls using the token
-      const response = await fetch(
-        \`https://api.\${provider}.com/endpoint\`,
-        {
-          headers: {
-            Authorization: \`Bearer \${token}\`
-          }
-        }
-      );
-      
-      return await response.json();
-    } catch (error) {
-      throw new Error(\`OAuth error: \${error.message}\`);
-    }
-  }
-}`}
-                      </code>
-                    </pre>
+            <div className="space-y-8">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-5 py-3 flex items-center">
+                  <div className="flex space-x-2 mr-3">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
                   </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-                <div className="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 py-3 px-5">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Usage in AI Functions
                   </h3>
                 </div>
-                <div className="p-5">
-                  <p className="text-muted-foreground mb-4">
+                <div className="px-5 py-4">
+                  <p className="text-sm text-muted-foreground mb-3">
                     Integrate with AI function calling to enable seamless access
                     to external services:
                   </p>
-                  <div className="bg-gray-950 text-gray-100 rounded-lg p-5 overflow-x-auto shadow-inner border border-gray-800">
-                    <pre className="text-sm font-mono leading-relaxed whitespace-pre">
-                      <code>
-                        {`// Example AI function call
-const functionDefinition = {
-  name: "access_google_calendar",
-  description: "Access Google Calendar events",
-  parameters: {
-    type: "object",
-    properties: {
-      provider: {
-        type: "string",
-        enum: ["google-calendar"]
-      },
-      scopes: {
-        type: "array",
-        items: {
-          type: "string"
-        }
-      }
-    },
-    required: ["provider", "scopes"]
-  }
-};
-
-// AI function implementation
-async function accessGoogleCalendar(params) {
-  try {
-    // Get OAuth token through Descope
-    const token = await getOAuthToken({
-      appId: params.provider,
-      scopes: params.scopes
-    });
-    
-    // Use token to fetch calendar data
-    const response = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-      {
-        headers: {
-          Authorization: \`Bearer \${token}\`
-        }
-      }
-    );
-    
-    return await response.json();
-  } catch (error) {
-    // Handle connection needed case
-    if (error.code === "token_not_found") {
-      return {
-        needsConnection: true,
-        provider: params.provider
-      };
-    }
-    throw error;
-  }
-}`}
+                  <div className="bg-gray-950 text-gray-100 rounded-lg overflow-x-auto shadow-inner border border-gray-800">
+                    <pre
+                      className="p-4 text-sm font-mono leading-relaxed"
+                      style={{ minWidth: "800px", maxWidth: "100%" }}
+                    >
+                      <code className="language-javascript whitespace-pre-wrap break-all">
+                        <span className="text-gray-400">
+                          // Example AI function call
+                        </span>
+                        <br />
+                        <span className="text-purple-400">const</span>{" "}
+                        <span className="text-blue-400">
+                          functionDefinition
+                        </span>{" "}
+                        <span className="text-white">=</span>{" "}
+                        <span className="text-white">{"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;<span className="text-green-400">name</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-orange-400">
+                          "access_google_calendar"
+                        </span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;
+                        <span className="text-green-400">description</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-orange-400">
+                          "Access Google Calendar events"
+                        </span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;
+                        <span className="text-green-400">parameters</span>
+                        <span className="text-white">: {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">type</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-orange-400">"object"</span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">properties</span>
+                        <span className="text-white">: {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">provider</span>
+                        <span className="text-white">: {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">type</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-orange-400">"string"</span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">enum</span>
+                        <span className="text-white">: [</span>
+                        <span className="text-orange-400">
+                          "google-calendar"
+                        </span>
+                        <span className="text-white">]</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">scopes</span>
+                        <span className="text-white">: {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">type</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-orange-400">"array"</span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">items</span>
+                        <span className="text-white">: {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">type</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-orange-400">"string"</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">required</span>
+                        <span className="text-white">: [</span>
+                        <span className="text-orange-400">"provider"</span>
+                        <span className="text-white">,</span>{" "}
+                        <span className="text-orange-400">"scopes"</span>
+                        <span className="text-white">]</span>
+                        <br />
+                        &nbsp;&nbsp;<span className="text-white">{"}"}</span>
+                        <br />
+                        <span className="text-white">{"}"}</span>
+                        <span className="text-white">;</span>
+                        <br />
+                        <br />
+                        <span className="text-gray-400">
+                          // AI function implementation
+                        </span>
+                        <br />
+                        <span className="text-purple-400">async</span>{" "}
+                        <span className="text-purple-400">function</span>{" "}
+                        <span className="text-yellow-400">
+                          accessGoogleCalendar
+                        </span>
+                        <span className="text-white">(</span>
+                        <span className="text-blue-400">params</span>
+                        <span className="text-white">) {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;<span className="text-purple-400">
+                          try
+                        </span>{" "}
+                        <span className="text-white">{"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-gray-400">
+                          // Get OAuth token through Descope
+                        </span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-purple-400">const</span>{" "}
+                        <span className="text-blue-400">token</span>{" "}
+                        <span className="text-white">=</span>{" "}
+                        <span className="text-purple-400">await</span>{" "}
+                        <span className="text-yellow-400">getOAuthToken</span>
+                        <span className="text-white">(</span>
+                        <span className="text-white">{"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">appId</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-blue-400">params</span>
+                        <span className="text-white">.</span>
+                        <span className="text-green-400">provider</span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">scopes</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-blue-400">params</span>
+                        <span className="text-white">.</span>
+                        <span className="text-green-400">scopes</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <span className="text-white">)</span>
+                        <span className="text-white">;</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-gray-400">
+                          // Use token to fetch calendar data
+                        </span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-purple-400">const</span>{" "}
+                        <span className="text-blue-400">response</span>{" "}
+                        <span className="text-white">=</span>{" "}
+                        <span className="text-purple-400">await</span>{" "}
+                        <span className="text-yellow-400">fetch</span>
+                        <span className="text-white">(</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-orange-400">
+                          "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+                        </span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">headers</span>
+                        <span className="text-white">: {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">Authorization</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-orange-400">
+                          {"`Bearer ${token}`"}
+                        </span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">)</span>
+                        <span className="text-white">;</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-purple-400">return</span>{" "}
+                        <span className="text-purple-400">await</span>{" "}
+                        <span className="text-blue-400">response</span>
+                        <span className="text-white">.</span>
+                        <span className="text-yellow-400">json</span>
+                        <span className="text-white">()</span>
+                        <span className="text-white">;</span>
+                        <br />
+                        &nbsp;&nbsp;<span className="text-white">
+                          {"}"}
+                        </span>{" "}
+                        <span className="text-purple-400">catch</span>{" "}
+                        <span className="text-white">(</span>
+                        <span className="text-blue-400">error</span>
+                        <span className="text-white">) {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-gray-400">
+                          // Handle connection needed case
+                        </span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-purple-400">if</span>{" "}
+                        <span className="text-white">(</span>
+                        <span className="text-blue-400">error</span>
+                        <span className="text-white">.</span>
+                        <span className="text-green-400">code</span>{" "}
+                        <span className="text-white">===</span>{" "}
+                        <span className="text-orange-400">
+                          "token_not_found"
+                        </span>
+                        <span className="text-white">) {"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-purple-400">return</span>{" "}
+                        <span className="text-white">{"{"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">needsConnection</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-purple-400">true</span>
+                        <span className="text-white">,</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-green-400">provider</span>
+                        <span className="text-white">:</span>{" "}
+                        <span className="text-blue-400">params</span>
+                        <span className="text-white">.</span>
+                        <span className="text-green-400">provider</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <span className="text-white">;</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-white">{"}"}</span>
+                        <br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <span className="text-purple-400">throw</span>{" "}
+                        <span className="text-blue-400">error</span>
+                        <span className="text-white">;</span>
+                        <br />
+                        &nbsp;&nbsp;<span className="text-white">{"}"}</span>
+                        <br />
+                        <span className="text-white">{"}"}</span>
                       </code>
                     </pre>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
-              <h3 className="text-2xl font-semibold mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-                Integration Steps
-              </h3>
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="flex flex-col p-6 border border-gray-100 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4 shrink-0">
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                      1
-                    </span>
-                  </div>
-                  <h4 className="font-semibold text-lg mb-2">
-                    Configure Outbound App
-                  </h4>
-                  <p className="text-muted-foreground text-sm">
-                    Setup your chosen service (Google, Slack, CRM) in the
-                    Descope Console and configure OAuth settings
-                  </p>
-                </div>
-
-                <div className="flex flex-col p-6 border border-gray-100 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4 shrink-0">
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                      2
-                    </span>
-                  </div>
-                  <h4 className="font-semibold text-lg mb-2">
-                    Implement Connection UI
-                  </h4>
-                  <p className="text-muted-foreground text-sm">
-                    Add connection buttons that trigger OAuth flows when a user
-                    needs to connect to a service
-                  </p>
-                </div>
-
-                <div className="flex flex-col p-6 border border-gray-100 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4 shrink-0">
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                      3
-                    </span>
-                  </div>
-                  <h4 className="font-semibold text-lg mb-2">
-                    Fetch & Use Token
-                  </h4>
-                  <p className="text-muted-foreground text-sm">
-                    Use Descope SDK to securely obtain tokens for the connected
-                    services and make API calls
-                  </p>
                 </div>
               </div>
             </div>
@@ -570,15 +655,123 @@ async function accessGoogleCalendar(params) {
         </div>
       </div>
 
-      {/* CTA Section */}
+      {/* Adding Inbound Apps Section */}
+      <div className="py-16 md:py-20 bg-white dark:bg-gray-900">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col items-center text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent inline-block">
+              For the other side of things, become an OAuth Provider
+            </h2>
+            <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mt-2 mb-4"></div>
+            <p className="text-lg text-muted-foreground max-w-2xl">
+              Are you looking to become your own OAuth provider like Google,
+              HubSpot, or Zoom?
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-xl overflow-hidden shadow-md">
+            <div className="grid md:grid-cols-2 gap-0">
+              <div className="p-8 md:p-10 flex flex-col justify-center">
+                <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  Create Your Own Inbound Applications
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  If you're building a service that wants to offer OAuth
+                  connectivity like Google, HubSpot, Zoom and other major
+                  platforms, check out our dedicated solution.
+                </p>
+                <a
+                  href="https://10x-crm.app"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+                >
+                  Learn more at 10x-crm.app
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </a>
+              </div>
+              <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-8 md:p-10 text-white">
+                <h3 className="text-xl font-semibold mb-4">Key Benefits</h3>
+                <ul className="space-y-3">
+                  <li className="flex items-start">
+                    <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
+                      <svg
+                        className="h-3 w-3 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </span>
+                    <span>Become a provider in major ecosystems</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
+                      <svg
+                        className="h-3 w-3 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </span>
+                    <span>Secure token management and user permissions</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
+                      <svg
+                        className="h-3 w-3 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </span>
+                    <span>Full developer portal for your integrators</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="bg-white/20 p-1 rounded-full mr-3 mt-1">
+                      <svg
+                        className="h-3 w-3 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </span>
+                    <span>Customizable scopes and permissions</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="py-20 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-950/50 dark:to-purple-950/50">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-8 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
             Ready to Build Powerful Connected Experiences?
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-            Join lots of developers who are creating AI agents with secure
-            access to external tools and services.
+            Join all the developers who are creating AI agents with secure
+            access to external tools and services with Descope.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="https://descope.com/sign-up">
@@ -586,7 +779,7 @@ async function accessGoogleCalendar(params) {
                 size="lg"
                 className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-6 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 text-lg"
               >
-                Get Started Free
+                Sign Up for Descope
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
@@ -604,11 +797,13 @@ async function accessGoogleCalendar(params) {
             </div>
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-muted-foreground">Full API Access</span>
+              <span className="text-muted-foreground">Easy SDKs</span>
             </div>
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-muted-foreground">Technical Support</span>
+              <span className="text-muted-foreground">
+                AuthTown and Support Community
+              </span>
             </div>
           </div>
         </div>
