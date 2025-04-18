@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import React from "react";
 import AnimatedBeamComponent from "@/components/animated-beam";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LandingPage() {
   return (
@@ -26,6 +27,7 @@ export default function LandingPage() {
         </h1>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <a
             href="https://docs.descope.com/outbound-apps"
             target="_blank"

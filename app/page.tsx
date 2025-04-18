@@ -26,6 +26,7 @@ import PromptTrigger from "@/components/prompt-trigger";
 import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import { useTimezone } from "@/context/timezone-context";
+import TypingDots from "@/components/typing-dots";
 import {
   Send,
   HelpCircle,
@@ -47,6 +48,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarHistory } from "@/components/sidebar-history";
 import AnimatedBeamComponent from "@/components/animated-beam";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type PromptType =
   | "crm-lookup"
@@ -86,14 +88,6 @@ interface MeetingDetails {
   time: string;
   calendarEventId?: string;
   participants?: string[];
-}
-
-interface UIMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  parts: any[];
-  chatId?: string; // Add optional chatId property
 }
 
 const promptExplanations: Record<PromptType, PromptExplanation> = {
@@ -331,18 +325,71 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     context: {
       systemPrompt: `You are a helpful assistant guiding users through the process of creating custom tools for the CRM Assistant. 
       When users ask about adding custom tools, provide specific, actionable guidance based on the application's architecture.
-      Focus on:
-      1. Tool implementation using the base Tool class
-      2. Integration with Descope's OAuth system
-      3. Registration in the tool registry
-      4. UI component creation
-      5. Testing and deployment best practices
       
-      Always reference the existing codebase structure and provide concrete examples when possible.`,
+      The CRM Assistant has a flexible tool architecture:
+      
+      1. Tool Class Structure:
+         - Each tool is a class that extends the base Tool class (lib/base-tool.ts)
+         - Tools implement three required methods:
+           * config(): Defines name, description, and parameters schema
+           * validate(input): Validates input parameters
+           * execute(input): Contains the core functionality logic
+      
+      2. Implementation Steps:
+         - Create a new file in lib/tools/ directory with your tool class
+         - Register the tool in lib/tools/index.ts
+         - Update the APPROVED_TOOLS array in lib/ai/models.ts
+         - Add UI components in app/page.tsx (if needed)
+      
+      3. OAuth Integration:
+         - The app uses Descope for OAuth token management
+         - Tools can request tokens with specific scopes
+         - The getOAuthToken() function handles token retrieval
+         - Tools should gracefully handle authentication errors
+      
+      4. Example Tool Structure:
+      
+      import { Tool, ToolCallInput, ToolCallOutput } from "../base-tool";
+      
+      export class YourCustomTool extends Tool {
+        config() {
+          return {
+            name: "your_tool_name",
+            description: "Description of what your tool does",
+            parameters: {
+              type: "object",
+              properties: {
+                param1: { type: "string", description: "Parameter description" }
+              },
+              required: ["param1"]
+            }
+          };
+        }
+        
+        validate(input: ToolCallInput): boolean {
+          return Boolean(input.parameters.param1);
+        }
+        
+        async execute(input: ToolCallInput): Promise<ToolCallOutput> {
+          try {
+            // Implement your tool functionality here
+            const result = await yourApiCall(input.parameters.param1);
+            return { content: JSON.stringify(result) };
+          } catch (error) {
+            return { error: "Error: " + error.message };
+          }
+        }
+      }
+      
+      For more detailed examples, refer users to the documentation in app/docs/custom-tools.md
+      and the example implementation in app/docs/example-tool.ts.
+      
+      Always provide concrete, actionable guidance with specific file paths and code examples.`,
       followUpQuestions: [
         "What specific functionality would you like to add to the CRM Assistant?",
         "Do you have an existing API that you want to integrate?",
         "Would you like to see an example of a custom tool implementation?",
+        "Are you integrating with a service that requires OAuth authentication?",
       ],
     },
   },
@@ -441,6 +488,9 @@ export default function Home() {
   });
   const [lastScheduledMeeting, setLastScheduledMeeting] =
     useState<LastScheduledMeeting | null>(null);
+  const [meetingDetails, setMeetingDetails] = useState<MeetingDetails | null>(
+    null
+  );
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [currentPromptType, setCurrentPromptType] =
     useState<PromptType>("slack");
@@ -619,7 +669,9 @@ export default function Home() {
             id: msg.id,
             role: msg.role,
             content: extractMessageContent(msg),
-            parts: Array.isArray(msg.parts) ? msg.parts : [],
+            parts: Array.isArray(msg.parts)
+              ? msg.parts.filter((p: any) => p.type !== "step-start")
+              : [],
             chatId: currentChatId, // Add chatId to track message ownership
           }));
 
@@ -665,31 +717,45 @@ export default function Home() {
 
     // Check if parts exists and is an array
     if (!msg.parts || !Array.isArray(msg.parts) || msg.parts.length === 0) {
-      return "";
+      return "__TYPING_DOTS__";
     }
 
-    const firstPart = msg.parts[0];
+    // Only consider text parts and ignore tool invocations, reasoning, etc.
+    const textParts = msg.parts.filter((part: any) => {
+      if (typeof part === "string") return true;
+
+      if (typeof part === "object" && part !== null) {
+        // Keep only text type parts or parts with text property
+        if (part.type === "text") return true;
+        if (part.text && typeof part.text === "string") return true;
+      }
+
+      return false;
+    });
+
+    // If we have no text parts, return empty string
+    if (textParts.length === 0) return "__TYPING_DOTS__";
+
+    // Use the first text part
+    const firstTextPart = textParts[0];
 
     // Handle different message part formats
-    if (typeof firstPart === "string") {
-      return firstPart;
-    } else if (typeof firstPart === "object" && firstPart !== null) {
+    if (typeof firstTextPart === "string") {
+      return firstTextPart;
+    } else if (typeof firstTextPart === "object" && firstTextPart !== null) {
       // Object with text property
-      if ("text" in firstPart && firstPart.text) {
-        return String(firstPart.text);
+      if ("text" in firstTextPart && firstTextPart.text) {
+        return String(firstTextPart.text);
       }
 
       // Object with content property
-      if ("content" in firstPart && firstPart.content) {
-        return String(firstPart.content);
+      if ("content" in firstTextPart && firstTextPart.content) {
+        return String(firstTextPart.content);
       }
-
-      // Try to convert the entire object to string as last resort
-      return JSON.stringify(firstPart);
     }
 
-    // Fallback
-    return "";
+    // Fallback - empty string
+    return "__TYPING_DOTS__";
   };
 
   const scrollToBottom = () => {
@@ -1123,6 +1189,7 @@ export default function Home() {
         // Case 1: If msg.parts exists and is an array
         if (msg.parts && Array.isArray(msg.parts) && msg.parts.length > 0) {
           processedParts = msg.parts
+            .filter((part) => part.type !== "step-start")
             .map((part) => {
               // If part is a string, convert it to the right format
               if (typeof part === "string") {
@@ -1366,8 +1433,6 @@ export default function Home() {
     }
   }, [messages.length, isChatLoading]);
 
-  const [isScrolling, setIsScrolling] = useState(false);
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1390,6 +1455,7 @@ export default function Home() {
           </Link>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Button
               size="sm"
               className="rounded-full gap-2"
@@ -1534,6 +1600,7 @@ export default function Home() {
                 </div>
               )} */}
 
+              <ThemeToggle />
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1678,18 +1745,24 @@ export default function Home() {
                               message.content.length > 0
                                 ? message.content
                                 : extractMessageContent(message),
-                            parts: message.parts
-                              ?.filter((part) => {
-                                if (
-                                  typeof part === "object" &&
-                                  "type" in part
-                                ) {
-                                  return part.type !== "step-start";
-                                }
-                                return true;
-                              })
-                              .map((part) => {})
-                              .filter(Boolean) as any,
+                            parts: message.parts?.filter((part) => {
+                              // Filter out technical parts that shouldn't be displayed directly
+                              if (
+                                typeof part === "object" &&
+                                part !== null &&
+                                "type" in part
+                              ) {
+                                // Skip step-start, step-end, reasoning, and tool-invocation parts
+                                return ![
+                                  "step-start",
+                                  "step-end",
+                                  "reasoning",
+                                  "tool-invocation",
+                                ].includes(part.type);
+                              }
+                              // Keep text parts and other content
+                              return true;
+                            }) as any,
                           }}
                           onReconnectComplete={handleReconnectComplete}
                         />

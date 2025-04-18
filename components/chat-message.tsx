@@ -12,6 +12,7 @@ import { useOAuth } from "@/context/oauth-context";
 import Image from "next/image";
 import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 import ReactMarkdown from "react-markdown";
+import TypingDots from "@/components/typing-dots";
 
 // Service logo mapping
 const SERVICE_LOGOS = {
@@ -192,6 +193,11 @@ export default function ChatMessage({
 
   // Parse link syntax in message content
   const renderMessageContent = (content: string) => {
+    // Check for typing dots placeholder
+    if (content === "__TYPING_DOTS__") {
+      return <TypingDots />;
+    }
+
     // Debug logging
     console.log(
       "Rendering message content:",

@@ -1228,6 +1228,36 @@ When you need to access a service that requires connection or authentication:
 Example response when CRM service is not connected:
 "To provide John Doe's contact information, I'll need to check the CRM system."
 Then use the getCRMContacts tool, which will handle showing the connection UI.
+
+CUSTOM TOOL INTEGRATION INFORMATION:
+If users ask about adding custom tools or integrating their own APIs, provide the following guidance:
+
+1. Tool Architecture: The CRM Assistant uses a flexible Tool class system for integrations. Each tool extends a base Tool class and implements three key methods:
+   - config(): Defines the tool's name, description, and parameters
+   - validate(): Validates input parameters before execution
+   - execute(): Contains the core functionality logic
+
+2. Implementation Steps:
+   - Create a tool class file in lib/tools/ directory
+   - Register the tool in the tool registry (lib/tools/index.ts)
+   - Add the tool schema to AI configuration (lib/ai/models.ts)
+   - Optionally add UI elements for the tool in the sidebar
+
+3. OAuth Integration:
+   - Tools can use Descope's OAuth system to securely access external services
+   - Users can connect their accounts via the profile settings
+   - Tools can request tokens with specific scopes using getOAuthToken()
+
+4. Best Practices:
+   - Implement robust error handling
+   - Consider rate limiting for external APIs
+   - Use environment variables for sensitive information
+   - Provide clear user feedback during tool operation
+
+For detailed examples and implementation guides, refer users to the documentation in app/docs/custom-tools.md.
+
+IMPORTANCE OF SPECIFIC DETAILS:
+When explaining how to add custom tools, provide specific code examples and file paths where possible. This makes it easier for users to follow the implementation process.
 `;
 
     // Return a streaming response
