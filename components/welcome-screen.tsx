@@ -30,7 +30,6 @@ export default function WelcomeScreen() {
 
       <LogoConnections />
 
-      {/* Add footer with Descope attribution and links */}
       <div className="mt-12 border-t border-primary/10 pt-6 w-full max-w-md">
         <p className="text-xs text-muted-foreground mb-2">
           Powered by Descope AI
@@ -54,6 +53,11 @@ export default function WelcomeScreen() {
             Terms of Service
           </a>
         </div>
+        <p className="text-xs text-muted-foreground mt-4 text-center w-full max-w-[280px] mx-auto px-1 pt-3 border-t border-gray-100 dark:border-gray-800">
+          In addition to our Privacy Policy, it's important to note that Google
+          Workspace APIs are not used to develop, improve, or train generalized
+          AI and/or ML models.
+        </p>
       </div>
     </div>
   );

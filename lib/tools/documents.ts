@@ -169,7 +169,7 @@ export async function createDocument(
       } else if (error.message.includes("Docs")) {
         // This adds clarity about which scope is missing
         throw new Error(
-          `${error.message} - You may need Google Docs access (https://www.googleapis.com/auth/documents scope)`
+          `${error.message} - You may need Google Docs access (https://www.googleapis.com/auth/drive.file scope)`
         );
       }
     }
@@ -379,9 +379,7 @@ class DocumentsTool extends Tool<DocumentContent> {
         ...new Set([
           ...driveScopes,
           ...docsScopes,
-          "https://www.googleapis.com/auth/drive", // Ensure we have the drive scope
-          "https://www.googleapis.com/auth/drive.file", // For file-specific access
-          "https://www.googleapis.com/auth/documents", // Ensure we have the docs scope
+          "https://www.googleapis.com/auth/drive.file",
         ]),
       ];
 
@@ -527,7 +525,7 @@ class DocumentsTool extends Tool<DocumentContent> {
 
       if (isAuthError) {
         // Get required scopes based on the specific error
-        let scopes: string[] = ["https://www.googleapis.com/auth/documents"];
+        let scopes: string[] = ["https://www.googleapis.com/auth/drive.file"];
         let serviceDisplayName = "Google Docs";
 
         // If it's specifically a Drive error, make sure we include Drive scopes

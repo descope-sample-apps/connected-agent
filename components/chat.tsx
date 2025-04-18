@@ -605,11 +605,7 @@ export default function Chat({
         "Google Docs & Drive access is required to create and save documents.",
       alternativeMessage:
         "This will allow the assistant to create and edit documents and store them on your Google Drive.",
-      requiredScopes: [
-        "https://www.googleapis.com/auth/documents",
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/drive.file",
-      ],
+      requiredScopes: ["https://www.googleapis.com/auth/drive.file"],
     };
   };
 
@@ -693,7 +689,7 @@ export default function Chat({
 
         return (
           <InChatConnectionPrompt
-            service="Google Docs & Drive"
+            service="Google Drive"
             message={messageText}
             connectButtonText={connectButtonText}
             connectButtonAction={connectButtonAction}
@@ -704,7 +700,7 @@ export default function Chat({
           />
         );
       } else {
-        requiredScopes.push("https://www.googleapis.com/auth/documents");
+        requiredScopes.push("https://www.googleapis.com/auth/drive.file");
       }
     } else if (service === "google-calendar") {
       requiredScopes.push("https://www.googleapis.com/auth/calendar");
@@ -810,11 +806,7 @@ export default function Chat({
                 },
                 alternativeMessage:
                   "This will allow the assistant to create and manage documents on your behalf.",
-                requiredScopes: [
-                  "https://www.googleapis.com/auth/documents",
-                  "https://www.googleapis.com/auth/drive",
-                  "https://www.googleapis.com/auth/drive.file",
-                ],
+                requiredScopes: ["https://www.googleapis.com/auth/drive.file"],
               },
             };
           }
@@ -854,7 +846,7 @@ export default function Chat({
                   "This will allow the assistant to access the necessary data.",
                 requiredScopes:
                   service === "google-docs"
-                    ? ["https://www.googleapis.com/auth/documents"]
+                    ? ["https://www.googleapis.com/auth/drive.file"]
                     : [],
               },
             };
@@ -901,6 +893,8 @@ export default function Chat({
               message.content.toLowerCase().includes("google docs") ||
               message.content.toLowerCase().includes("documents") ||
               message.content.toLowerCase().includes("drive") ||
+              message.content.toLowerCase().includes("slack") ||
+              message.content.toLowerCase().includes("meet") ||
               message.content.toLowerCase().includes("google meet"))) ||
             message.content.includes("](connection:") ||
             message.content.includes("connection_required") ||
@@ -1321,16 +1315,10 @@ export default function Chat({
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-            <h2 className="text-2xl font-bold mb-2">
-              Start a new conversation
-            </h2>
-            <p className="text-muted-foreground text-center max-w-md mb-8">
-              Ask me anything about your CRM data, calendar, or business needs.
-            </p>
-            <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/40">
+            <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-full flex items-center justify-center mb-6 border border-indigo-100 dark:border-indigo-900/40 shadow-md">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-indigo-500"
+                className="h-10 w-10 text-indigo-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -1342,6 +1330,207 @@ export default function Chat({
                   d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                 />
               </svg>
+            </div>
+
+            {/* Hero Section */}
+            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+              CRM Assistant
+            </h1>
+            <p className="text-muted-foreground text-center max-w-md mb-8 text-lg">
+              Your AI-powered assistant for managing CRM data, calendar, and
+              business tasks.
+            </p>
+
+            {/* Features Section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-10">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-2">
+                  Natural Conversations
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  Ask questions in plain English about your CRM data, schedule
+                  meetings, or manage tasks.
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-2">
+                  Integrated Services
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  Connect your CRM, Google Calendar, Google Meet, and other
+                  tools to work seamlessly.
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+                <div className="rounded-full w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Secure Access</h3>
+                <p className="text-muted-foreground text-sm">
+                  OAuth integration keeps your data secure while enabling
+                  powerful AI assistance.
+                </p>
+              </div>
+            </div>
+
+            {/* How It Works Section */}
+            <div className="w-full max-w-4xl mb-10 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 p-8 rounded-xl border border-indigo-100 dark:border-indigo-900/40">
+              <h2 className="text-2xl font-bold mb-4 text-center">
+                How It Works
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                <div className="flex flex-col items-center">
+                  <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                    <span className="text-xl font-bold text-indigo-600">1</span>
+                  </div>
+                  <h3 className="font-medium text-center mb-2">
+                    Connect Your Services
+                  </h3>
+                  <p className="text-sm text-center text-muted-foreground">
+                    Securely connect your CRM, calendar, and other services with
+                    OAuth.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                    <span className="text-xl font-bold text-indigo-600">2</span>
+                  </div>
+                  <h3 className="font-medium text-center mb-2">
+                    Ask Questions
+                  </h3>
+                  <p className="text-sm text-center text-muted-foreground">
+                    Ask anything about your data, schedule meetings, or create
+                    reports.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <div className="rounded-full w-12 h-12 bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center mb-4 shadow-sm">
+                    <span className="text-xl font-bold text-indigo-600">3</span>
+                  </div>
+                  <h3 className="font-medium text-center mb-2">Get Results</h3>
+                  <p className="text-sm text-center text-muted-foreground">
+                    Receive instant answers and actions based on your connected
+                    data.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-center mt-6">
+                <a
+                  href="/how-it-works"
+                  className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg shadow-sm text-sm text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-100 dark:border-indigo-800 transition-colors"
+                >
+                  Learn more about Inbound Apps
+                </a>
+              </div>
+            </div>
+
+            {/* Example Queries Section */}
+            <div className="w-full max-w-4xl mb-10">
+              <h2 className="text-2xl font-bold mb-4 text-center">
+                Try asking about...
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                    Show me recent deals with Acme Inc
+                  </span>
+                </button>
+
+                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                    Schedule a meeting with Sarah tomorrow at 2pm
+                  </span>
+                </button>
+
+                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                    Create a report of this month's sales
+                  </span>
+                </button>
+
+                <button className="p-3 text-left bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm transition-colors">
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                    Find contacts who haven't been reached in 30 days
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Documentation and Resources */}
+            <div className="w-full max-w-4xl text-center pb-6">
+              <h2 className="text-lg font-medium mb-3">Resources</h2>
+              <div className="flex justify-center space-x-4 text-sm">
+                <a
+                  href="/docs"
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Documentation
+                </a>
+                <a
+                  href="/privacy"
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Privacy Policy
+                </a>
+                <a
+                  href="/support"
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Support
+                </a>
+              </div>
             </div>
           </div>
         )}

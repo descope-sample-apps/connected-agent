@@ -66,13 +66,9 @@ export async function getRequiredScopes(
       connect: ["https://www.googleapis.com/auth/calendar"],
     },
     "google-docs": {
-      "documents.get": ["https://www.googleapis.com/auth/documents"],
-      "documents.create": [
-        "https://www.googleapis.com/auth/documents",
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/drive.file",
-      ],
-      connect: ["https://www.googleapis.com/auth/documents"],
+      "documents.get": ["https://www.googleapis.com/auth/drive.file"],
+      "documents.create": ["https://www.googleapis.com/auth/drive.file"],
+      connect: ["https://www.googleapis.com/auth/drive.file"],
     },
     "google-meet": {
       "meetings.space": [

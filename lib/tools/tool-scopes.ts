@@ -23,7 +23,7 @@ export const TOOL_SCOPES: Record<string, ToolScope> = {
   },
   "google-docs": {
     toolId: "google-docs",
-    scopes: ["https://www.googleapis.com/auth/documents"],
+    scopes: ["https://www.googleapis.com/auth/drive.file"],
     description: "Access to create and manage Google Docs",
   },
   crm: {
