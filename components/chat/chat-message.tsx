@@ -132,7 +132,7 @@ const parseMessageForConnections = (content: string): ToolResult | null => {
         type: "connection_required",
         service: "google-docs",
         message: "Please connect your Google Docs account to create documents.",
-        requiredScopes: ["https://www.googleapis.com/auth/documents"],
+        requiredScopes: ["https://www.googleapis.com/auth/drive.file"],
         connectButton: {
           text: "Connect Google Docs",
           action: "connection://google-docs",

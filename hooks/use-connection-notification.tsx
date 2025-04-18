@@ -13,7 +13,7 @@ const providers = {
     id: "google-docs",
     name: "Google Docs",
     icon: "/logos/google-docs.png",
-    scopes: ["https://www.googleapis.com/auth/documents"],
+    scopes: ["https://www.googleapis.com/auth/drive.file"],
     keywords: [
       "document",
       "google doc",

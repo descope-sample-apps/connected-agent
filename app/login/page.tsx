@@ -154,6 +154,11 @@ export default function LoginPage() {
               Terms of Service
             </a>
           </div>
+          <p className="text-xs text-muted-foreground mt-4 text-center w-full max-w-[280px] mx-auto px-1 pt-3 border-t border-gray-100 dark:border-gray-800">
+            In addition to our Privacy Policy, it's important to note that
+            Google Workspace APIs are not used to develop, improve, or train
+            generalized AI and/or ML models.
+          </p>
         </CardFooter>
       </Card>
     </div>
