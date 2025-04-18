@@ -22,7 +22,7 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 224 76% 58%;
+    --accent: 230 25% 90%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
@@ -54,7 +54,7 @@
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 217.2 70% 55%;
+    --accent: 217.2 25% 25%;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 0 62.8% 30.6%;
@@ -226,6 +226,15 @@
   .animate-slideIn {
     animation: none;
   }
+}
+
+/* Custom utility classes for buttons */
+.btn-gradient {
+  @apply bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-500/90 hover:to-purple-600/90 text-white transition-all;
+}
+
+.btn-gradient-subtle {
+  @apply bg-gradient-to-r from-indigo-400 to-purple-500 hover:from-indigo-400/90 hover:to-purple-500/90 text-white transition-all;
 }
 
 /* Add animations for connection diagram */

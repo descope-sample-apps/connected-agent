@@ -1187,7 +1187,7 @@ export default function Chat({
                     }
                   }
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg shadow-sm transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-500/90 hover:to-purple-600/90 text-white rounded-lg shadow-sm transition-colors"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -1568,7 +1568,7 @@ export default function Chat({
             <Button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-500/90 hover:to-purple-600/90 text-white"
             >
               <Send className="h-4 w-4" />
             </Button>

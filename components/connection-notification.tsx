@@ -243,7 +243,7 @@ export function ConnectionNotification({
           </Button>
           <Button
             onClick={handleConnect}
-            className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-sm"
+            className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-500/90 hover:to-purple-600/90 text-white shadow-sm"
           >
             Connect
           </Button>

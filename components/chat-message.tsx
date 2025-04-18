@@ -302,7 +302,7 @@ export default function ChatMessage({
                 connectionUI.connectButton.action
               )
             }
-            className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-sm shadow-sm transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-500/90 hover:to-purple-600/90 text-white rounded-lg text-sm shadow-sm transition-colors"
           >
             {connectionUI.connectButton.text || "Connect"}
           </button>
