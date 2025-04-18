@@ -27,20 +27,12 @@ import DealSummaryPrompt from "@/components/deal-summary-prompt";
 import { useAuth } from "@/context/auth-context";
 import { useTimezone } from "@/context/timezone-context";
 import {
-  Calendar,
-  FileText,
-  Video,
   Send,
-  Settings,
   HelpCircle,
   PanelRightClose,
   PanelRightOpen,
-  Save,
-  Share2,
-  MessageSquare,
   ExternalLink,
   Sparkles,
-  ArrowRight,
 } from "lucide-react";
 import SaveChatDialog from "@/components/save-chat-dialog";
 import { toast } from "@/components/ui/use-toast";
@@ -53,6 +45,7 @@ import Image from "next/image";
 import { nanoid } from "nanoid";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarHistory } from "@/components/sidebar-history";
+import AnimatedBeamComponent from "@/components/animated-beam";
 
 type PromptType =
   | "crm-lookup"
@@ -382,8 +375,6 @@ interface ChatMessageProps {
   onReconnectComplete: () => void;
 }
 
-const connectionMarkerRegex = /<connection:(.*?)>/;
-
 // Create a separate component that uses useSearchParams
 function ChatParamsHandler({
   isAuthenticated,
@@ -489,7 +480,6 @@ export default function Home() {
   const [showGoogleMeetPrompt, setShowGoogleMeetPrompt] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const promptExplanationRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [isHandlingChatChange, setIsHandlingChatChange] = useState(false);
@@ -597,6 +587,10 @@ export default function Home() {
 
   // Load chat messages when currentChatId changes
   useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/overview");
+    }
+
     const fetchChatMessages = async () => {
       if (!currentChatId || !isAuthenticated) return;
 

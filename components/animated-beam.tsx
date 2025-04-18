@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { forwardRef, useRef } from "react";
+import Image from "next/image";
 
 import { cn } from "@/lib/utils";
 import { AnimatedBeam } from "@/components/magicui/beam";
@@ -37,7 +38,7 @@ export default function AnimatedBeamComponent() {
 
   return (
     <div
-      className="relative flex h-[500px] w-full items-center justify-center overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-10 shadow-md"
+      className="relative flex h-[500px] w-full items-center justify-center overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800 bg-transparent dark:bg-transparent p-10"
       ref={containerRef}
     >
       <div className="flex size-full max-h-[200px] max-w-lg flex-col items-stretch justify-between gap-10">
@@ -55,9 +56,16 @@ export default function AnimatedBeamComponent() {
           </Circle>
           <Circle
             ref={div4Ref}
-            className="size-20 bg-gradient-to-r from-indigo-500 to-purple-600"
+            className="size-24 bg-black dark:bg-black border-2 border-indigo-500 dark:border-indigo-500 shadow-[0_0_25px_rgba(99,102,241,0.5)]"
           >
-            <DescopeLogo />
+            <div className="relative w-16 h-16">
+              <Image
+                src="/logos/descope-logo.png"
+                alt="Descope Logo"
+                fill
+                className="object-contain brightness-110"
+              />
+            </div>
           </Circle>
           <Circle ref={div6Ref}>
             <Icons.zapier />
@@ -75,56 +83,53 @@ export default function AnimatedBeamComponent() {
 
       <AnimatedBeam
         containerRef={containerRef}
-        fromRef={div1Ref}
-        toRef={div4Ref}
+        fromRef={div4Ref}
+        toRef={div1Ref}
         curvature={-75}
         endYOffset={-10}
-        gradientStartColor="#6366f1"
+        gradientStartColor="#4f46e5"
         gradientStopColor="#9333ea"
       />
       <AnimatedBeam
         containerRef={containerRef}
-        fromRef={div2Ref}
-        toRef={div4Ref}
-        gradientStartColor="#6366f1"
+        fromRef={div4Ref}
+        toRef={div2Ref}
+        gradientStartColor="#4f46e5"
         gradientStopColor="#9333ea"
       />
       <AnimatedBeam
         containerRef={containerRef}
-        fromRef={div3Ref}
-        toRef={div4Ref}
+        fromRef={div4Ref}
+        toRef={div3Ref}
         curvature={75}
         endYOffset={10}
-        gradientStartColor="#6366f1"
+        gradientStartColor="#4f46e5"
         gradientStopColor="#9333ea"
       />
       <AnimatedBeam
         containerRef={containerRef}
-        fromRef={div5Ref}
-        toRef={div4Ref}
+        fromRef={div4Ref}
+        toRef={div5Ref}
         curvature={-75}
         endYOffset={-10}
-        reverse
-        gradientStartColor="#9333ea"
-        gradientStopColor="#6366f1"
+        gradientStartColor="#4f46e5"
+        gradientStopColor="#9333ea"
       />
       <AnimatedBeam
         containerRef={containerRef}
-        fromRef={div6Ref}
-        toRef={div4Ref}
-        reverse
-        gradientStartColor="#9333ea"
-        gradientStopColor="#6366f1"
+        fromRef={div4Ref}
+        toRef={div6Ref}
+        gradientStartColor="#4f46e5"
+        gradientStopColor="#9333ea"
       />
       <AnimatedBeam
         containerRef={containerRef}
-        fromRef={div7Ref}
-        toRef={div4Ref}
+        fromRef={div4Ref}
+        toRef={div7Ref}
         curvature={75}
         endYOffset={10}
-        reverse
-        gradientStartColor="#9333ea"
-        gradientStopColor="#6366f1"
+        gradientStartColor="#4f46e5"
+        gradientStopColor="#9333ea"
       />
     </div>
   );
@@ -515,7 +520,7 @@ const Icons = {
         d="M44,23.5C44,34.27,35.05,43,24,43c-1.651,0-3.25-0.194-4.784-0.564	c-0.465-0.112-0.951-0.069-1.379,0.145L13.46,44.77C12.33,45.335,11,44.513,11,43.249v-4.025c0-0.575-0.257-1.111-0.681-1.499	C6.425,34.165,4,29.11,4,23.5C4,12.73,12.95,4,24,4S44,12.73,44,23.5z"
       />
       <path
-        d="M34.992,17.292c-0.428,0-0.843,0.142-1.2,0.411l-5.694,4.215	c-0.133,0.1-0.28,0.15-0.435,0.15c-0.15,0-0.291-0.047-0.41-0.136l-3.972-2.99c-0.808-0.601-1.76-0.918-2.757-0.918	c-1.576,0-3.025,0.791-3.876,2.116l-1.211,1.891l-4.12,6.695c-0.392,0.614-0.422,1.372-0.071,2.014	c0.358,0.654,1.034,1.06,1.764,1.06c0.428,0,0.843-0.142,1.2-0.411l5.694-4.215c0.133-0.1,0.28-0.15,0.435-0.15	c0.15,0,0.291,0.047,0.41,0.136l3.972,2.99c0.809,0.602,1.76,0.918,2.757,0.918c1.576,0,3.025-0.791,3.876-2.116l1.211-1.891	l4.12-6.695c0.392-0.614,0.422-1.372,0.071-2.014C36.398,17.698,35.722,17.292,34.992,17.292L34.992,17.292z"
+        d="M34.992,17.292c-0.428,0-0.843,0.142-1.2,0.411l-5.694,4.215	c-0.133,0-0.28,0.15-0.435,0.15c-0.15,0-0.291-0.047-0.41-0.136l-3.972-2.99c-0.808-0.601-1.76-0.918-2.757-0.918	c-1.576,0-3.025,0.791-3.876,2.116l-1.211,1.891l-4.12,6.695c-0.392,0.614-0.422,1.372-0.071,2.014	c0.358,0.654,1.034,1.06,1.764,1.06c0.428,0,0.843-0.142,1.2-0.411l5.694-4.215c0.133-0.1,0.28-0.15,0.435-0.15	c0.15,0,0.291,0.047,0.41,0.136l3.972,2.99c0.809,0.602,1.76,0.918,2.757,0.918c1.576,0,3.025-0.791,3.876-2.116l1.211-1.891	l4.12-6.695c0.392-0.614,0.422-1.372,0.071-2.014C36.398,17.698,35.722,17.292,34.992,17.292L34.992,17.292z"
         opacity=".05"
       />
       <path

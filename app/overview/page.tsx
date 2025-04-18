@@ -664,12 +664,13 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col items-center text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent inline-block">
-              Let's Flip the Script... want to become an OAuth Provider instead?
+              What if I want these tools to connect to my APIs?
             </h2>
             <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mt-2 mb-4"></div>
             <p className="text-lg text-muted-foreground max-w-2xl">
               Transform your application into a OAuth provider that other
-              platforms can seamlessly integrate with.
+              platforms can seamlessly integrate with, with Descope Inbound
+              Apps.
             </p>
           </div>
 
@@ -677,10 +678,10 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-2 gap-0">
               <div className="p-8 md:p-10 flex flex-col justify-center">
                 <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  Expand Your Platform's Capabilities
+                  Descope Inbound Apps
                 </h3>
                 <p className="text-muted-foreground mb-6">
-                  Elevate your application by becoming a service provider that
+                  Inbound Apps help your apps become a service provider that
                   others can connect to. Create secure integration points that
                   allow third-party applications to leverage your platform's
                   functionality through standardized OAuth protocols.
