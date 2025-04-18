@@ -293,28 +293,7 @@ export default function ProfileScreen({
 
   const fetchConnections = async () => {
     try {
-      // FIRST: Update the UI based on localStorage status
-      // This provides an immediate response from localStorage
-      const localConnectionStatuses = getAllConnectionStatuses();
-
-      console.log(
-        "Local connection statuses from localStorage:",
-        localConnectionStatuses
-      );
-
-      // Immediately update UI based on localStorage values
-      setOauthProviders((providers) =>
-        providers.map((provider) => ({
-          ...provider,
-          connected:
-            localConnectionStatuses[provider.id as ConnectionProvider] || false,
-        }))
-      );
-
-      // SECOND: Still make the API call to verify server-side status
-      // But this won't block the UI update
-      const timestamp = new Date().getTime();
-      const response = await fetch(`/api/oauth/connections?_=${timestamp}`, {
+      const response = await fetch(`/api/oauth/connections`, {
         headers: {
           "Cache-Control": "no-cache, no-store, must-revalidate",
           Pragma: "no-cache",
@@ -345,31 +324,6 @@ export default function ProfileScreen({
       setOauthProviders((providers) =>
         providers.map((provider) => {
           const connectionData = data.connections[provider.id];
-          const locallyConnected =
-            localConnectionStatuses[provider.id as ConnectionProvider] || false;
-
-          // If no connection data from API, use localStorage value
-          if (!connectionData) {
-            return { ...provider, connected: locallyConnected };
-          }
-
-          // If there's an error from API, still use localStorage value
-          if (typeof connectionData === "object" && "error" in connectionData) {
-            console.error(
-              `Connection error for ${provider.id}:`,
-              connectionData.error
-            );
-            return { ...provider, connected: locallyConnected };
-          }
-
-          // If API reports different status than localStorage, use API status but also update localStorage
-          if (connectionData.connected !== locallyConnected) {
-            // Update localStorage to match server status
-            setConnected(
-              provider.id as ConnectionProvider,
-              connectionData.connected === true
-            );
-          }
 
           // Return object with complete data
           if (connectionData.token) {
