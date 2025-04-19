@@ -70,6 +70,26 @@ const providers = {
       "team chat",
     ],
   },
+  "microsoft-teams": {
+    id: "microsoft-teams",
+    name: "Microsoft Teams",
+    icon: "/logos/microsoft-teams-logo.png",
+    scopes: [
+      "ChannelMember.ReadWrite.All",
+      "ChannelMessage.Send",
+      "Chat.ReadWrite.All",
+      "ChatMessage.Send",
+      "offline_access",
+    ],
+    keywords: [
+      "teams",
+      "microsoft teams",
+      "teams meeting",
+      "video conference",
+      "teams call",
+      "online meeting",
+    ],
+  },
 };
 
 type ProviderKey = keyof typeof providers;

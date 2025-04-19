@@ -67,6 +67,13 @@ export const DEFAULT_SCOPES: Record<string, string[]> = {
   ],
   "custom-crm": ["openid", "contacts:read", "deals:read"],
   slack: ["chat:write", "channels:manage", "users:read"],
+  "microsoft-teams": [
+    "ChannelMember.ReadWrite.All",
+    "ChannelMessage.Send",
+    "Chat.ReadWrite.All",
+    "ChatMessage.Send",
+    "offline_access",
+  ],
 };
 
 export async function getOAuthTokenWithScopeValidation(

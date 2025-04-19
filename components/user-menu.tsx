@@ -70,6 +70,12 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
       icon: "/logos/slack-logo.svg",
       connected: false,
     },
+    {
+      id: "microsoft-teams",
+      name: "Microsoft Teams",
+      icon: "/logos/microsoft-teams-logo.png",
+      connected: false,
+    },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);

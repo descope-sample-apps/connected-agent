@@ -84,6 +84,12 @@ export default function ConnectionsPage() {
       icon: "/logos/slack-logo.svg",
       connected: false,
     },
+    {
+      id: "microsoft-teams",
+      name: "Microsoft Teams",
+      icon: "/logos/microsoft-teams-logo.png",
+      connected: false,
+    },
   ]);
 
   // Function to fetch connections

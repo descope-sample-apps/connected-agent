@@ -55,6 +55,7 @@ type PromptType =
   | "slack"
   | "summarize-deal"
   | "create-google-meet"
+  | "microsoft-teams"
   | "add-custom-tool";
 
 interface PromptExplanation {
@@ -276,6 +277,46 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       },
     ],
     apis: ["Google Calendar API"],
+  },
+  "microsoft-teams": {
+    title: "Microsoft Teams Chat",
+    description:
+      "Create Teams chat groups and send messages to collaborate with your team",
+    logo: "/logos/microsoft-teams-logo.png",
+    examples: [
+      "Create a Teams chat with Sarah and Tom about the sales proposal",
+      "Start a Microsoft Teams discussion with the marketing team",
+      "Set up a Teams chat group for the product launch team",
+      "Create a Teams chat to discuss the client meeting tomorrow",
+    ],
+    steps: [
+      {
+        title: "User Requests Teams Chat Creation",
+        description:
+          "The user asks to create a Microsoft Teams chat group with specific participants.",
+      },
+      {
+        title: "Authentication Check",
+        description:
+          "The assistant verifies the user is authenticated and has connected Microsoft Teams via OAuth.",
+      },
+      {
+        title: "Teams API Access",
+        description:
+          "Using the stored OAuth token from Descope, the assistant makes a secure API call to Microsoft Graph API.",
+      },
+      {
+        title: "Chat Group Creation",
+        description:
+          "A new Teams chat group is created with the specified participants.",
+      },
+      {
+        title: "Initial Message Sending",
+        description:
+          "The assistant sends an initial message to the chat group with the specified details or meeting information.",
+      },
+    ],
+    apis: ["Microsoft Graph API"],
   },
   "add-custom-tool": {
     title: "Add Your Own Tool",
@@ -1050,6 +1091,19 @@ export default function Home() {
           usePredefinedPrompt(
             "Send a message to the #sales channel about the new deal",
             "slack"
+          )
+        ),
+    },
+    {
+      id: "microsoft-teams",
+      title: "Microsoft Teams Chat",
+      description: "Create Teams chat groups with your colleagues",
+      logo: "/logos/microsoft-teams-logo.png",
+      action: () =>
+        checkOAuthAndPrompt(() =>
+          usePredefinedPrompt(
+            "Create a Teams chat with Sarah and Tom about the Q4 strategy",
+            "microsoft-teams"
           )
         ),
     },

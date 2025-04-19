@@ -300,3 +300,13 @@ export async function getSlackToken(
     withRefreshToken: false,
   });
 }
+
+// Add Microsoft Teams token function
+export async function getMicrosoftTeamsToken(
+  userId: string,
+  operation: string = "check_connection"
+) {
+  return getOAuthToken(userId, "microsoft-teams", operation, {
+    withRefreshToken: false,
+  });
+}

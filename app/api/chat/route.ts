@@ -279,6 +279,7 @@ export async function POST(request: Request) {
     const crmContactsTool = toolRegistry.getTool("crm-contacts");
     const googleMeetTool = toolRegistry.getTool("google-meet");
     const slackTool = toolRegistry.getTool("slack");
+    const teamsChatTool = toolRegistry.getTool("microsoft-teams");
 
     // Define the tools object
     const toolsObject: any = {
@@ -903,6 +904,90 @@ export async function POST(request: Request) {
                   : "Unknown error sending Slack message",
               message:
                 "There was an error sending your Slack message. Please try again later.",
+            };
+          }
+        },
+      },
+      // Add Microsoft Teams meeting tool
+      createTeamsChat: {
+        description:
+          "Create a Microsoft Teams chat group and send an initial message",
+        parameters: z.object({
+          title: z.string().describe("Chat group title"),
+          description: z.string().describe("Initial message content"),
+          startTime: z
+            .string()
+            .describe(
+              "Time reference in ISO format (if scheduling discussion)"
+            ),
+          duration: z
+            .number()
+            .describe("Duration in minutes (if scheduling discussion)"),
+          attendees: z
+            .array(z.string())
+            .describe(
+              "List of attendee email addresses to include in the chat"
+            ),
+          timeZone: z
+            .string()
+            .optional()
+            .describe("Time zone (optional, defaults to user's timezone)"),
+          settings: z
+            .object({
+              chatType: z
+                .enum(["group", "oneOnOne", "meeting"])
+                .optional()
+                .describe("Type of chat to create"),
+              allowNewTimeProposals: z.boolean().optional(),
+            })
+            .optional(),
+        }),
+        execute: async (data: any) => {
+          try {
+            if (!teamsChatTool) {
+              return {
+                success: false,
+                error: "Microsoft Teams tool not available",
+                message:
+                  "Unable to create Teams chats. Please connect your Microsoft account.",
+                ui: {
+                  type: "connection_required",
+                  service: "microsoft-teams",
+                  message:
+                    "Please connect your Microsoft account to create Teams chats",
+                  connectButton: {
+                    text: "Connect Microsoft Teams",
+                    action: "connection://microsoft-teams",
+                  },
+                },
+              };
+            }
+
+            // Use the client's timezone if no timeZone was specified
+            if (!data.timeZone && timezone !== "UTC") {
+              data.timeZone = timezone;
+            }
+
+            const result = await teamsChatTool.execute(userId, {
+              title: data.title,
+              description: data.description,
+              startTime: data.startTime,
+              duration: data.duration,
+              attendees: data.attendees,
+              timeZone: data.timeZone,
+              settings: data.settings,
+            });
+
+            return result;
+          } catch (error) {
+            return {
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Unknown error creating Teams chat",
+              message:
+                "There was an error creating your Teams chat. Please try again later.",
             };
           }
         },

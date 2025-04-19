@@ -6,6 +6,7 @@ import "./calendar";
 import "./calendar-list";
 import "./google-meet";
 import "./slack";
+import "./microsoft-teams";
 
 // Export the tool registry for direct access
 export { toolRegistry } from "./base";

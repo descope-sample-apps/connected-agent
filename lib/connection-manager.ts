@@ -7,7 +7,8 @@ export type OAuthProvider =
   | "google-docs"
   | "google-meet"
   | "custom-crm"
-  | "slack";
+  | "slack"
+  | "microsoft-teams";
 
 const CONNECTION_KEY_PREFIX = "oauth_connection_";
 
@@ -48,6 +49,7 @@ export function getAllConnectionStatuses(): Record<OAuthProvider, boolean> {
       "google-meet": false,
       "custom-crm": false,
       slack: false,
+      "microsoft-teams": false,
     };
   }
 
@@ -57,6 +59,7 @@ export function getAllConnectionStatuses(): Record<OAuthProvider, boolean> {
     "google-meet",
     "custom-crm",
     "slack",
+    "microsoft-teams",
   ];
 
   return providers.reduce((statuses, provider) => {
@@ -77,6 +80,7 @@ export function disconnectAll(): void {
     "google-meet",
     "custom-crm",
     "slack",
+    "microsoft-teams",
   ];
 
   providers.forEach((provider) => {
