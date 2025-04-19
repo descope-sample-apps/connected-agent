@@ -443,9 +443,8 @@ export default function Chat({
 
   const getEnhancedGoogleDocsConnectionDetails = () => {
     return {
-      text: "Connect Google Docs & Drive",
-      message:
-        "Google Docs & Drive access is required to create and save documents.",
+      text: "Connect Google Drive",
+      message: "Google Drive access is required to create and save documents.",
       alternativeMessage:
         "This will allow the assistant to create and edit documents and store them on your Google Drive.",
       requiredScopes: ["https://www.googleapis.com/auth/drive.file"],
