@@ -9,6 +9,7 @@ export default authMiddleware({
     "/overview",
     "/login",
     "/oauth-redirect",
+    "/connections",
     "/api/oauth/callback",
   ],
   logLevel: "info",

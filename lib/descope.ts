@@ -61,14 +61,11 @@ export async function getOAuthToken(
     return null;
   }
 
-  // For API operations, get required scopes from the tool registry or OpenAPI spec
   let scopes: string[] | undefined = undefined;
 
   if (operation === "check_connection") {
-    // For connection checking, get scopes using unified function
     scopes = await getToolScopes(appId, "connect", toolId);
   } else {
-    // For specific operations, get scopes using unified function
     scopes = await getToolScopes(appId, operation, toolId);
   }
 
@@ -99,12 +96,10 @@ export async function getOAuthToken(
       body: JSON.stringify(requestBody),
     });
 
-    // Clone the response to read the body without consuming it
     const clonedResponse = response.clone();
     const responseText = await clonedResponse.text();
 
     if (response.status === 404) {
-      // Token not found - needs to be reconnected with new scopes
       trackToolAction(
         userId,
         {

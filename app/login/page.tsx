@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Descope } from "@descope/nextjs-sdk";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { useTheme } from "next-themes";
@@ -10,6 +10,7 @@ import { identifyUser } from "@/lib/analytics";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isDescopeReady, setIsDescopeReady] = useState(false);
   const { theme, setTheme } = useTheme();
 
@@ -28,11 +29,16 @@ export default function LoginPage() {
       });
     }
 
-    // Generate a new chat ID
-    const newChatId = `chat-${nanoid()}`;
-
-    console.log(`Login success: Redirecting to new chat: ${newChatId}`);
-    router.push(`/chat/${newChatId}`);
+    // Check if there's a redirectTo query parameter
+    const redirectTo = searchParams.get("redirectTo");
+    if (redirectTo) {
+      router.push(redirectTo);
+    } else {
+      // Generate a new chat ID if no redirect specified
+      const newChatId = `chat-${nanoid()}`;
+      console.log(`Login success: Redirecting to new chat: ${newChatId}`);
+      router.push(`/chat/${newChatId}`);
+    }
   };
 
   const onReady = () => {

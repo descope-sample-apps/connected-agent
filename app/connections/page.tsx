@@ -11,7 +11,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
 import {
@@ -55,7 +54,7 @@ interface OAuthProvider {
 }
 
 export default function ConnectionsPage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -165,6 +164,9 @@ export default function ConnectionsPage() {
 
   // Fetch connections on mount
   useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/login?redirectTo=connections");
+    }
     fetchConnections();
   }, []);
 
