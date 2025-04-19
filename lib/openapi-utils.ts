@@ -65,16 +65,18 @@ export async function getRequiredScopes(
       "events.create": ["https://www.googleapis.com/auth/calendar"],
       connect: ["https://www.googleapis.com/auth/calendar"],
     },
-    "google-docs": {
-      "documents.get": ["https://www.googleapis.com/auth/drive.file"],
-      "documents.create": ["https://www.googleapis.com/auth/drive.file"],
-      connect: ["https://www.googleapis.com/auth/drive.file"],
-    },
+    // "google-docs": {
+    //   "documents.get": ["https://www.googleapis.com/auth/drive.file"],
+    //   "documents.create": ["https://www.googleapis.com/auth/drive.file"],
+    //   connect: ["https://www.googleapis.com/auth/drive.file"],
+    // },
     "google-meet": {
       "meetings.space": [
         "https://www.googleapis.com/auth/meetings.space.created",
       ],
-      "meetings.write": ["https://www.googleapis.com/auth/meetings.write"],
+      "meetings.space.readonly": [
+        "https://www.googleapis.com/auth/meetings.space.readonly",
+      ],
       connect: [
         "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/meetings.space.created",

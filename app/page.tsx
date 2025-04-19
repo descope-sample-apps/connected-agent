@@ -205,9 +205,9 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       "Create comprehensive deal summaries and save them directly to Google Docs for sharing and collaboration",
     logo: "/logos/google-docs.png",
     examples: [
-      "Summarize the Enterprise Software License deal with John Doe",
-      "Create a deal report for the Cloud Migration Project with Jane Lane",
-      "Generate a summary of the IT Infrastructure Upgrade deal with Michael Chen",
+      // "Summarize the Enterprise Software License deal with John Doe",
+      // "Create a deal report for the Cloud Migration Project with Jane Lane",
+      // "Generate a summary of the IT Infrastructure Upgrade deal with Michael Chen",
     ],
     steps: [
       {
