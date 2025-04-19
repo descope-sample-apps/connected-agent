@@ -8,14 +8,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Calendar, FileText, MessageSquare, Search, Video } from "lucide-react";
+import { Calendar, FileText, Search, Video } from "lucide-react";
 
 const icons = {
   "crm-lookup": Search,
   "schedule-meeting": Calendar,
   "create-google-meet": Video,
   "summarize-deal": FileText,
-  "microsoft-teams": MessageSquare,
 };
 
 interface PromptTriggerProps {

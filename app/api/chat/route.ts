@@ -279,7 +279,7 @@ export async function POST(request: Request) {
     const crmContactsTool = toolRegistry.getTool("crm-contacts");
     const googleMeetTool = toolRegistry.getTool("google-meet");
     const slackTool = toolRegistry.getTool("slack");
-    const teamsChatTool = toolRegistry.getTool("microsoft-teams");
+    const linkedInTool = toolRegistry.getTool("linkedin");
 
     // Define the tools object
     const toolsObject: any = {
@@ -908,86 +908,105 @@ export async function POST(request: Request) {
           }
         },
       },
-      // Add Microsoft Teams meeting tool
-      createTeamsChat: {
+      // Add LinkedIn tool
+      useLinkedIn: {
         description:
-          "Create a Microsoft Teams chat group and send an initial message",
+          "Interact with LinkedIn - send messages, create posts, and manage connections",
         parameters: z.object({
-          title: z.string().describe("Chat group title"),
-          description: z.string().describe("Initial message content"),
-          startTime: z
-            .string()
-            .describe(
-              "Time reference in ISO format (if scheduling discussion)"
-            ),
-          duration: z
-            .number()
-            .describe("Duration in minutes (if scheduling discussion)"),
-          attendees: z
-            .array(z.string())
-            .describe(
-              "List of attendee email addresses to include in the chat"
-            ),
-          timeZone: z
+          action: z.enum([
+            "send_message",
+            "create_post",
+            "send_connection",
+            "search_people",
+          ]),
+          recipientEmail: z
             .string()
             .optional()
-            .describe("Time zone (optional, defaults to user's timezone)"),
-          settings: z
-            .object({
-              chatType: z
-                .enum(["group", "oneOnOne", "meeting"])
-                .optional()
-                .describe("Type of chat to create"),
-              allowNewTimeProposals: z.boolean().optional(),
-            })
-            .optional(),
+            .describe(
+              "Email of the LinkedIn recipient when sending messages or connection requests"
+            ),
+          recipientId: z
+            .string()
+            .optional()
+            .describe("LinkedIn ID of the recipient when sending messages"),
+          message: z
+            .string()
+            .optional()
+            .describe("Message content for messages or connection requests"),
+          text: z.string().optional().describe("Content for LinkedIn posts"),
+          visibility: z
+            .enum(["public", "connections", "group"])
+            .optional()
+            .describe("Visibility setting for posts"),
+          profileUrl: z
+            .string()
+            .optional()
+            .describe("LinkedIn profile URL for connection requests"),
+          query: z
+            .string()
+            .optional()
+            .describe("Search query for finding people on LinkedIn"),
+          limit: z.number().optional().describe("Limit for search results"),
         }),
         execute: async (data: any) => {
           try {
-            if (!teamsChatTool) {
+            if (!linkedInTool) {
               return {
                 success: false,
-                error: "Microsoft Teams tool not available",
-                message:
-                  "Unable to create Teams chats. Please connect your Microsoft account.",
+                error: "LinkedIn tool not available",
                 ui: {
                   type: "connection_required",
-                  service: "microsoft-teams",
+                  service: "linkedin",
                   message:
-                    "Please connect your Microsoft account to create Teams chats",
+                    "Please connect your LinkedIn account to use this feature",
                   connectButton: {
-                    text: "Connect Microsoft Teams",
-                    action: "connection://microsoft-teams",
+                    text: "Connect LinkedIn",
+                    action: "connection://linkedin",
                   },
                 },
               };
             }
 
-            // Use the client's timezone if no timeZone was specified
-            if (!data.timeZone && timezone !== "UTC") {
-              data.timeZone = timezone;
+            // Transform the flat parameters into the expected LinkedIn action format
+            let linkedInAction: any = { action: data.action };
+
+            // Add appropriate data based on action type
+            if (data.action === "send_message") {
+              linkedInAction.data = {
+                recipientEmail: data.recipientEmail,
+                recipientId: data.recipientId,
+                message: data.message,
+              };
+            } else if (data.action === "create_post") {
+              linkedInAction.data = {
+                text: data.text,
+                visibility: data.visibility,
+              };
+            } else if (data.action === "send_connection") {
+              linkedInAction.data = {
+                email: data.recipientEmail,
+                profileUrl: data.profileUrl,
+                message: data.message,
+              };
+            } else if (data.action === "search_people") {
+              linkedInAction.query = data.query;
+              linkedInAction.limit = data.limit;
             }
 
-            const result = await teamsChatTool.execute(userId, {
-              title: data.title,
-              description: data.description,
-              startTime: data.startTime,
-              duration: data.duration,
-              attendees: data.attendees,
-              timeZone: data.timeZone,
-              settings: data.settings,
-            });
-
-            return result;
-          } catch (error) {
+            return await linkedInTool.execute(userId, linkedInAction);
+          } catch (err) {
+            console.error("Error using LinkedIn:", err);
             return {
               success: false,
               error:
-                error instanceof Error
-                  ? error.message
-                  : "Unknown error creating Teams chat",
-              message:
-                "There was an error creating your Teams chat. Please try again later.",
+                err instanceof Error
+                  ? err.message
+                  : "Unknown error using LinkedIn",
+              ui: {
+                type: "error",
+                message:
+                  "There was an error with the LinkedIn operation. Please try again later.",
+              },
             };
           }
         },

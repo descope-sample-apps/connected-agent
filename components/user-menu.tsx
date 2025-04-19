@@ -71,9 +71,9 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
       connected: false,
     },
     {
-      id: "microsoft-teams",
-      name: "Microsoft Teams",
-      icon: "/logos/microsoft-teams-logo.png",
+      id: "linkedin",
+      name: "LinkedIn",
+      icon: "/logos/linkedin-logo.png",
       connected: false,
     },
   ]);

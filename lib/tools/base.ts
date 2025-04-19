@@ -366,7 +366,7 @@ export type OAuthProvider =
   | "custom-crm"
   | "slack"
   | "zoom"
-  | "microsoft-teams";
+  | "linkedin";
 
 // Create standardized connection request for OAuth providers
 export function createConnectionRequest(options: {
@@ -447,8 +447,8 @@ export function createConnectionRequest(options: {
         return "Slack";
       case "zoom":
         return "Zoom";
-      case "microsoft-teams":
-        return "Microsoft Teams";
+      case "linkedin":
+        return "LinkedIn";
       default:
         return String(provider).replace(/-/g, " ");
     }

@@ -55,8 +55,8 @@ type PromptType =
   | "slack"
   | "summarize-deal"
   | "create-google-meet"
-  | "microsoft-teams"
-  | "add-custom-tool";
+  | "add-custom-tool"
+  | "linkedin";
 
 interface PromptExplanation {
   title: string;
@@ -200,15 +200,55 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     ],
     apis: ["Slack API"],
   },
+  linkedin: {
+    title: "LinkedIn Integration",
+    description: "Access LinkedIn content and interaction data",
+    logo: "/logos/linkedin-logo.png",
+    examples: [
+      "Find my recent LinkedIn posts",
+      "Show me the engagement stats on my last LinkedIn post",
+      "Check who interacted with my LinkedIn document",
+      "Get a summary of my LinkedIn content performance",
+      "View my LinkedIn media uploads from the past month",
+    ],
+    steps: [
+      {
+        title: "User Requests LinkedIn Information",
+        description:
+          "The user asks to retrieve information about their LinkedIn content and interactions.",
+      },
+      {
+        title: "Authentication Check",
+        description:
+          "The assistant verifies the user is authenticated and has connected LinkedIn via OAuth with w_member_social scope.",
+      },
+      {
+        title: "LinkedIn API Access",
+        description:
+          "Using the stored OAuth token from Descope, the assistant makes a secure API call to LinkedIn's content endpoints.",
+      },
+      {
+        title: "Data Retrieval",
+        description:
+          "The assistant retrieves the requested information about posts, media, or interaction statistics.",
+      },
+      {
+        title: "Information Presentation",
+        description:
+          "The assistant presents the retrieved LinkedIn data in a clear, organized format.",
+      },
+    ],
+    apis: ["LinkedIn Posts API", "LinkedIn Media API"],
+  },
   "summarize-deal": {
     title: "Summarize Deal to Google Docs",
     description:
       "Create comprehensive deal summaries and save them directly to Google Docs for sharing and collaboration",
     logo: "/logos/google-docs.png",
     examples: [
-      "Summarize the Enterprise Software License deal with John Doe",
-      "Create a deal report for the Cloud Migration Project with Jane Lane",
-      "Generate a summary of the IT Infrastructure Upgrade deal with Michael Chen",
+      // "Summarize the Enterprise Software License deal with John Doe",
+      // "Create a deal report for the Cloud Migration Project with Jane Lane",
+      // "Generate a summary of the IT Infrastructure Upgrade deal with Michael Chen",
     ],
     steps: [
       {
@@ -277,46 +317,6 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       },
     ],
     apis: ["Google Calendar API"],
-  },
-  "microsoft-teams": {
-    title: "Microsoft Teams Chat",
-    description:
-      "Create Teams chat groups and send messages to collaborate with your team",
-    logo: "/logos/microsoft-teams-logo.png",
-    examples: [
-      "Create a Teams chat with Sarah and Tom about the sales proposal",
-      "Start a Microsoft Teams discussion with the marketing team",
-      "Set up a Teams chat group for the product launch team",
-      "Create a Teams chat to discuss the client meeting tomorrow",
-    ],
-    steps: [
-      {
-        title: "User Requests Teams Chat Creation",
-        description:
-          "The user asks to create a Microsoft Teams chat group with specific participants.",
-      },
-      {
-        title: "Authentication Check",
-        description:
-          "The assistant verifies the user is authenticated and has connected Microsoft Teams via OAuth.",
-      },
-      {
-        title: "Teams API Access",
-        description:
-          "Using the stored OAuth token from Descope, the assistant makes a secure API call to Microsoft Graph API.",
-      },
-      {
-        title: "Chat Group Creation",
-        description:
-          "A new Teams chat group is created with the specified participants.",
-      },
-      {
-        title: "Initial Message Sending",
-        description:
-          "The assistant sends an initial message to the chat group with the specified details or meeting information.",
-      },
-    ],
-    apis: ["Microsoft Graph API"],
   },
   "add-custom-tool": {
     title: "Add Your Own Tool",
@@ -1095,16 +1095,13 @@ export default function Home() {
         ),
     },
     {
-      id: "microsoft-teams",
-      title: "Microsoft Teams Chat",
-      description: "Create Teams chat groups with your colleagues",
-      logo: "/logos/microsoft-teams-logo.png",
+      id: "linkedin",
+      title: "LinkedIn Integration",
+      description: "Access LinkedIn content and interaction data",
+      logo: "/logos/linkedin-logo.png",
       action: () =>
         checkOAuthAndPrompt(() =>
-          usePredefinedPrompt(
-            "Create a Teams chat with Sarah and Tom about the Q4 strategy",
-            "microsoft-teams"
-          )
+          usePredefinedPrompt("Find my recent LinkedIn posts", "linkedin")
         ),
     },
     {
