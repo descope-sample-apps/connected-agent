@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Descope } from "@descope/nextjs-sdk";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -8,7 +8,8 @@ import { useTheme } from "next-themes";
 import { nanoid } from "nanoid";
 import { identifyUser } from "@/lib/analytics";
 
-export default function LoginPage() {
+// Separate component to use searchParams
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isDescopeReady, setIsDescopeReady] = useState(false);
@@ -110,5 +111,24 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function LoginLoading() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex items-center justify-center">
+      <div className="text-center">
+        <p className="text-lg text-muted-foreground">Loading login...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoading />}>
+      <LoginForm />
+    </Suspense>
   );
 }
