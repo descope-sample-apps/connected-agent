@@ -365,7 +365,8 @@ export type OAuthProvider =
   | "google-meet"
   | "custom-crm"
   | "slack"
-  | "zoom";
+  | "zoom"
+  | "linkedin";
 
 // Create standardized connection request for OAuth providers
 export function createConnectionRequest(options: {
@@ -446,6 +447,8 @@ export function createConnectionRequest(options: {
         return "Slack";
       case "zoom":
         return "Zoom";
+      case "linkedin":
+        return "LinkedIn";
       default:
         return String(provider).replace(/-/g, " ");
     }

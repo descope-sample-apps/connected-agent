@@ -67,6 +67,7 @@ export const DEFAULT_SCOPES: Record<string, string[]> = {
   ],
   "custom-crm": ["openid", "contacts:read", "deals:read"],
   slack: ["chat:write", "channels:manage", "users:read"],
+  linkedin: ["r_emailaddress", "r_basicprofile", "w_member_social"],
 };
 
 export async function getOAuthTokenWithScopeValidation(

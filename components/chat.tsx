@@ -486,6 +486,7 @@ export default function Chat({
     if (content.includes("meet")) service = "google-meet";
     if (content.includes("slack")) service = "slack";
     if (content.includes("zoom")) service = "zoom";
+    if (content.includes("linkedin")) service = "linkedin";
 
     isReconnect =
       content.includes("additional permission") ||
@@ -538,6 +539,8 @@ export default function Chat({
         "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/meetings.space.created"
       );
+    } else if (service === "linkedin") {
+      requiredScopes.push("r_emailaddress", "r_liteprofile", "w_member_social");
     }
 
     let messageText = isReconnect
@@ -578,6 +581,8 @@ export default function Chat({
         return "Slack";
       case "zoom":
         return "Zoom";
+      case "linkedin":
+        return "LinkedIn";
       default:
         return provider.replace(/-/g, " ");
     }
@@ -643,6 +648,7 @@ export default function Chat({
             else if (serviceName.includes("crm")) service = "custom-crm";
             else if (serviceName.includes("slack")) service = "slack";
             else if (serviceName.includes("zoom")) service = "zoom";
+            else if (serviceName.includes("linkedin")) service = "linkedin";
 
             message = {
               ...message,
@@ -705,6 +711,7 @@ export default function Chat({
               message.content.toLowerCase().includes("documents") ||
               message.content.toLowerCase().includes("drive") ||
               message.content.toLowerCase().includes("slack") ||
+              message.content.toLowerCase().includes("linkedin") ||
               message.content.toLowerCase().includes("meet") ||
               message.content.toLowerCase().includes("google meet"))) ||
             message.content.includes("](connection:") ||

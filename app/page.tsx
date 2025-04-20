@@ -55,7 +55,8 @@ type PromptType =
   | "slack"
   | "summarize-deal"
   | "create-google-meet"
-  | "add-custom-tool";
+  | "add-custom-tool"
+  | "linkedin";
 
 interface PromptExplanation {
   title: string;
@@ -198,6 +199,46 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
       },
     ],
     apis: ["Slack API"],
+  },
+  linkedin: {
+    title: "LinkedIn Integration",
+    description: "Access LinkedIn content and interaction data",
+    logo: "/logos/linkedin-logo.png",
+    examples: [
+      "Find my recent LinkedIn posts",
+      "Show me the engagement stats on my last LinkedIn post",
+      "Check who interacted with my LinkedIn document",
+      "Get a summary of my LinkedIn content performance",
+      "View my LinkedIn media uploads from the past month",
+    ],
+    steps: [
+      {
+        title: "User Requests LinkedIn Information",
+        description:
+          "The user asks to retrieve information about their LinkedIn content and interactions.",
+      },
+      {
+        title: "Authentication Check",
+        description:
+          "The assistant verifies the user is authenticated and has connected LinkedIn via OAuth with w_member_social scope.",
+      },
+      {
+        title: "LinkedIn API Access",
+        description:
+          "Using the stored OAuth token from Descope, the assistant makes a secure API call to LinkedIn's content endpoints.",
+      },
+      {
+        title: "Data Retrieval",
+        description:
+          "The assistant retrieves the requested information about posts, media, or interaction statistics.",
+      },
+      {
+        title: "Information Presentation",
+        description:
+          "The assistant presents the retrieved LinkedIn data in a clear, organized format.",
+      },
+    ],
+    apis: ["LinkedIn Posts API", "LinkedIn Media API"],
   },
   "summarize-deal": {
     title: "Summarize Deal to Google Docs",
@@ -1051,6 +1092,16 @@ export default function Home() {
             "Send a message to the #sales channel about the new deal",
             "slack"
           )
+        ),
+    },
+    {
+      id: "linkedin",
+      title: "LinkedIn Integration",
+      description: "Access LinkedIn content and interaction data",
+      logo: "/logos/linkedin-logo.png",
+      action: () =>
+        checkOAuthAndPrompt(() =>
+          usePredefinedPrompt("Find my recent LinkedIn posts", "linkedin")
         ),
     },
     {

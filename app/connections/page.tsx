@@ -84,6 +84,12 @@ export default function ConnectionsPage() {
       icon: "/logos/slack-logo.svg",
       connected: false,
     },
+    {
+      id: "linkedin",
+      name: "LinkedIn",
+      icon: "/logos/linkedin-logo.png",
+      connected: false,
+    },
   ]);
 
   // Function to fetch connections

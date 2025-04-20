@@ -70,6 +70,25 @@ const providers = {
       "team chat",
     ],
   },
+  linkedin: {
+    id: "linkedin",
+    name: "LinkedIn",
+    icon: "/logos/linkedin-logo.png",
+    scopes: ["w_member_social"],
+    keywords: [
+      "linkedin",
+      "post",
+      "share",
+      "upload",
+      "image",
+      "document",
+      "content",
+      "professional",
+      "article",
+      "media",
+      "announcement",
+    ],
+  },
 };
 
 type ProviderKey = keyof typeof providers;

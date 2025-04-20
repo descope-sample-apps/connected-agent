@@ -279,6 +279,7 @@ export async function POST(request: Request) {
     const crmContactsTool = toolRegistry.getTool("crm-contacts");
     const googleMeetTool = toolRegistry.getTool("google-meet");
     const slackTool = toolRegistry.getTool("slack");
+    const linkedInTool = toolRegistry.getTool("linkedin");
 
     // Define the tools object
     const toolsObject: any = {
@@ -903,6 +904,109 @@ export async function POST(request: Request) {
                   : "Unknown error sending Slack message",
               message:
                 "There was an error sending your Slack message. Please try again later.",
+            };
+          }
+        },
+      },
+      // Add LinkedIn tool
+      useLinkedIn: {
+        description:
+          "Interact with LinkedIn - send messages, create posts, and manage connections",
+        parameters: z.object({
+          action: z.enum([
+            "send_message",
+            "create_post",
+            "send_connection",
+            "search_people",
+          ]),
+          recipientEmail: z
+            .string()
+            .optional()
+            .describe(
+              "Email of the LinkedIn recipient when sending messages or connection requests"
+            ),
+          recipientId: z
+            .string()
+            .optional()
+            .describe("LinkedIn ID of the recipient when sending messages"),
+          message: z
+            .string()
+            .optional()
+            .describe("Message content for messages or connection requests"),
+          text: z.string().optional().describe("Content for LinkedIn posts"),
+          visibility: z
+            .enum(["public", "connections", "group"])
+            .optional()
+            .describe("Visibility setting for posts"),
+          profileUrl: z
+            .string()
+            .optional()
+            .describe("LinkedIn profile URL for connection requests"),
+          query: z
+            .string()
+            .optional()
+            .describe("Search query for finding people on LinkedIn"),
+          limit: z.number().optional().describe("Limit for search results"),
+        }),
+        execute: async (data: any) => {
+          try {
+            if (!linkedInTool) {
+              return {
+                success: false,
+                error: "LinkedIn tool not available",
+                ui: {
+                  type: "connection_required",
+                  service: "linkedin",
+                  message:
+                    "Please connect your LinkedIn account to use this feature",
+                  connectButton: {
+                    text: "Connect LinkedIn",
+                    action: "connection://linkedin",
+                  },
+                },
+              };
+            }
+
+            // Transform the flat parameters into the expected LinkedIn action format
+            let linkedInAction: any = { action: data.action };
+
+            // Add appropriate data based on action type
+            if (data.action === "send_message") {
+              linkedInAction.data = {
+                recipientEmail: data.recipientEmail,
+                recipientId: data.recipientId,
+                message: data.message,
+              };
+            } else if (data.action === "create_post") {
+              linkedInAction.data = {
+                text: data.text,
+                visibility: data.visibility,
+              };
+            } else if (data.action === "send_connection") {
+              linkedInAction.data = {
+                email: data.recipientEmail,
+                profileUrl: data.profileUrl,
+                message: data.message,
+              };
+            } else if (data.action === "search_people") {
+              linkedInAction.query = data.query;
+              linkedInAction.limit = data.limit;
+            }
+
+            return await linkedInTool.execute(userId, linkedInAction);
+          } catch (err) {
+            console.error("Error using LinkedIn:", err);
+            return {
+              success: false,
+              error:
+                err instanceof Error
+                  ? err.message
+                  : "Unknown error using LinkedIn",
+              ui: {
+                type: "error",
+                message:
+                  "There was an error with the LinkedIn operation. Please try again later.",
+              },
             };
           }
         },
