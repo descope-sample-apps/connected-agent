@@ -11,6 +11,18 @@
 
 **ConnectedAgent** is a powerful showcase of **Descope's Outbound Apps**, enabling secure, AI-driven interactions with CRM systems and business tools. It’s designed as both a reference implementation and a customizable foundation for production apps.
 
+## What is ConnectedAgent?
+
+ConnectedAgent is a modern, secure, AI-driven integration platform designed to help users connect to their favorite business tools, interact with them through natural language, and perform real-time actions—like scheduling meetings, managing contacts, and analyzing deals—all from one intelligent interface.
+
+At its core, ConnectedAgent is a reference implementation for developers building:
+
+- **AI-powered CRM assistants**
+- **Secure third-party OAuth integrations**
+- **Tool-calling agents that manage user tokens and scopes**
+
+It leverages Descope’s Outbound and Inbound Apps architecture, enabling secure identity and access delegation to and from third-party platforms.
+
 ## 🚀 Key Features
 
 ### Core Capabilities
@@ -41,7 +53,102 @@
 2. **Inbound Apps** – Accept connections from apps like 10xCRM
 3. **Tool Registry** – Modular architecture for dynamic tool loading
 
+## Inbound vs. Outbound Apps
+
+ConnectedAgent actually demonstrates both Outbound and Inbound Apps with Descope, but with Inbound Apps from the perspective of the OAuth client.
+
+For more context on what each of these are, here is a brief overview:
+
+### Outbound Apps
+
+Let your app connect **to third-party services** on behalf of the user.
+
+- Example: Get a user’s Google Calendar events
+- Securely stores and refreshes tokens
+- Grants only requested scopes
+
+### Inbound Apps
+
+Let **third-party apps connect to you** using OAuth.
+
+- Example: Your application integrating with ConnectedAgent as an OAuth authorization provider that we can "connect" to.
+- You define the scopes, consent screen, and token logic
+- You enable AI agents to "use" your APIs with proper scoping and authorization
+
+#### Inbound App Example: 10xCRM
+
+Use [10xCRM](https://10x-crm.app) as a model to:
+
+- Set up OAuth endpoints
+- Handle access/refresh tokens
+- Validate and enforce scopes
+- Manage user consent and authorization flows
+
+## 🧪 Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL
+- Descope account
+
+### 1. Clone and Install
+
+```bash
+git clone https://github.com/descope-sample-apps/connected-agent.git
+cd connected-agent
+npm install
+```
+
+### 2. Configure Environment Variables
+
+```bash
+cp .env.example .env.local
+```
+
+Update `.env.local`:
+
+```env
+NEXT_PUBLIC_DESCOPE_PROJECT_ID=your-project-id
+DESCOPE_MANAGEMENT_KEY=your-key
+DESCOPE_BASE_URL=https://api.descope.com
+
+OPENAI_API_KEY=your-openai-api-key
+NEXT_PUBLIC_SEGEMENT_WRITE_KEY=your-segment-key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+DATABASE_URL=your-database-url
+```
+
+### 3. Set Up the Database
+
+```bash
+npm run migrate
+```
+
+### 4. Start the App
+
+```bash
+npm run dev
+```
+
+## 🚀 Deployment
+
+### Netlify
+
+1. Click **Deploy to Netlify**
+2. Add environment variables in dashboard
+3. Deploy!
+
+### Vercel
+
+1. Click **Deploy with Vercel**
+2. Import repository
+3. Set environment variables
+4. Deploy!
+
 ## 🛠️ Create Your Own Tool
+
+The great thing about this sample app, is that it's very extensible. As an example, we've also described how you can fork this repo and build your own custom tools, to be used in conjunction with Descope Outbound Apps.
 
 ### 1. Define Your Tool
 
@@ -149,77 +256,6 @@ export const DEFAULT_SCOPES = {
   "custom-crm": ["crm.read", "crm.write"],
 };
 ```
-
-## 🌐 Inbound App Example: 10xCRM
-
-Use [10xCRM](https://10x-crm.app) as a model to:
-
-- Set up OAuth endpoints
-- Handle access/refresh tokens
-- Validate and enforce scopes
-- Manage user consent and authorization flows
-
-## 🧪 Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- PostgreSQL
-- Descope account
-
-### 1. Clone and Install
-
-```bash
-git clone https://github.com/descope-sample-apps/connected-agent.git
-cd connected-agent
-npm install
-```
-
-### 2. Configure Environment Variables
-
-```bash
-cp .env.example .env.local
-```
-
-Update `.env.local`:
-
-```env
-NEXT_PUBLIC_DESCOPE_PROJECT_ID=your-project-id
-DESCOPE_MANAGEMENT_KEY=your-key
-DESCOPE_BASE_URL=https://api.descope.com
-
-OPENAI_API_KEY=your-openai-api-key
-NEXT_PUBLIC_SEGEMENT_WRITE_KEY=your-segment-key
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-DATABASE_URL=your-database-url
-```
-
-### 3. Set Up the Database
-
-```bash
-npm run migrate
-```
-
-### 4. Start the App
-
-```bash
-npm run dev
-```
-
-## 🚀 Deployment
-
-### Netlify
-
-1. Click **Deploy to Netlify**
-2. Add environment variables in dashboard
-3. Deploy!
-
-### Vercel
-
-1. Click **Deploy with Vercel**
-2. Import repository
-3. Set environment variables
-4. Deploy!
 
 ## 🤝 Contributing
 
