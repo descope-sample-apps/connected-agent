@@ -1,7 +1,5 @@
 # 🧠 ConnectedAgent – AI-Powered CRM Integration Platform
 
-![ConnectedAgent Logo](public/logos/crm-logo.png)
-
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/descope-sample-apps/connected-agent)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fdescope-sample-apps%2Fconnected-agent&env=NEXT_PUBLIC_DESCOPE_PROJECT_ID,DESCOPE_MANAGEMENT_KEY,DESCOPE_BASE_URL,OPENAI_API_KEY,DATABASE_URL&envDescription=Descope%20Variables%20needed%20for%20Outbound%20Apps%2C%20OpenAI%20key%20is%20for%20the%20LLM%2C%20the%20Database%20URL%20is%20for%20chat%20history%2C%20and%20the%20rest%20is%20optional&project-name=connected-agent&repository-name=connected-agent)
 
@@ -53,7 +51,7 @@ It leverages Descope’s Outbound and Inbound Apps architecture, enabling secure
 2. **Inbound Apps** – Accept connections from apps like 10xCRM
 3. **Tool Registry** – Modular architecture for dynamic tool loading
 
-## Inbound vs. Outbound Apps
+## 🌐 Inbound vs. Outbound Apps
 
 ConnectedAgent actually demonstrates both Outbound and Inbound Apps with Descope, but with Inbound Apps from the perspective of the OAuth client.
 
@@ -131,20 +129,7 @@ npm run migrate
 npm run dev
 ```
 
-## 🚀 Deployment
-
-### Netlify
-
-1. Click **Deploy to Netlify**
-2. Add environment variables in dashboard
-3. Deploy!
-
-### Vercel
-
-1. Click **Deploy with Vercel**
-2. Import repository
-3. Set environment variables
-4. Deploy!
+Once you've set everything up and tested it, you can easily deploy with our one click deploy buttons at the top of this README to either Vercel or Netlify.
 
 ## 🛠️ Create Your Own Tool
 
