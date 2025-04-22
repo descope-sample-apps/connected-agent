@@ -39,6 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useSession } from "@descope/nextjs-sdk/client";
 
 interface OAuthProvider {
   id: string;
@@ -53,7 +54,8 @@ interface OAuthProvider {
 }
 
 export default function ConnectionsPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
+  const { isAuthenticated } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -161,13 +163,11 @@ export default function ConnectionsPage() {
     }
   }, [toast]);
 
-  // Fetch connections on mount
   useEffect(() => {
-    // Only redirect if explicitly not authenticated (avoid redirecting during loading)
-    if (isAuthenticated === false) {
+    if (!isAuthenticated) {
       console.log("Not authenticated, redirecting to login");
       router.push("/login?redirectTo=connections");
-      return; // Stop execution if redirecting
+      return;
     }
 
     // Only fetch connections if authenticated
@@ -253,6 +253,8 @@ export default function ConnectionsPage() {
                 if (!connectionData.connected) {
                   throw new Error("Connection was not established");
                 }
+
+                console.log(tokenData.accessTokenExpiry);
 
                 const tokenData = connectionData.token || {};
 

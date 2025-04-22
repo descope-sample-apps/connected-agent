@@ -261,11 +261,17 @@ export async function handleOAuthPopup(
     const appOrigin = window.location.origin;
     console.log("Opening OAuth popup with URL:", authUrl);
 
+    // Calculate the center position for the popup
+    const width = 800;
+    const height = 800;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
     // Open the popup with specific features to ensure it's a proper popup
     const popup = window.open(
       authUrl,
       "oauth-popup",
-      "width=600,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+      `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=no,scrollbars=no`
     );
 
     if (!popup) {

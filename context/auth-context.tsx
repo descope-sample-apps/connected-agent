@@ -38,7 +38,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const CustomAuthProvider = ({ children }: { children: ReactNode }) => {
   const { isSessionLoading, isAuthenticated } = useSession();
   const { logout } = useDescope();
   const { user: descopeUser } = useUser();
