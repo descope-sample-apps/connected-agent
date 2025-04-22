@@ -48,7 +48,6 @@ export default function DealSummaryPrompt({
   onSuccess,
   dealId: initialDealId,
 }: DealSummaryPromptProps) {
-  const { user } = useAuth();
   const { toast } = useToast();
   const [dealId, setDealId] = useState(initialDealId || "");
   const [isLoading, setIsLoading] = useState(false);

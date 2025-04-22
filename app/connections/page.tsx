@@ -164,12 +164,6 @@ export default function ConnectionsPage() {
   }, [toast]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      console.log("Not authenticated, redirecting to login");
-      router.push("/login?redirectTo=connections");
-      return;
-    }
-
     // Only fetch connections if authenticated
     if (isAuthenticated) {
       fetchConnections();
@@ -253,8 +247,6 @@ export default function ConnectionsPage() {
                 if (!connectionData.connected) {
                   throw new Error("Connection was not established");
                 }
-
-                console.log(tokenData.accessTokenExpiry);
 
                 const tokenData = connectionData.token || {};
 

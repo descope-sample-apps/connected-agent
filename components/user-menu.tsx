@@ -74,10 +74,13 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    fetchConnections();
-  }, []);
+    if (isOpen) {
+      fetchConnections();
+    }
+  }, [isOpen]);
 
   const fetchConnections = async () => {
     try {
@@ -261,12 +264,12 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
     .toUpperCase();
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={user.picture} alt={user.name} />
-            <AvatarFallback>{initials}</AvatarFallback>
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user?.picture} alt={user?.name} />
+            <AvatarFallback>{user?.name?.[0]}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>

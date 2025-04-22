@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
-import { useEffect } from "react";
+import { useSession } from "@descope/nextjs-sdk/client";
 import { useRouter } from "next/navigation";
 import {
   ExternalLink,
@@ -19,7 +19,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { nanoid } from "nanoid";
 
 export default function LandingPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useSession();
   const router = useRouter();
 
   const handleGetStarted = () => {
