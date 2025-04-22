@@ -16,8 +16,23 @@ import {
 import React from "react";
 import AnimatedBeamComponent from "@/components/animated-beam";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { nanoid } from "nanoid";
 
 export default function LandingPage() {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  const handleGetStarted = () => {
+    if (isAuthenticated) {
+      // If already logged in, generate a new chat ID and redirect
+      const newChatId = `chat-${nanoid()}`;
+      router.push(`/chat/${newChatId}`);
+    } else {
+      // Not logged in, go to login page
+      router.push("/login");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
       {/* Header */}
@@ -69,14 +84,13 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <Link href="/login">
-              <Button
-                size="lg"
-                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 py-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
-              >
-                Get Started <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 py-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+              onClick={handleGetStarted}
+            >
+              Get Started <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
             <a
               href="https://docs.descope.com/outbound-apps"
               target="_blank"

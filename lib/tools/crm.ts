@@ -110,7 +110,7 @@ export class CRMContactsTool extends Tool<{
     oauthConfig: {
       provider: "custom-crm",
       defaultScopes: ["contacts:read"],
-      requiredScopes: ["openid"],
+      requiredScopes: ["openid", "contacts:read", "deals:read"],
       scopeMapping: {
         "contacts.list": ["contacts:read"],
         "contacts.search": ["contacts:read"],
@@ -252,7 +252,7 @@ export class CRMDealsTool extends Tool<{
     oauthConfig: {
       provider: "custom-crm",
       defaultScopes: ["deals:read"],
-      requiredScopes: ["openid"],
+      requiredScopes: ["openid", "contacts:read", "deals:read"],
       scopeMapping: {
         "deals.list": ["deals:read"],
         "deals.search": ["deals:read"],
@@ -383,7 +383,7 @@ export class DealStakeholdersTool extends Tool<{
     oauthConfig: {
       provider: "custom-crm",
       defaultScopes: ["deals:read", "contacts:read"],
-      requiredScopes: ["openid"],
+      requiredScopes: ["openid", "contacts:read", "deals:read"],
       scopeMapping: {
         "stakeholders.list": ["deals:read", "contacts:read"],
       },
