@@ -198,16 +198,9 @@ export default function ChatMessage({
       return <TypingDots />;
     }
 
-    // Debug logging
-    console.log(
-      "Rendering message content:",
-      content.length > 100 ? content.substring(0, 100) + "..." : content
-    );
-
     // Check for calendar links
     const calendarLinks = extractCalendarLinks(content);
     const hasCalLinks = calendarLinks.length > 0;
-    console.log("Found calendar links:", hasCalLinks, calendarLinks);
 
     // Don't use link pre-processing since we'll handle it in the ReactMarkdown components
     let cleanedContent = content;
@@ -352,15 +345,6 @@ export default function ChatMessage({
                 return <span>{children}</span>;
               }
 
-              // Log full information about the link
-              console.log("ReactMarkdown link processing:", {
-                href,
-                children:
-                  typeof children === "string"
-                    ? children
-                    : JSON.stringify(children),
-              });
-
               // Check for calendar or meeting links with very broad patterns
               const isCalendarLink =
                 href.includes("google.com/calendar") ||
@@ -380,8 +364,6 @@ export default function ChatMessage({
               });
 
               if (isCalendarLink || isMeetLink) {
-                console.log("Rendering calendar/meet button");
-                // Use a span instead of div to avoid hydration error (div inside p)
                 return (
                   <a
                     href={href}
