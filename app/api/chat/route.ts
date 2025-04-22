@@ -209,13 +209,11 @@ export async function POST(request: Request) {
       messages,
       selectedChatModel = DEFAULT_CHAT_MODEL,
       timezone = "UTC",
-      timezoneOffset = 0,
     }: {
       id: string;
       messages: Array<UIMessage>;
       selectedChatModel?: string;
       timezone?: string;
-      timezoneOffset?: number;
     } = await request.json();
 
     // Validate the chat ID
@@ -225,7 +223,7 @@ export async function POST(request: Request) {
     }
 
     // Log timezone information for debugging
-    console.log(`Request timezone: ${timezone} (offset: ${timezoneOffset})`);
+    console.log(`Request timezone: ${timezone}`);
 
     const userSession = await session();
 
@@ -283,17 +281,10 @@ export async function POST(request: Request) {
     // Define the tools object
     const toolsObject: any = {
       parseDate: {
-        description: "Parse a relative date into a formatted date and time",
+        description: "Parse a date string into a usable format",
         parameters: z.object({
-          dateString: z
-            .string()
-            .describe(
-              'The date string to parse (e.g., "tomorrow", "next Friday")'
-            ),
-          timeString: z
-            .string()
-            .optional()
-            .describe('The time string to parse (e.g., "3pm", "15:00")'),
+          dateString: z.string().describe("The date string to parse"),
+          timeString: z.string().optional().describe("Optional time string"),
         }),
         execute: async ({
           dateString,
@@ -389,17 +380,6 @@ export async function POST(request: Request) {
             const now = new Date();
             console.log(`Current timestamp: ${now.toISOString()}`);
 
-            // Apply timezone offset to the date for more accurate calculations
-            if (timezoneOffset !== 0) {
-              // Convert the offset from minutes to milliseconds
-              const offsetMs = timezoneOffset * 60 * 1000;
-              // Adjust the date by adding the offset
-              now.setTime(now.getTime() + offsetMs);
-              console.log(
-                `Adjusted timestamp for timezone offset: ${now.toISOString()}`
-              );
-            }
-
             // Get date context with fresh date
             const dateContext = {
               currentDate: format(now, "MMMM d, yyyy"),
@@ -407,11 +387,15 @@ export async function POST(request: Request) {
               tomorrow: format(addDays(now, 1), "MMMM d, yyyy"),
               nextWeek: format(addWeeks(now, 1), "MMMM d, yyyy"),
               timezone: timezone,
-              timezoneOffset: timezoneOffset,
             };
 
             // Pass the fresh date explicitly to ensure no cached dates are used
-            const parsedDate = parseRelativeDate(dateString, timeString, now);
+            const parsedDate = parseRelativeDate(
+              dateString,
+              timeString,
+              now,
+              timezone
+            );
 
             console.log("Parsed date result:", {
               date: parsedDate.date.toISOString(),

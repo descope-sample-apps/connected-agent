@@ -20,7 +20,7 @@ export class CalendarListTool extends Tool<ListEventsArgs> {
     id: "google-calendar-list",
     name: "Google Calendar List",
     description: "List events from Google Calendar",
-    scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+    scopes: ["https://www.googleapis.com/auth/calendar"],
     requiredFields: [],
     optionalFields: ["maxResults", "timeMin", "timeMax", "calendarId"],
     capabilities: [

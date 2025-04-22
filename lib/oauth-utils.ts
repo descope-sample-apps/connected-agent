@@ -250,6 +250,7 @@ export async function connectToOAuthProvider({
 export interface OAuthPopupCallbacks {
   onSuccess?: () => void;
   onError?: (error: Error) => void;
+  onClose?: () => void;
 }
 
 export async function handleOAuthPopup(
@@ -260,22 +261,52 @@ export async function handleOAuthPopup(
     const appOrigin = window.location.origin;
     console.log("Opening OAuth popup with URL:", authUrl);
 
+    // Calculate the center position for the popup
+    const width = 800;
+    const height = 800;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
     // Open the popup with specific features to ensure it's a proper popup
     const popup = window.open(
       authUrl,
       "oauth-popup",
-      "width=600,height=600,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+      `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=no,scrollbars=no`
     );
 
     if (!popup) {
       const error = new Error("Failed to open popup window");
       if (callbacks?.onError) callbacks.onError(error);
+      if (callbacks?.onClose) callbacks.onClose();
       reject(error);
       return;
     }
 
     // Track if we've already handled the popup closure
     let isHandled = false;
+
+    // Function to verify connection status before calling onSuccess
+    const verifyConnectionAndResolve = async () => {
+      try {
+        // Let the caller handle the verification if they chose to
+        if (callbacks?.onSuccess) {
+          await callbacks.onSuccess();
+        }
+        // Always call onClose when popup completes
+        if (callbacks?.onClose) callbacks.onClose();
+        resolve();
+      } catch (error) {
+        console.error("Error in connection verification:", error);
+        if (callbacks?.onError) {
+          callbacks.onError(
+            error instanceof Error ? error : new Error(String(error))
+          );
+        }
+        // Always call onClose when popup completes
+        if (callbacks?.onClose) callbacks.onClose();
+        reject(error);
+      }
+    };
 
     // Setup message listener for the postMessage from the popup
     const messageHandler = (event: MessageEvent) => {
@@ -308,8 +339,7 @@ export async function handleOAuthPopup(
           popup.close();
         }
 
-        if (callbacks?.onSuccess) callbacks.onSuccess();
-        resolve();
+        verifyConnectionAndResolve();
         return;
       }
     };
@@ -324,11 +354,11 @@ export async function handleOAuthPopup(
           clearInterval(checkInterval);
           isHandled = true;
 
-          // Treat a closed popup without an explicit error as a success
-          // This handles cases where the popup closed automatically after auth
-          console.log("Popup closed - treating as success");
-          if (callbacks?.onSuccess) callbacks.onSuccess();
-          resolve();
+          // Call onClose first since this is a manual close
+          if (callbacks?.onClose) callbacks.onClose();
+
+          // Verify connection instead of assuming success
+          verifyConnectionAndResolve();
           return;
         }
         return;
@@ -356,8 +386,7 @@ export async function handleOAuthPopup(
                 popup.close();
               }
 
-              if (callbacks?.onSuccess) callbacks.onSuccess();
-              resolve();
+              verifyConnectionAndResolve();
             }
           }
         }
@@ -380,6 +409,8 @@ export async function handleOAuthPopup(
 
         const error = new Error("Authentication timed out after 5 minutes");
         if (callbacks?.onError) callbacks.onError(error);
+        // Always call onClose on timeout
+        if (callbacks?.onClose) callbacks.onClose();
         reject(error);
       }
     }, 300000);

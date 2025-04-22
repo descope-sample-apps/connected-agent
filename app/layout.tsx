@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AuthProvider } from "@/context/auth-context";
-import { AuthProvider as DescopeAuthProvider } from "@descope/nextjs-sdk";
+import { CustomAuthProvider } from "@/context/auth-context";
+import { AuthProvider } from "@descope/nextjs-sdk";
 import { OAuthProvider } from "@/context/oauth-context";
 import { OAuthReconnectDialog } from "@/components/oauth-reconnect-dialog";
 import { TimezoneProvider } from "@/context/timezone-context";
@@ -31,18 +31,16 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <DescopeAuthProvider
-            projectId={process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID!}
-          >
-            <AuthProvider>
+          <AuthProvider projectId={process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID!}>
+            <CustomAuthProvider>
               <OAuthProvider>
                 <TimezoneProvider>
                   {children}
                   <OAuthReconnectDialog />
                 </TimezoneProvider>
               </OAuthProvider>
-            </AuthProvider>
-          </DescopeAuthProvider>
+            </CustomAuthProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

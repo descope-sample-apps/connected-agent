@@ -506,7 +506,7 @@ export default function Home() {
   const [chatRedirectAttempts, setChatRedirectAttempts] = useState(0);
 
   // Get timezone information from the context
-  const { timezone, timezoneOffset } = useTimezone();
+  const { timezone } = useTimezone();
 
   const {
     messages,
@@ -524,7 +524,6 @@ export default function Home() {
       id: currentChatId,
       selectedChatModel: selectedModel,
       timezone,
-      timezoneOffset,
     },
     credentials: "include",
     onFinish: (message) => {

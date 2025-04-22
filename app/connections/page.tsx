@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +22,6 @@ import {
   InfoIcon,
   Loader2,
 } from "lucide-react";
-import Image from "next/image";
 import {
   connectToOAuthProvider,
   handleOAuthPopup,
@@ -40,6 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useSession } from "@descope/nextjs-sdk/client";
 
 interface OAuthProvider {
   id: string;
@@ -54,7 +54,8 @@ interface OAuthProvider {
 }
 
 export default function ConnectionsPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
+  const { isAuthenticated } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -87,7 +88,7 @@ export default function ConnectionsPage() {
   ]);
 
   // Function to fetch connections
-  const fetchConnections = async () => {
+  const fetchConnections = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -160,15 +161,14 @@ export default function ConnectionsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
-  // Fetch connections on mount
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login?redirectTo=connections");
+    // Only fetch connections if authenticated
+    if (isAuthenticated) {
+      fetchConnections();
     }
-    fetchConnections();
-  }, []);
+  }, [isAuthenticated, router, fetchConnections]);
 
   // Handle toggling a connection
   const toggleConnection = async (provider: string) => {
@@ -186,12 +186,15 @@ export default function ConnectionsPage() {
         });
 
         if (success) {
+          // Refresh connections first to get the latest status
+          await fetchConnections();
+
           toast({
             title: "Disconnected",
             description: `Successfully disconnected from ${providerObj.name}`,
           });
 
-          // Update the connection status
+          // Update the connection status after refreshing
           setOauthProviders((prevProviders) =>
             prevProviders.map((p) =>
               p.id === provider
@@ -215,75 +218,122 @@ export default function ConnectionsPage() {
         });
 
         await handleOAuthPopup(authUrl, {
-          onSuccess: () => {
-            console.log("OAuth success, updating UI");
-            // Fetch updated connection data
-            fetch(`/api/oauth/connections`).then(async (response) => {
-              if (response.ok) {
-                const data = await response.json();
-                if (data.connections && data.connections[provider]) {
-                  const connectionData = data.connections[provider];
-                  const tokenData = connectionData.token || {};
+          onSuccess: async () => {
+            console.log("OAuth success, verifying connection status");
 
-                  // Update connection status in UI
-                  setOauthProviders((prevProviders) =>
-                    prevProviders.map((p) =>
-                      p.id === provider
-                        ? {
-                            ...p,
-                            connected: true,
-                            tokenData: {
-                              scopes: tokenData.scopes || [],
-                              accessToken: tokenData.accessToken || "",
-                              expiresAt: tokenData.accessTokenExpiry || "",
-                            },
-                          }
-                        : p
-                    )
-                  );
+            try {
+              // Refresh connections to get the latest status
+              await fetchConnections();
 
-                  // Update global connection status
-                  setConnected(provider as ConnectionProvider, true);
-                }
+              // Fetch updated connection data to verify the connection
+              const response = await fetch(`/api/oauth/connections`, {
+                headers: {
+                  "Cache-Control": "no-cache",
+                  Pragma: "no-cache",
+                },
+                cache: "no-store",
+              });
+
+              if (!response.ok) {
+                throw new Error("Failed to verify connection status");
               }
-            });
 
-            toast({
-              title: "Connected",
-              description: `Successfully connected to ${providerObj.name}`,
-            });
+              const data = await response.json();
+
+              if (data.connections && data.connections[provider]) {
+                const connectionData = data.connections[provider];
+
+                // Check if the connection was actually successful
+                if (!connectionData.connected) {
+                  throw new Error("Connection was not established");
+                }
+
+                const tokenData = connectionData.token || {};
+
+                // Update connection status in UI
+                setOauthProviders((prevProviders) =>
+                  prevProviders.map((p) =>
+                    p.id === provider
+                      ? {
+                          ...p,
+                          connected: true,
+                          tokenData: {
+                            scopes: tokenData.scopes || [],
+                            accessToken: tokenData.accessToken || "",
+                            expiresAt: tokenData.accessTokenExpiry || "",
+                          },
+                        }
+                      : p
+                  )
+                );
+
+                // Update global connection status
+                setConnected(provider as ConnectionProvider, true);
+
+                toast({
+                  title: "Connected",
+                  description: `Successfully connected to ${providerObj.name}`,
+                });
+              } else {
+                throw new Error("Connection data not found for provider");
+              }
+            } catch (error) {
+              console.error("Error verifying connection:", error);
+
+              // Refresh connections again to ensure UI is in sync
+              await fetchConnections();
+
+              // Ensure UI shows correct connection state
+              setOauthProviders((prevProviders) =>
+                prevProviders.map((p) =>
+                  p.id === provider
+                    ? { ...p, connected: false, tokenData: undefined }
+                    : p
+                )
+              );
+
+              toast({
+                title: "Connection Failed",
+                description:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to establish connection",
+                variant: "destructive",
+              });
+            }
           },
           onError: (error) => {
+            console.error("OAuth error:", error);
+            // Refresh connections to ensure UI is in sync
+            fetchConnections();
+
             toast({
               title: "Connection Failed",
               description: error.message || "Failed to connect",
               variant: "destructive",
             });
           },
+          onClose: () => {
+            // Refresh connections whenever the popup closes
+            console.log("OAuth popup closed, refreshing connections");
+            fetchConnections();
+          },
         });
       }
     } catch (error) {
-      console.error("Error toggling connection:", error);
-      // Don't show errors for user cancellation
-      if (
-        error instanceof Error &&
-        (error.name === "AuthCanceled" ||
-          error.message === "Authentication window was closed")
-      ) {
-        console.log("User canceled authentication, not showing error");
-      } else {
-        setError(
-          error instanceof Error ? error.message : "Failed to connect service"
-        );
-        toast({
-          title: "Error",
-          description:
-            error instanceof Error
-              ? error.message
-              : "Connection operation failed",
-          variant: "destructive",
-        });
-      }
+      console.error("Error connecting provider:", error);
+      // Refresh connections to ensure UI is in sync
+      fetchConnections();
+
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+      setError(
+        error instanceof Error ? error.message : "Failed to connect provider"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -339,33 +389,64 @@ export default function ConnectionsPage() {
 
   // Format token expiry time
   function formatTokenExpiry(expiryTimestamp: string): string {
-    const expiry = new Date(expiryTimestamp);
-    const now = new Date();
+    try {
+      if (!expiryTimestamp) return "Unknown";
 
-    // Check if the token is expired
-    if (expiry < now) {
-      return "Expired";
+      const expiry = new Date(expiryTimestamp);
+
+      // Check if the date is valid
+      if (isNaN(expiry.getTime())) {
+        return "Invalid date";
+      }
+
+      const now = new Date();
+
+      // Check if the token is expired
+      if (expiry < now) {
+        return "Expired";
+      }
+
+      // Calculate difference in minutes
+      const diffMs = expiry.getTime() - now.getTime();
+      const diffMins = Math.round(diffMs / 60000);
+
+      if (diffMins < 60) {
+        return `Expires in ${diffMins} minute${diffMins !== 1 ? "s" : ""}`;
+      }
+
+      const hours = Math.floor(diffMins / 60);
+      if (hours < 24) {
+        return `Expires in ${hours} hour${hours !== 1 ? "s" : ""}`;
+      }
+
+      const days = Math.floor(hours / 24);
+      return `Expires in ${days} day${days !== 1 ? "s" : ""}`;
+    } catch (error) {
+      console.error("Error formatting token expiry:", error, expiryTimestamp);
+      return "Unknown";
     }
-
-    // Calculate difference in minutes
-    const diffMs = expiry.getTime() - now.getTime();
-    const diffMins = Math.round(diffMs / 60000);
-
-    if (diffMins < 60) {
-      return `Expires in ${diffMins} minute${diffMins !== 1 ? "s" : ""}`;
-    }
-
-    const hours = Math.floor(diffMins / 60);
-    if (hours < 24) {
-      return `Expires in ${hours} hour${hours !== 1 ? "s" : ""}`;
-    }
-
-    const days = Math.floor(hours / 24);
-    return `Expires in ${days} day${days !== 1 ? "s" : ""}`;
   }
 
   function getAbsoluteExpiryTime(expiryTimestamp: string): string {
-    return new Date(expiryTimestamp).toLocaleString();
+    try {
+      if (!expiryTimestamp) return "Unknown";
+
+      const date = new Date(expiryTimestamp);
+
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid date format";
+      }
+
+      return date.toLocaleString();
+    } catch (error) {
+      console.error(
+        "Error formatting absolute expiry time:",
+        error,
+        expiryTimestamp
+      );
+      return "Unknown";
+    }
   }
 
   // Add loading skeleton component
@@ -406,20 +487,6 @@ export default function ConnectionsPage() {
       </div>
     );
   }
-
-  // Add this button in the header section
-  const ConnectionResetButton = () => (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={resetAllConnections}
-      className="ml-auto"
-      disabled={isLoading}
-    >
-      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-      Refresh Connections
-    </Button>
-  );
 
   if (!user) {
     return (
@@ -486,7 +553,6 @@ export default function ConnectionsPage() {
                     Manage your connected services and outbound app permissions
                   </CardDescription>
                 </div>
-                <ConnectionResetButton />
               </CardHeader>
               <CardContent className="space-y-6">
                 {oauthProviders.map((provider) => (

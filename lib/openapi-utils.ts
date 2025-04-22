@@ -83,8 +83,8 @@ export async function getRequiredScopes(
       ],
     },
     "custom-crm": {
-      "contacts.list": ["contacts.read"],
-      "deals.list": ["deals.read"],
+      "contacts.list": ["openid", "contacts:read", "deals:read"],
+      "deals.list": ["openid", "contacts:read", "deals:read"],
       connect: ["openid", "contacts:read", "deals:read"], // Both for connection
     },
     slack: {
