@@ -421,8 +421,6 @@ function ChatParamsHandler({
     const chatIdParam = searchParams?.get("chatId");
 
     if (chatIdParam) {
-      console.log("Found chatId in URL params:", chatIdParam);
-
       // Mark as processed to prevent duplicate handling
       processedRef.current = true;
 

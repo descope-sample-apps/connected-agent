@@ -215,14 +215,11 @@ export default function ChatMessage({
     // Check if connectionMatch and group 1 exist
     if (connectionMatch && connectionMatch[1]) {
       const jsonString = connectionMatch[1];
-      console.log("Found potential connection marker:", jsonString);
       try {
         connectionUI = JSON.parse(jsonString);
-        console.log("Successfully parsed connection UI:", connectionUI);
 
         // Only remove the marker if parsing was successful
         cleanedContent = content.replace(connectionMarkerRegex, "").trim();
-        console.log("Content after removing marker:", cleanedContent);
       } catch (e) {
         console.error("Error parsing connection marker JSON:", e);
         console.error("Problematic JSON string:", jsonString); // Log the exact string that failed
