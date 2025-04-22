@@ -495,7 +495,7 @@ export default function ConnectionsPage() {
           Please sign in to view your connections
         </p>
         <Button
-          onClick={() => router.push("/login")}
+          onClick={() => router.push("/login?redirectTo=connections")}
           variant="outline"
           className="mt-4"
         >
