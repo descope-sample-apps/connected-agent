@@ -1,13 +1,44 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { useMobile } from "@/hooks/use-mobile";
 
 const AnimatedBeamComponent = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMobile();
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // Check if component is visible in viewport
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+          } else {
+            setIsVisible(false);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      if (containerRef.current) {
+        observer.unobserve(containerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
@@ -189,7 +220,9 @@ const AnimatedBeamComponent = () => {
         ctx.fill();
       });
 
-      requestAnimationFrame(animate);
+      if (isVisible) {
+        requestAnimationFrame(animate);
+      }
     };
 
     // Start animation after a short delay to ensure DOM elements are properly rendered
@@ -209,7 +242,7 @@ const AnimatedBeamComponent = () => {
       cancelAnimationFrame(animate as unknown as number);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [isVisible]);
 
   // Simplified square robot design
   const SimpleRobotLogo = () => {
@@ -245,10 +278,13 @@ const AnimatedBeamComponent = () => {
     );
   };
 
+  // Adjust aspect ratio and layout for mobile
+  const aspectRatio = isMobile ? "aspect-[4/5]" : "aspect-[16/9]";
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-[16/9] max-w-6xl mx-auto bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-800"
+      className={`relative w-full ${aspectRatio} max-w-6xl mx-auto bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-800`}
     >
       <canvas
         ref={canvasRef}
@@ -260,19 +296,23 @@ const AnimatedBeamComponent = () => {
       <div
         data-element="agent"
         className="absolute z-10"
-        style={{ left: "50%", top: "50px", transform: "translateX(-50%)" }}
+        style={{
+          left: "50%",
+          top: isMobile ? "30px" : "50px",
+          transform: "translateX(-50%)",
+        }}
       >
         <div className="relative group">
           <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full blur-lg opacity-75 group-hover:opacity-100 transition-opacity duration-300"></div>
           <div className="relative bg-gradient-to-r from-indigo-500 to-purple-600 p-[2px] rounded-full">
-            <div className="bg-white dark:bg-gray-900 rounded-full p-4">
-              <div className="w-12 h-12 relative">
+            <div className="bg-white dark:bg-gray-900 rounded-full p-3 sm:p-4">
+              <div className="w-8 h-8 sm:w-12 sm:h-12 relative">
                 <SimpleRobotLogo />
-                <div className="absolute -right-1 -bottom-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+                <div className="absolute -right-1 -bottom-1 h-2 w-2 sm:h-3 sm:w-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
               </div>
             </div>
           </div>
-          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute -bottom-6 sm:-bottom-8 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium text-indigo-600 dark:text-indigo-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             AI Agent
           </div>
         </div>
@@ -285,33 +325,49 @@ const AnimatedBeamComponent = () => {
         style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}
       >
         <div className="relative group">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 transition-all duration-300 group-hover:shadow-md">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800 transition-all duration-300 group-hover:shadow-md">
             <Image
               src="/logos/descope-logo.png"
               alt="Descope"
-              width={48}
-              height={48}
+              width={isMobile ? 36 : 48}
+              height={isMobile ? 36 : 48}
               className="rounded"
             />
           </div>
-          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute -bottom-6 sm:-bottom-8 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium text-indigo-600 dark:text-indigo-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             Descope
           </div>
         </div>
       </div>
 
-      {/* Connected Apps with data attributes for positioning */}
-      <div className="absolute bottom-[100px] left-0 right-0 flex justify-center items-center z-10">
-        <div className="flex justify-between" style={{ width: "70%" }}>
+      {/* Connected Apps with data attributes for positioning - mobile responsive */}
+      <div
+        className="absolute z-10"
+        style={{
+          left: "0",
+          right: "0",
+          bottom: isMobile ? "40px" : "100px",
+        }}
+      >
+        <div
+          className={`flex flex-wrap ${
+            isMobile ? "justify-center gap-4" : "justify-between"
+          } mx-auto`}
+          style={{ width: isMobile ? "90%" : "70%" }}
+        >
           {[
             { name: "Calendar", src: "/logos/google-calendar.png" },
             { name: "Slack", src: "/logos/slack-logo.svg" },
             { name: "Meet", src: "/logos/google-meet-logo.png" },
-            { name: "CRM", src: "/logos/crm-logo.png" },
-            { name: "Docs", src: "/logos/google-docs.png" },
-            { name: "Custom", src: "/logos/custom-tool.svg" },
+            { name: "10xCRM", src: "/logos/crm-logo.png" },
+            { name: "Custom Tool", src: "/logos/custom-tool.svg" },
           ].map((app, index) => (
-            <AppIcon key={index} name={app.name} src={app.src} />
+            <AppIcon
+              key={index}
+              name={app.name}
+              src={app.src}
+              isMobile={isMobile}
+            />
           ))}
         </div>
       </div>
@@ -320,19 +376,31 @@ const AnimatedBeamComponent = () => {
 };
 
 // App Icon Component with data attribute for positioning
-const AppIcon = ({ name, src }: { name: string; src: string }) => {
+const AppIcon = ({
+  name,
+  src,
+  isMobile,
+}: {
+  name: string;
+  src: string;
+  isMobile: boolean;
+}) => {
   return (
     <div data-element="app" className="relative group">
-      <div className="h-16 w-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center transition-all duration-300 group-hover:shadow-md">
+      <div
+        className={`${
+          isMobile ? "h-12 w-12" : "h-16 w-16"
+        } bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center transition-all duration-300 group-hover:shadow-md`}
+      >
         <Image
           src={src || "/placeholder.svg"}
           alt={name}
-          width={32}
-          height={32}
+          width={isMobile ? 24 : 32}
+          height={isMobile ? 24 : 32}
           className="rounded-full"
         />
       </div>
-      <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-1 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+      <div className="absolute -bottom-6 sm:-bottom-8 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-0.5 sm:px-2 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium text-indigo-600 dark:text-indigo-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
         {name}
       </div>
     </div>

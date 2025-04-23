@@ -412,16 +412,16 @@ export default function ConnectionsPage() {
       const diffMins = Math.round(diffMs / 60000);
 
       if (diffMins < 60) {
-        return `Expires in ${diffMins} minute${diffMins !== 1 ? "s" : ""}`;
+        return `${diffMins} minute${diffMins !== 1 ? "s" : ""}`;
       }
 
       const hours = Math.floor(diffMins / 60);
       if (hours < 24) {
-        return `Expires in ${hours} hour${hours !== 1 ? "s" : ""}`;
+        return `${hours} hour${hours !== 1 ? "s" : ""}`;
       }
 
       const days = Math.floor(hours / 24);
-      return `Expires in ${days} day${days !== 1 ? "s" : ""}`;
+      return `${days} day${days !== 1 ? "s" : ""}`;
     } catch (error) {
       console.error("Error formatting token expiry:", error, expiryTimestamp);
       return "Unknown";
@@ -701,7 +701,7 @@ export default function ConnectionsPage() {
                                         <TooltipTrigger asChild>
                                           <p className="text-sm flex items-center text-muted-foreground cursor-help">
                                             <Clock className="mr-2 h-3.5 w-3.5" />
-                                            Token expires:{" "}
+                                            Token expires in:{" "}
                                             {formatTokenExpiry(
                                               provider.tokenData.expiresAt
                                             )}
