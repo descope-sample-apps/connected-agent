@@ -381,10 +381,7 @@ export default function ConnectionsPage() {
   function formatScope(scope: string): string {
     return scope
       .replace(/\./g, " ")
-      .replace(/^https:\/\/www\.googleapis\.com\/auth\//, "")
-      .split(".")
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(".");
+      .replace(/^https:\/\/www\.googleapis\.com\/auth\//, "");
   }
 
   // Format token expiry time
