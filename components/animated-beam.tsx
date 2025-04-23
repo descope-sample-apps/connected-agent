@@ -307,7 +307,13 @@ const AnimatedBeamComponent = () => {
           <div className="relative bg-gradient-to-r from-indigo-500 to-purple-600 p-[2px] rounded-full">
             <div className="bg-white dark:bg-gray-900 rounded-full p-3 sm:p-4">
               <div className="w-8 h-8 sm:w-12 sm:h-12 relative">
-                <SimpleRobotLogo />
+                <Image
+                  src="/logos/ai-agent-logo.png"
+                  alt="AI Agent"
+                  width={isMobile ? 36 : 48}
+                  height={isMobile ? 36 : 48}
+                  className="rounded"
+                />
                 <div className="absolute -right-1 -bottom-1 h-2 w-2 sm:h-3 sm:w-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
               </div>
             </div>
