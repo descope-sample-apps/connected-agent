@@ -36,7 +36,6 @@ It leverages Descope’s Outbound and Inbound Apps architecture, enabling secure
 - 📊 **10xCRM** (via Inbound Apps)
 - 📅 **Google Calendar**
 - 🎥 **Google Meet**
-- 💬 **Slack**
 
 ## ⚙️ Architecture
 
