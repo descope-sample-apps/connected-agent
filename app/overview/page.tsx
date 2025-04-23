@@ -788,7 +788,7 @@ export default function LandingPage() {
             access to external tools and services with Descope.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="https://descope.com/sign-up">
+            <Link href="https://www.descope.com/use-cases/ai?utm_source=outbound-apps-demo&utm_medium=referral&utm_campaign=outbound-apps-demo">
               <Button
                 size="lg"
                 className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-6 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 text-lg"
