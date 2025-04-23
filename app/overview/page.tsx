@@ -75,15 +75,7 @@ export default function LandingPage() {
             connections to your AI tools.
           </p>
 
-          <div className="mb-8">
-            <AnimatedBeamComponent />
-            <p className="text-center text-muted-foreground mt-2 max-w-xl mx-auto text-sm md:text-base">
-              Connect your AI assistant to dozens of services securely with just
-              a few lines of code
-            </p>
-          </div>
-
-          <div className="flex items-center justify-center gap-4 flex-wrap">
+          <div className="flex items-center justify-center gap-4 flex-wrap mb-12">
             <Button
               size="lg"
               className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 py-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
@@ -104,6 +96,10 @@ export default function LandingPage() {
                 Outbound Apps Docs <ExternalLink className="ml-2 h-4 w-4" />
               </Button>
             </a>
+          </div>
+
+          <div>
+            <AnimatedBeamComponent />
           </div>
         </div>
       </div>

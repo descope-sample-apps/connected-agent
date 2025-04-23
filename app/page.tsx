@@ -159,46 +159,46 @@ const promptExplanations: Record<PromptType, PromptExplanation> = {
     ],
     apis: ["Google Calendar API", "Custom CRM API"],
   },
-  slack: {
-    title: "Slack Integration",
-    description:
-      "Send messages, retrieve conversations, and manage channels in your Slack workspace",
-    logo: "/logos/slack-logo.svg",
-    examples: [
-      "Post a message to #general about the upcoming meeting",
-      "Show me recent messages from the #team channel",
-      "Create a new channel for the Alpha project",
-      "Find messages about the quarterly review in Slack",
-    ],
-    steps: [
-      {
-        title: "User Requests Slack Action",
-        description:
-          "The user asks to interact with Slack, such as sending a message or viewing recent conversations.",
-      },
-      {
-        title: "Authentication Check",
-        description:
-          "The assistant verifies the user is authenticated and has connected Slack via OAuth.",
-      },
-      {
-        title: "Slack API Access",
-        description:
-          "Using the stored OAuth token from Descope, the assistant makes a secure API call to Slack.",
-      },
-      {
-        title: "Action Execution",
-        description:
-          "The assistant performs the requested action and provides confirmation or retrieves the requested information.",
-      },
-      {
-        title: "Results Presentation",
-        description:
-          "The assistant presents the results or confirmation in a clear, user-friendly format.",
-      },
-    ],
-    apis: ["Slack API"],
-  },
+  // slack: {
+  //   title: "Slack Integration",
+  //   description:
+  //     "Send messages, retrieve conversations, and manage channels in your Slack workspace",
+  //   logo: "/logos/slack-logo.svg",
+  //   examples: [
+  //     "Post a message to #general about the upcoming meeting",
+  //     "Show me recent messages from the #team channel",
+  //     "Create a new channel for the Alpha project",
+  //     "Find messages about the quarterly review in Slack",
+  //   ],
+  //   steps: [
+  //     {
+  //       title: "User Requests Slack Action",
+  //       description:
+  //         "The user asks to interact with Slack, such as sending a message or viewing recent conversations.",
+  //     },
+  //     {
+  //       title: "Authentication Check",
+  //       description:
+  //         "The assistant verifies the user is authenticated and has connected Slack via OAuth.",
+  //     },
+  //     {
+  //       title: "Slack API Access",
+  //       description:
+  //         "Using the stored OAuth token from Descope, the assistant makes a secure API call to Slack.",
+  //     },
+  //     {
+  //       title: "Action Execution",
+  //       description:
+  //         "The assistant performs the requested action and provides confirmation or retrieves the requested information.",
+  //     },
+  //     {
+  //       title: "Results Presentation",
+  //       description:
+  //         "The assistant presents the results or confirmation in a clear, user-friendly format.",
+  //     },
+  //   ],
+  //   apis: ["Slack API"],
+  // },
   "summarize-deal": {
     title: "Summarize Deal to Google Docs",
     description:
@@ -1037,19 +1037,19 @@ export default function Home() {
     //       )
     //     ),
     // },
-    {
-      id: "slack",
-      title: "Slack Integration",
-      description: "Send messages and updates to Slack channels",
-      logo: "/logos/slack-logo.svg",
-      action: () =>
-        checkOAuthAndPrompt(() =>
-          usePredefinedPrompt(
-            "Send a message to the #sales channel about the new deal",
-            "slack"
-          )
-        ),
-    },
+    // {
+    //   id: "slack",
+    //   title: "Slack Integration",
+    //   description: "Send messages and updates to Slack channels",
+    //   logo: "/logos/slack-logo.svg",
+    //   action: () =>
+    //     checkOAuthAndPrompt(() =>
+    //       usePredefinedPrompt(
+    //         "Send a message to the #sales channel about the new deal",
+    //         "slack"
+    //       )
+    //     ),
+    // },
     {
       id: "add-custom-tool",
       title: "Add Your Own Tool",

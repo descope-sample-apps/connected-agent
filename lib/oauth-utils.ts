@@ -65,7 +65,7 @@ export const DEFAULT_SCOPES: Record<string, string[]> = {
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/meetings.space.created",
   ],
-  "custom-crm": ["openid", "contacts:read", "deals:read"],
+  "custom-crm": ["contacts:read", "deals:read", "openid"],
   slack: ["chat:write", "channels:manage", "users:read"],
 };
 

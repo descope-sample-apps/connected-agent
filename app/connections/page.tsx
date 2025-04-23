@@ -79,12 +79,12 @@ export default function ConnectionsPage() {
       icon: "/logos/crm-logo.png",
       connected: false,
     },
-    {
-      id: "slack",
-      name: "Slack",
-      icon: "/logos/slack-logo.svg",
-      connected: false,
-    },
+    // {
+    //   id: "slack",
+    //   name: "Slack",
+    //   icon: "/logos/slack-logo.svg",
+    //   connected: false,
+    // },
   ]);
 
   // Function to fetch connections
@@ -392,7 +392,11 @@ export default function ConnectionsPage() {
     try {
       if (!expiryTimestamp) return "Unknown";
 
-      const expiry = new Date(expiryTimestamp);
+      // Convert Unix timestamp to milliseconds if it's in seconds
+      const timestamp = parseInt(expiryTimestamp);
+      if (isNaN(timestamp)) return "Invalid date";
+
+      const expiry = new Date(timestamp * 1000); // Convert seconds to milliseconds
 
       // Check if the date is valid
       if (isNaN(expiry.getTime())) {
@@ -431,7 +435,11 @@ export default function ConnectionsPage() {
     try {
       if (!expiryTimestamp) return "Unknown";
 
-      const date = new Date(expiryTimestamp);
+      // Convert Unix timestamp to milliseconds if it's in seconds
+      const timestamp = parseInt(expiryTimestamp);
+      if (isNaN(timestamp)) return "Invalid date format";
+
+      const date = new Date(timestamp * 1000); // Convert seconds to milliseconds
 
       // Check if the date is valid
       if (isNaN(date.getTime())) {

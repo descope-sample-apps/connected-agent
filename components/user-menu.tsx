@@ -64,12 +64,12 @@ export default function UserMenu({ onProfileClick }: UserMenuProps) {
       icon: "/logos/crm-logo.png",
       connected: false,
     },
-    {
-      id: "slack",
-      name: "Slack",
-      icon: "/logos/slack-logo.svg",
-      connected: false,
-    },
+    // {
+    //   id: "slack",
+    //   name: "Slack",
+    //   icon: "/logos/slack-logo.svg",
+    //   connected: false,
+    // },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
