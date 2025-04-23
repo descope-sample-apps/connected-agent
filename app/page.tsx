@@ -1605,40 +1605,6 @@ export default function Home() {
               )} */}
 
               <ThemeToggle />
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-gray-700 dark:text-gray-300"
-                    >
-                      <HelpCircle className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-[280px] p-4">
-                    <div className="space-y-2">
-                      <p className="font-medium">About this demo</p>
-                      <p className="text-sm text-muted-foreground">
-                        This sample app showcases OpenAI function calling with
-                        Descope outbound OAuth apps. AI functions can securely
-                        access your connected services using OAuth.
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        For more information, visit{" "}
-                        <a
-                          href="https://docs.descope.com/outbound/"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary underline hover:no-underline"
-                        >
-                          Descope docs
-                        </a>
-                      </p>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
               {isAuthenticated ? (
                 <UserMenu onProfileClick={handleProfileClick} />
               ) : (
