@@ -483,7 +483,8 @@ export default function Chat({
     if (content.includes("crm")) service = "custom-crm";
     if (content.includes("calendar")) service = "google-calendar";
     if (content.includes("docs")) service = "google-docs";
-    if (content.includes("meet")) service = "google-meet";
+    if (content.includes("meet") || content.includes("video conference"))
+      service = "google-meet";
     if (content.includes("slack")) service = "slack";
     if (content.includes("zoom")) service = "zoom";
 
@@ -501,6 +502,16 @@ export default function Chat({
     const connectButtonAction = actionMatch
       ? `connection://${actionMatch[2]}`
       : `connection://${service}`;
+
+    let messageText = isReconnect
+      ? `Additional permissions are required for ${getDisplayName(service)}.`
+      : `To continue, you need to connect your ${getDisplayName(service)}.`;
+
+    let alternativeMessage = isReconnect
+      ? `The following permissions are needed: ${requiredScopes
+          .map((scope) => scope.split("/").pop() || scope)
+          .join(", ")}`
+      : "This will allow the assistant to access the necessary data to fulfill your request.";
 
     if (service === "google-docs") {
       const isDriveError = content.includes("drive");
@@ -534,21 +545,20 @@ export default function Chat({
     } else if (service === "google-calendar") {
       requiredScopes.push("https://www.googleapis.com/auth/calendar");
     } else if (service === "google-meet") {
-      requiredScopes.push(
+      requiredScopes = [
         "https://www.googleapis.com/auth/calendar",
-        "https://www.googleapis.com/auth/meetings.space.created"
-      );
+        "https://www.googleapis.com/auth/meetings.space.created",
+      ];
+      messageText = isReconnect
+        ? `Additional permissions are required for Google Meet.`
+        : `To create video conferences, you need to connect your Google Meet account.`;
+      alternativeMessage = isReconnect
+        ? `The following permissions are needed: calendar, meetings.space.created`
+        : "This will allow the assistant to create and manage video conferences on your behalf.";
+      connectButtonText = isReconnect
+        ? "Reconnect Google Meet"
+        : "Connect Google Meet";
     }
-
-    let messageText = isReconnect
-      ? `Additional permissions are required for ${getDisplayName(service)}.`
-      : `To continue, you need to connect your ${getDisplayName(service)}.`;
-
-    let alternativeMessage = isReconnect
-      ? `The following permissions are needed: ${requiredScopes
-          .map((scope) => scope.split("/").pop() || scope)
-          .join(", ")}`
-      : "This will allow the assistant to access the necessary data to fulfill your request.";
 
     return (
       <InChatConnectionPrompt
@@ -595,15 +605,44 @@ export default function Chat({
     let connectionUI = null;
     if (message.role === "assistant") {
       try {
-        if (message.toolActions && message.toolActions.length > 0) {
-          for (const action of message.toolActions) {
-            if (action.output?.ui?.type === "connection_required") {
-              connectionUI = action.output.ui;
+        // First check message parts for connection elements
+        if (message.parts && Array.isArray(message.parts)) {
+          for (const part of message.parts) {
+            if (part.type === "connection" && part.connection) {
+              connectionUI = part.connection;
+              console.log(
+                "Found connection UI in message parts:",
+                connectionUI
+              );
+              // Create UI element from connection
+              message = {
+                ...message,
+                ui: connectionUI,
+              };
               break;
             }
           }
         }
 
+        // Then check tool actions for connection elements
+        if (
+          !connectionUI &&
+          message.toolActions &&
+          message.toolActions.length > 0
+        ) {
+          for (const action of message.toolActions) {
+            if (action.output?.ui?.type === "connection_required") {
+              connectionUI = action.output.ui;
+              message = {
+                ...message,
+                ui: connectionUI,
+              };
+              break;
+            }
+          }
+        }
+
+        // Google Drive/Docs specific handling
         if (!connectionUI && message.content) {
           if (
             message.content.toLowerCase().includes("drive") &&
@@ -630,6 +669,7 @@ export default function Chat({
           }
         }
 
+        // Check for Connection required messages
         if (!connectionUI && message.content) {
           const simpleConnectionRegex = /Connection to ([\w-]+) required/i;
           const simpleMatch = message.content.match(simpleConnectionRegex);
@@ -661,7 +701,74 @@ export default function Chat({
                 requiredScopes:
                   service === "google-docs"
                     ? ["https://www.googleapis.com/auth/drive.file"]
+                    : service === "google-meet"
+                    ? [
+                        "https://www.googleapis.com/auth/calendar",
+                        "https://www.googleapis.com/auth/meetings.space.created",
+                      ]
+                    : service === "google-calendar"
+                    ? ["https://www.googleapis.com/auth/calendar"]
                     : [],
+              },
+            };
+          }
+        }
+
+        // Check for CRM-specific messages
+        if (!connectionUI && !message.ui && message.content) {
+          const crmRegex =
+            /(CRM|contact information|customer data|customer information).*(access|retrieve|provide|check|look up)/i;
+          const crmMatch = message.content.match(crmRegex);
+
+          if (
+            crmMatch ||
+            (message.content.toLowerCase().includes("crm") &&
+              (message.content.toLowerCase().includes("i'll need to") ||
+                message.content.toLowerCase().includes("i need to")))
+          ) {
+            console.log("Detected CRM access message pattern");
+            message = {
+              ...message,
+              ui: {
+                type: "connection_required",
+                service: "custom-crm",
+                message: "CRM access is required to view contact information.",
+                connectButton: {
+                  text: "Connect CRM",
+                  action: "connection://custom-crm",
+                },
+                alternativeMessage:
+                  "This will allow the assistant to access your CRM data.",
+              },
+            };
+          }
+        }
+
+        // Check for Google Meet-specific messages
+        if (!connectionUI && !message.ui && message.content) {
+          const meetRegex =
+            /(Google Meet|video conference|meeting link).*(access|create|generate)/i;
+          const meetMatch = message.content.match(meetRegex);
+
+          if (meetMatch) {
+            console.log("Detected Google Meet access message pattern");
+            message = {
+              ...message,
+              ui: {
+                type: "connection_required",
+                service: "google-meet",
+                message:
+                  "Google Meet access is required to create video conferences.",
+                connectButton: {
+                  text: "Connect Google Meet",
+                  action: "connection://google-meet",
+                },
+                alternativeMessage:
+                  "This will allow the assistant to create video conferences on your behalf.",
+                requiredScopes: [
+                  "https://www.googleapis.com/auth/calendar",
+                  "https://www.googleapis.com/auth/meetings.space.created",
+                ],
               },
             };
           }
