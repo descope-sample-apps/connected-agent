@@ -1866,10 +1866,13 @@ export default function Home() {
                           rel="noopener noreferrer"
                           className="block"
                         >
-                          <Button className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white hover:text-white border-0 group transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] font-medium rounded-xl">
-                            <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-                            Learn More About Descope AI
-                            <ExternalLink className="w-3 h-3 ml-2 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-300" />
+                          <Button
+                            variant="outline"
+                            className="w-full flex items-center justify-center gap-2 py-5 text-primary hover:text-primary-foreground hover:bg-primary transition-all duration-200 rounded-xl border-primary/20 hover:border-primary"
+                          >
+                            <Sparkles className="w-4 h-4 group-hover:rotate-6 transition-transform duration-200" />
+                            <span>Learn More About Descope AI</span>
+                            <ExternalLink className="w-3 h-3 opacity-70 group-hover:opacity-100 transition-all duration-200" />
                           </Button>
                         </a>
                       </div>
