@@ -57,7 +57,7 @@
     "date-fns": "4.1.0",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.30.6",
-    "drizzle-orm": "0.29.3",
+    "drizzle-orm": "0.45.1",
     "embla-carousel-react": "8.5.1",
     "event-source-polyfill": "^1.0.31",
     "googleapis": "^128.0.0",
