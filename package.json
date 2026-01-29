@@ -62,7 +62,7 @@
     "event-source-polyfill": "^1.0.31",
     "googleapis": "^128.0.0",
     "input-otp": "1.4.1",
-    "lucide-react": "^0.454.0",
+    "lucide-react": "^0.563.0",
     "motion": "^12.7.4",
     "nanoid": "^5.1.5",
     "next": "^16.0.0",
