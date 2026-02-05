@@ -18,8 +18,8 @@ dependencies:
     specifier: ^0.11.2
     version: 0.11.6(@reduxjs/toolkit@2.11.2)(@types/react@19.1.0)(immer@10.2.0)(next@16.1.6)(react@19.1.0)(redux-thunk@3.1.0)(redux@5.0.1)
   '@hookform/resolvers':
-    specifier: ^3.9.1
-    version: 3.10.0(react-hook-form@7.55.0)
+    specifier: ^5.0.0
+    version: 5.2.2(react-hook-form@7.55.0)
   '@modelcontextprotocol/sdk':
     specifier: ^1.7.0
     version: 1.26.0(zod@3.24.2)
@@ -1154,11 +1154,12 @@ packages:
       hono: 4.11.7
     dev: false
 
-  /@hookform/resolvers@3.10.0(react-hook-form@7.55.0):
-    resolution: {integrity: sha512-79Dv+3mDF7i+2ajj7SkypSKHhl1cbln1OGavqrsF7p6mbUv11xpqpacPsGDCTRvCSjEEIez2ef1NveSVL3b0Ag==}
+  /@hookform/resolvers@5.2.2(react-hook-form@7.55.0):
+    resolution: {integrity: sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA==}
     peerDependencies:
-      react-hook-form: ^7.0.0
+      react-hook-form: ^7.55.0
     dependencies:
+      '@standard-schema/utils': 0.3.0
       react-hook-form: 7.55.0(react@19.1.0)
     dev: false
 
