@@ -204,8 +204,8 @@ dependencies:
     specifier: ^15.6.1
     version: 15.6.1(react@19.1.0)
   recharts:
-    specifier: 2.15.0
-    version: 2.15.0(react-dom@19.1.0)(react@19.1.0)
+    specifier: 2.15.4
+    version: 2.15.4(react-dom@19.1.0)(react@19.1.0)
   remark-gfm:
     specifier: ^4.0.1
     version: 4.0.1
@@ -5923,8 +5923,8 @@ packages:
       decimal.js-light: 2.5.1
     dev: false
 
-  /recharts@2.15.0(react-dom@19.1.0)(react@19.1.0):
-    resolution: {integrity: sha512-cIvMxDfpAmqAmVgc4yb7pgm/O1tmmkl/CjrvXuW+62/+7jj/iF9Ykm+hb/UJt42TREHMyd3gb+pkgoa2MxgDIw==}
+  /recharts@2.15.4(react-dom@19.1.0)(react@19.1.0):
+    resolution: {integrity: sha512-UT/q6fwS3c1dHbXv2uFgYJ9BMFHu3fwnd7AYZaEQhXuYQ4hgsxLvsUXzGdKeZrW5xopzDCvuA2N41WJ88I7zIw==}
     engines: {node: '>=14'}
     peerDependencies:
       react: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
