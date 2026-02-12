@@ -56,7 +56,7 @@
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "dotenv": "^16.4.7",
-    "drizzle-kit": "^0.30.6",
+    "drizzle-kit": "^0.31.0",
     "drizzle-orm": "0.29.3",
     "embla-carousel-react": "8.5.1",
     "event-source-polyfill": "^1.0.31",
