@@ -186,8 +186,8 @@ dependencies:
     specifier: ^19
     version: 19.1.0
   react-day-picker:
-    specifier: 8.10.1
-    version: 8.10.1(date-fns@4.1.0)(react@19.1.0)
+    specifier: 9.13.2
+    version: 9.13.2(react@19.1.0)
   react-dom:
     specifier: ^19
     version: 19.1.0(react@19.1.0)
@@ -376,6 +376,10 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
+
+  /@date-fns/tz@1.4.1:
+    resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
+    dev: false
 
   /@descope/access-key-management-widget@0.4.10(react@19.1.0):
     resolution: {integrity: sha512-StC2fJgHaEY8gQK9EVdOGgfJmedqTYfcX4cEGVrGQ49rd+ZEzQjD6GuE4wf+zqIzi9KG/RI9A0Qc27hS258mUg==}
@@ -3528,6 +3532,10 @@ packages:
     engines: {node: '>=12'}
     dev: false
 
+  /date-fns-jalali@4.1.0-0:
+    resolution: {integrity: sha512-hTIP/z+t+qKwBDcmmsnmjWTduxCg+5KfdqWQvb2X/8C9+knYY6epN/pfxdDuyVlSVeFz0sM5eEfwIUQ70U4ckg==}
+    dev: false
+
   /date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
     dev: false
@@ -5740,13 +5748,15 @@ packages:
       unpipe: 1.0.0
     dev: false
 
-  /react-day-picker@8.10.1(date-fns@4.1.0)(react@19.1.0):
-    resolution: {integrity: sha512-TMx7fNbhLk15eqcMt+7Z7S2KF7mfTId/XJDjKE8f+IUcFn0l08/kI4FiYTL/0yuOLmEcbR4Fwe3GJf/NiiMnPA==}
+  /react-day-picker@9.13.2(react@19.1.0):
+    resolution: {integrity: sha512-IMPiXfXVIAuR5Yk58DDPBC8QKClrhdXV+Tr/alBrwrHUw0qDDYB1m5zPNuTnnPIr/gmJ4ChMxmtqPdxm8+R4Eg==}
+    engines: {node: '>=18'}
     peerDependencies:
-      date-fns: ^2.28.0 || ^3.0.0
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0
+      react: '>=16.8.0'
     dependencies:
+      '@date-fns/tz': 1.4.1
       date-fns: 4.1.0
+      date-fns-jalali: 4.1.0-0
       react: 19.1.0
     dev: false
 

@@ -73,7 +73,7 @@
     "postgres": "^3.4.5",
     "posthog-js": "^1.233.1",
     "react": "^19",
-    "react-day-picker": "8.10.1",
+    "react-day-picker": "9.13.2",
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",
     "react-markdown": "^10.1.0",
