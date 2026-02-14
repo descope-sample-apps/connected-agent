@@ -13,7 +13,7 @@
     "db:reset": "node reset-db.js"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.2.6",
+    "@ai-sdk/anthropic": "^3.0.0",
     "@ai-sdk/groq": "^1.2.5",
     "@ai-sdk/openai": "latest",
     "@descope/nextjs-sdk": "^0.11.2",

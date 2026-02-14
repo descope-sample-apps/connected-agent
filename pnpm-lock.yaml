@@ -6,8 +6,8 @@ settings:
 
 dependencies:
   '@ai-sdk/anthropic':
-    specifier: ^1.2.6
-    version: 1.2.7(zod@3.24.2)
+    specifier: ^3.0.0
+    version: 3.0.44(zod@3.24.2)
   '@ai-sdk/groq':
     specifier: ^1.2.5
     version: 1.2.6(zod@3.24.2)
@@ -259,14 +259,14 @@ devDependencies:
 
 packages:
 
-  /@ai-sdk/anthropic@1.2.7(zod@3.24.2):
-    resolution: {integrity: sha512-4U5ysC88kZvFSuUnTzoovUlq7ktQMVUlwVfU6CXcQvq43mpTyHoDGsVjDvf580Lelo9xnXLFodRiabKeKR/4Dg==}
+  /@ai-sdk/anthropic@3.0.44(zod@3.24.2):
+    resolution: {integrity: sha512-ke1NldgohWJ7sWLqm9Um9TVIOrtg8Y8AecWeB6PgaLt+paTPisAsyNfe8FNOVusuv58ugLBqY/78AkhUmbjXHA==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.0.0
+      zod: ^3.25.76 || ^4.1.8
     dependencies:
-      '@ai-sdk/provider': 1.1.1
-      '@ai-sdk/provider-utils': 2.2.5(zod@3.24.2)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.15(zod@3.24.2)
       zod: 3.24.2
     dev: false
 
@@ -316,6 +316,18 @@ packages:
       zod: 3.24.2
     dev: false
 
+  /@ai-sdk/provider-utils@4.0.15(zod@3.24.2):
+    resolution: {integrity: sha512-8XiKWbemmCbvNN0CLR9u3PQiet4gtEVIrX4zzLxnCj06AwsEDJwJVBbKrEI4t6qE8XRSIvU2irka0dcpziKW6w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 3.24.2
+    dev: false
+
   /@ai-sdk/provider@1.1.1:
     resolution: {integrity: sha512-oGto9sz6CSn2Pa6uLPBiCrjphdRIwW/ua9g8W0mzt6o7jPkgdWwCC8XHAKLlfLxRAwHs2lFHc9i+S/cij9LnDA==}
     engines: {node: '>=18'}
@@ -325,6 +337,13 @@ packages:
 
   /@ai-sdk/provider@1.1.3:
     resolution: {integrity: sha512-qZMxYJ0qqX/RfnuIaab+zp8UAeJn/ygXXAffR5I4N0n1IrvA6qBsjc8hXLmBiMV2zoXlifkacF7sEFnYnjBcqg==}
+    engines: {node: '>=18'}
+    dependencies:
+      json-schema: 0.4.0
+    dev: false
+
+  /@ai-sdk/provider@3.0.8:
+    resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
     engines: {node: '>=18'}
     dependencies:
       json-schema: 0.4.0
