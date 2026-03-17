@@ -60,7 +60,7 @@
     "drizzle-orm": "0.29.3",
     "embla-carousel-react": "8.5.1",
     "event-source-polyfill": "^1.0.31",
-    "googleapis": "^128.0.0",
+    "googleapis": "^171.0.0",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
     "motion": "^12.7.4",
