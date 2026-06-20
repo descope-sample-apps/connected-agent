@@ -10,13 +10,13 @@
     "@ai-sdk/provider" "1.1.0"
     "@ai-sdk/provider-utils" "2.2.4"
 
-"@ai-sdk/groq@^1.2.5":
-  version "1.2.5"
-  resolved "https://registry.npmjs.org/@ai-sdk/groq/-/groq-1.2.5.tgz"
-  integrity sha512-GLQQ6U5W7IVU6L/4LNMhfB6RxMNvXYHMqspnJ+PIB6iiCdQ1nMVLxzTsxZibsvOEIgiawmaOQCKiwGwxtAxAlw==
+"@ai-sdk/groq@^3.0.0":
+  version "3.0.42"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/groq/-/groq-3.0.42.tgz#802982ba62aba27e089d14af736c5414fdec2ff9"
+  integrity sha512-3qJSxYTSxCLIxArQSP5hvaRmo4DkqNrFatDzyosCTSCqzWBGP7Xu3zeYzf+HkGuY0gxI9f6C2aHoUXvUmTqEkA==
   dependencies:
-    "@ai-sdk/provider" "1.1.0"
-    "@ai-sdk/provider-utils" "2.2.4"
+    "@ai-sdk/provider" "3.0.10"
+    "@ai-sdk/provider-utils" "4.0.30"
 
 "@ai-sdk/openai@latest":
   version "1.3.7"
@@ -35,10 +35,26 @@
     nanoid "^3.3.8"
     secure-json-parse "^2.7.0"
 
+"@ai-sdk/provider-utils@4.0.30":
+  version "4.0.30"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider-utils/-/provider-utils-4.0.30.tgz#1426d0cdba9f3b4f0412cf3c6ec04c8aec2546b1"
+  integrity sha512-VO7I+vPffqI5sMnPoUq5DCSqKIgQIk/naJWRdQVpz2ma2zoprC/lqiJiUEl2s6DfvTD76TbhD3q39ROjlA6rGw==
+  dependencies:
+    "@ai-sdk/provider" "3.0.10"
+    "@standard-schema/spec" "^1.1.0"
+    eventsource-parser "^3.0.8"
+
 "@ai-sdk/provider@1.1.0":
   version "1.1.0"
   resolved "https://registry.npmjs.org/@ai-sdk/provider/-/provider-1.1.0.tgz"
   integrity sha512-0M+qjp+clUD0R1E5eWQFhxEvWLNaOtGQRUaBn8CUABnSKredagq92hUS9VjOzGsTm37xLfpaxl97AVtbeOsHew==
+  dependencies:
+    json-schema "^0.4.0"
+
+"@ai-sdk/provider@3.0.10":
+  version "3.0.10"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider/-/provider-3.0.10.tgz#abfb6776f699951f9b8ac20cf1d42a3fc7d79752"
+  integrity sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==
   dependencies:
     json-schema "^0.4.0"
 
@@ -1574,6 +1590,11 @@
   resolved "https://registry.yarnpkg.com/@segment/isodate/-/isodate-1.0.3.tgz#f44e8202d5edd277ce822785239474b2c9411d4a"
   integrity sha512-BtanDuvJqnACFkeeYje7pWULVv8RgZaqKHWwGFnL/g/TH/CcZjkIVTfGDp/MAxmilYHUkrX70SqwnYSTNEaN7A==
 
+"@standard-schema/spec@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@standard-schema/spec/-/spec-1.1.0.tgz#a79b55dbaf8604812f52d140b2c9ab41bc150bb8"
+  integrity sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==
+
 "@swc/helpers@0.5.15":
   version "0.5.15"
   resolved "https://registry.yarnpkg.com/@swc/helpers/-/helpers-0.5.15.tgz#79efab344c5819ecf83a43f3f9f811fc84b516d7"
@@ -2627,6 +2648,11 @@ eventsource-parser@^3.0.0, eventsource-parser@^3.0.1:
   version "3.0.6"
   resolved "https://registry.yarnpkg.com/eventsource-parser/-/eventsource-parser-3.0.6.tgz#292e165e34cacbc936c3c92719ef326d4aeb4e90"
   integrity sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==
+
+eventsource-parser@^3.0.8:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/eventsource-parser/-/eventsource-parser-3.1.0.tgz#4e198eb91cd333d0a8ddcc036502b3618a25f449"
+  integrity sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==
 
 eventsource@^3.0.2:
   version "3.0.7"
