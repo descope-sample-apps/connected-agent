@@ -3090,10 +3090,10 @@ inline-style-parser@0.2.7:
   resolved "https://registry.yarnpkg.com/inline-style-parser/-/inline-style-parser-0.2.7.tgz#b1fc68bfc0313b8685745e4464e37f9376b9c909"
   integrity sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA==
 
-input-otp@1.4.1:
-  version "1.4.1"
-  resolved "https://registry.npmjs.org/input-otp/-/input-otp-1.4.1.tgz"
-  integrity sha512-+yvpmKYKHi9jIGngxagY9oWiiblPB7+nEO75F2l2o4vs+6vpPZZmUl4tBNYuTCvQjhvEIbdNeJu70bhfYP2nbw==
+input-otp@1.5.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/input-otp/-/input-otp-1.5.0.tgz#3374c67458084b9bad5ee75d09204bce5a9ebdc3"
+  integrity sha512-3AcfdW1sNG0FmSA5hHMBXG7jNW5CdcdKs8ln8JOmn6S2SRkoXoJx+2UwC+ZvjflfnOdHJx0SfQ9/YjlxVYLtGQ==
 
 "internmap@1 - 2":
   version "2.0.3"
