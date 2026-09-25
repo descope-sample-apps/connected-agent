@@ -132,8 +132,8 @@ dependencies:
     specifier: 4.1.0
     version: 4.1.0
   dotenv:
-    specifier: ^16.4.7
-    version: 16.4.7
+    specifier: ^18.0.0
+    version: 18.0.4
   drizzle-kit:
     specifier: ^0.30.6
     version: 0.30.6
@@ -3640,9 +3640,10 @@ packages:
       csstype: 3.1.3
     dev: false
 
-  /dotenv@16.4.7:
-    resolution: {integrity: sha512-47qPchRCykZC03FhkYAhrvwU4xDBFIj1QPqaarj6mdM/hgUzfPHcpkHJOn3mJAufFeeAxAzeGsr5X0M4k6fLZQ==}
+  /dotenv@18.0.4:
+    resolution: {integrity: sha512-jGt9uI5BIxpVO15kvy+iEFqNAwxYClKWnkptLjSNPnFLC003Imd0ofr3aEVsbpHdSBdSsbcApNIlz4nbyGMwdA==}
     engines: {node: '>=12'}
+    hasBin: true
     dev: false
 
   /drizzle-kit@0.30.6:
