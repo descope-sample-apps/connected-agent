@@ -48,6 +48,7 @@ import { SidebarHistory } from "@/components/sidebar-history";
 import AnimatedBeamComponent from "@/components/animated-beam";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useMobile } from "@/hooks/use-mobile";
 
 type PromptType =
   | "crm-lookup"
@@ -458,9 +459,26 @@ function ChatParamsHandler({
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [historySidebarOpen, setHistorySidebarOpen] = useState(true);
-  const historySidebarRef = useRef<{ fetchChatHistory: () => void }>(null);
+  const { timezone } = useTimezone();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const historySidebarRef = useRef<{
+    fetchChatHistory: (showLoading?: boolean) => void;
+  }>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useMobile();
+
+  // Chat state
+  const [historySidebarOpen, setHistorySidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+
+  // Make sure sidebars stay closed on mobile after resize
+  useEffect(() => {
+    setHistorySidebarOpen(!isMobile);
+    setSidebarOpen(!isMobile);
+  }, [isMobile]);
+
   const [showProfileScreen, setShowProfileScreen] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [hasActivePrompt, setHasActivePrompt] = useState(false);
@@ -497,14 +515,8 @@ export default function Home() {
     useState<string>(DEFAULT_CHAT_MODEL);
   const [showGoogleMeetPrompt, setShowGoogleMeetPrompt] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   const [isHandlingChatChange, setIsHandlingChatChange] = useState(false);
   const [chatRedirectAttempts, setChatRedirectAttempts] = useState(0);
-
-  // Get timezone information from the context
-  const { timezone } = useTimezone();
 
   const {
     messages,
@@ -1403,8 +1415,6 @@ export default function Home() {
     setChatRedirectAttempts(0);
   }, []);
 
-  const router = useRouter();
-
   // Save chat after new messages are received
   useEffect(() => {
     // Only save if we have messages and a current chat ID
@@ -1645,7 +1655,11 @@ export default function Home() {
                 >
                   {messages.length === 0 && !isHandlingChatChange ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-                      <h2 className="text-2xl font-bold mb-2">
+                      <h2
+                        className={`text-2xl font-bold mb-2 ${
+                          isMobile ? "text-center" : ""
+                        }`}
+                      >
                         Welcome to CRM Assistant
                       </h2>
                       <p className="text-muted-foreground mb-8 max-w-lg text-center">
@@ -1803,7 +1817,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {sidebarOpen && (
+              {sidebarOpen && !isMobile && (
                 <div
                   className={`${
                     showPromptExplanation && hasActivePrompt
