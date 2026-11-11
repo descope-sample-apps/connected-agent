@@ -139,7 +139,7 @@ dependencies:
     version: 0.30.6
   drizzle-orm:
     specifier: 0.45.2
-    version: 0.45.2(@neondatabase/serverless@1.0.0)(pg@8.14.1)(postgres@3.4.5)
+    version: 0.45.2(@neondatabase/serverless@1.0.0)(pg@8.14.1)(postgres@4.1.1)
   embla-carousel-react:
     specifier: 8.5.1
     version: 8.5.1(react@19.1.0)
@@ -177,8 +177,8 @@ dependencies:
     specifier: ^8.14.1
     version: 8.14.1
   postgres:
-    specifier: ^3.4.5
-    version: 3.4.5
+    specifier: ^4.0.0
+    version: 4.1.1
   posthog-js:
     specifier: ^1.233.1
     version: 1.234.10
@@ -3663,7 +3663,7 @@ packages:
       - supports-color
     dev: false
 
-  /drizzle-orm@0.45.2(@neondatabase/serverless@1.0.0)(pg@8.14.1)(postgres@3.4.5):
+  /drizzle-orm@0.45.2(@neondatabase/serverless@1.0.0)(pg@8.14.1)(postgres@4.1.1):
     resolution: {integrity: sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
@@ -3757,7 +3757,7 @@ packages:
     dependencies:
       '@neondatabase/serverless': 1.0.0
       pg: 8.14.1
-      postgres: 3.4.5
+      postgres: 4.1.1
     dev: false
 
   /dset@3.1.4:
@@ -5694,9 +5694,9 @@ packages:
     resolution: {integrity: sha512-i/hbxIE9803Alj/6ytL7UHQxRvZkI9O4Sy+J3HGc4F4oo/2eQAjTSNJ0bfxyse3bH0nuVesCk+3IRLaMtG3H6w==}
     dev: false
 
-  /postgres@3.4.5:
-    resolution: {integrity: sha512-cDWgoah1Gez9rN3H4165peY9qfpEo+SA61oQv65O3cRUE1pOEoJWwddwcqKE8XZYjbblOJlYDlLV4h67HrEVDg==}
-    engines: {node: '>=12'}
+  /postgres@4.1.1:
+    resolution: {integrity: sha512-1kJDojqNZC+iTHHXh6eif0J98LUtyLAePe/qkW1GK35eh2JixlsAiIKq3FGI+xqI+SUGTNodzf7TScVeIIyUug==}
+    engines: {node: '>=18'}
     dev: false
 
   /posthog-js@1.234.10:
