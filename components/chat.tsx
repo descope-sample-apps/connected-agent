@@ -17,6 +17,9 @@ import { OAuthProvider } from "@/lib/tools/base";
 import { connectToOAuthProvider, handleOAuthPopup } from "@/lib/oauth-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import ReactMarkdown from "react-markdown";
+import { cn } from "@/lib/utils";
+import { useMobile } from "@/hooks/use-mobile";
 
 // Define message types
 interface UIElement {
@@ -67,10 +70,13 @@ export default function Chat({
   const [input, setInput] = useState(initialPrompt);
   const [isLoading, setIsLoading] = useState(false);
   const [promptStartTime, setPromptStartTime] = useState<number | null>(null);
-  const [usageCount, setUsageCount] = useState<number>(0);
-  const [usageLimit, setUsageLimit] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [messagesWithActions, setMessagesWithActions] = useState<string[]>([]);
+  const [usage, setUsage] = useState<{
+    messageCount: number;
+    monthlyLimit: number;
+  } | null>(null);
+  const isMobile = useMobile();
 
   const {
     messages: chatMessages,
@@ -232,10 +238,6 @@ export default function Chat({
 
   const { toast } = useToast();
   const { user } = useAuth();
-  const [usage, setUsage] = useState<{
-    messageCount: number;
-    monthlyLimit: number;
-  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -1139,7 +1141,11 @@ export default function Chat({
                 </svg>
               </div>
 
-              <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+              <h1
+                className={`text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent ${
+                  isMobile ? "text-center" : ""
+                }`}
+              >
                 CRM Assistant
               </h1>
               <p className="text-muted-foreground text-center max-w-md mb-8 text-lg">
@@ -1373,7 +1379,11 @@ export default function Chat({
                 </svg>
               </div>
 
-              <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+              <h1
+                className={`text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent ${
+                  isMobile ? "text-center" : ""
+                }`}
+              >
                 CRM Assistant
               </h1>
               <p className="text-muted-foreground text-center max-w-md mb-8 text-lg">

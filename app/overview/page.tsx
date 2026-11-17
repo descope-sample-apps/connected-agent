@@ -661,7 +661,7 @@ export default function LandingPage() {
             </h2>
             <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mt-2 mb-4"></div>
             <p className="text-lg text-muted-foreground max-w-2xl">
-              Transform your application into a OAuth provider that other
+              Transform your application into an OAuth provider that other
               platforms can seamlessly integrate with, with Descope Inbound
               Apps.
             </p>
